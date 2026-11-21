@@ -83,9 +83,9 @@ body.k{padding-bottom:0}
 .kbar .back{min-height:44px}
 #fsv{text-align:center;font-weight:700;padding:0 4px}
 
-#tickets.board{display:grid;gap:8px;align-items:stretch;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(5,minmax(0,1fr));height:calc(100vh - 190px);height:calc(100dvh - 190px)}
+#tickets.board{display:grid;gap:8px;align-items:stretch;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(6,minmax(0,1fr));height:calc(100vh - 190px);height:calc(100dvh - 190px)}
 @media (min-width:600px){#tickets.board{grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,minmax(0,1fr))}}
-@media (min-width:1000px){#tickets.board{grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(2,minmax(0,1fr))}}
+@media (min-width:1000px){#tickets.board{grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(2,minmax(0,1fr))}}
 .cell{background:var(--card);border:3px solid var(--line);border-radius:10px;padding:8px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .cell.new{border-color:var(--new)}.cell.cook{border-color:var(--cook)}
 .cell.eat{opacity:.55}.cell.blank{opacity:.35}
@@ -294,7 +294,7 @@ document.addEventListener("visibilitychange",function(){if(!document.hidden)wake
 
 function renderGrid(){
   var nm={"":"빈 테이블","new":"접수","cook":"조리중","eat":"식사중"},h="";
-  for(var i=1;i<=14;i++){
+  for(var i=1;i<=16;i++){
     var mine=tableOrders(i);
     var st=!mine.length?"":mine.some(function(o){return o.status==="new"})?"new":mine.some(function(o){return o.status==="cook"})?"cook":"eat";
     h+='<button class="tile '+st+'" data-t="'+i+'"><b>'+i+'</b><span>'+nm[st]+'</span>'+'</button>';
@@ -359,7 +359,7 @@ function doOrder(){
 var kview="board";
 function renderBoard(){
   var h="";
-  for(var t=1;t<=14;t++){
+  for(var t=1;t<=16;t++){
     var os=tableOrders(t),pend=os.filter(function(o){return o.status!=="done"});
     var st=!os.length?"blank":pend.some(function(o){return o.status==="new"})?"new":pend.length?"cook":"eat";
     var lines={},keys=[],memos=[],qn=0,old=Infinity;
