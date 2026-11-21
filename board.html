@@ -99,6 +99,46 @@ body.k #kitchen{flex:1;min-height:0;display:flex;flex-direction:column;padding:6
 body.k .kbar{flex:none;margin-bottom:6px}
 body.k #tickets{flex:1;min-height:0;overflow:auto}
 body.k #tickets.board{height:auto;overflow:hidden}
+body.o{max-width:none;height:100vh;height:100dvh;overflow:hidden;padding-bottom:0}
+body.o #app{height:100%;display:flex;flex-direction:column}
+body.o header{position:static;flex:none}
+body.o #cust{flex:1;min-height:0;display:flex;flex-direction:column;padding:6px 10px 10px}
+body.o #orderview{flex:1;min-height:0;display:flex;flex-direction:column}
+.ohead{flex:none;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.ohead h1{font-size:22px;margin:0}
+.obody{flex:1;min-height:0;display:grid;gap:8px;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+body.o #menu{display:grid;gap:8px;min-height:0;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(5,minmax(0,1fr))}
+@media (min-width:600px){body.o #menu{grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,minmax(0,1fr))}}
+.mt{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:0;overflow:hidden;background:var(--card);border:2px solid var(--line);border-radius:12px;padding:4px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.mt.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--card))}
+.mt .me{font-size:clamp(22px,5vmin,44px);line-height:1}
+.mt .mn{font-weight:800;font-size:clamp(14px,2.6vmin,26px);line-height:1.2}
+.mt .mp{color:var(--muted);font-size:clamp(12px,2vmin,20px)}
+.mt .mq{position:absolute;top:4px;right:4px;min-width:34px;height:34px;padding:0 8px;border-radius:17px;background:var(--accent);color:var(--accent-text);font-weight:800;font-size:20px;line-height:34px}
+.mt .mx{position:absolute;top:4px;left:4px;width:46px;height:46px;border-radius:8px;background:var(--text);color:var(--bg);font-size:28px;line-height:44px;font-weight:800}
+.side{display:flex;flex-direction:column;gap:8px;min-height:0}
+body.o #history{max-height:17vh;max-height:17dvh;overflow:auto}
+body.o .hist{padding:8px}
+body.o .htotal{padding:6px 0 0;font-size:18px}
+body.o .horder{padding:3px 0}
+.side .memo{margin:0;height:46px}
+.acts{display:flex;gap:8px}
+.acts button{flex:1;min-height:68px;border:0;border-radius:8px;font:inherit;font-weight:800;font-size:20px;cursor:pointer;background:var(--accent);color:var(--accent-text)}
+.acts button.clearbig{flex:0 0 36%;background:var(--text);color:var(--bg)}
+.acts button:disabled{background:var(--line);color:var(--muted);cursor:default}
+@media (min-width:900px) and (orientation:landscape){
+.obody{grid-template-columns:minmax(0,1fr) 360px;grid-template-rows:minmax(0,1fr)}
+body.o #menu{grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(3,minmax(0,1fr))}
+body.o #history{flex:1;max-height:none}
+.acts{flex-direction:column}
+.acts button{flex:none;min-height:88px;font-size:24px}
+.acts button.clearbig{flex:none}
+}
+.mt.act{background:var(--text);color:var(--bg);border-color:var(--text)}
+.mt.act .mn{font-size:clamp(16px,3vmin,30px)}
+.mt.act .mp{color:inherit;opacity:.85}
+.mt.act.go{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.mt.act.off{background:var(--line);color:var(--muted);border-color:var(--line);cursor:default}
 .hide{display:none}
 </style>
 </head>
@@ -128,12 +168,14 @@ body.k #tickets.board{height:auto;overflow:hidden}
     <div class="grid" id="grid"></div>
   </div>
   <div id="orderview" class="hide">
-    <div class="hello"><h1 id="otitle"></h1><button class="back" id="back">← 테이블 선택</button></div>
-    <div id="history"></div>
-    <div class="cat">새 주문</div>
-    <input id="memo" class="memo" maxlength="60" placeholder="요청사항 (예: 공기밥 빼주세요)">
-    <div id="menu"></div>
-    <div class="bar"><button id="order" disabled>메뉴를 골라주세요</button></div>
+    <div class="ohead"><h1 id="otitle"></h1><button class="back" id="back">← 테이블 선택</button></div>
+    <div class="obody">
+      <div id="menu"></div>
+      <aside class="side">
+        <div id="history"></div>
+        <input id="memo" class="memo" maxlength="60" placeholder="요청사항 (예: 공기밥 빼주세요)">
+      </aside>
+    </div>
   </div>
 </main>
 
@@ -186,21 +228,21 @@ function tableOrders(t){return orders.filter(function(o){return o.table==t&&!o.c
 function total(t){var s=0;tableOrders(t).forEach(function(o){o.items.forEach(function(i){s+=i.price*i.qty})});return s}
 
 function renderMenu(){
-  var lastC="";
-  $("menu").innerHTML=MENU.map(function(m){
-    var q=cart[m.id]||0;
-    var head=m.c!==lastC?'<div class="cat">'+m.c+'</div>':"";lastC=m.c;
-    return head+'<div class="item"><div class="emoji">'+m.e+'</div><div class="info"><b>'+m.name+'</b><span>'+won(m.price)+'</span></div><div class="qty">'+
-    (q?'<button data-d="-1" data-id="'+m.id+'" aria-label="'+m.name+' 빼기">−</button><output>'+q+'</output>':'')+
-    '<button class="plus" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 담기">+</button></div></div>';
-  }).join("");
   var n=0,sum=0;
   MENU.forEach(function(m){var q=cart[m.id]||0;n+=q;sum+=q*m.price});
-  var b=$("order");b.disabled=!n;
-  b.textContent=n?n+"개 주문하기 · "+won(sum):"메뉴를 골라주세요";
+  var has=cur&&tableOrders(cur).length>0;
+  var acts='<div class="mt act go'+(n?'':' off')+'" role="button" data-act="order"><div class="mn">주문하기</div><div class="mp">'+(n?n+'개 · '+won(sum):'메뉴를 골라주세요')+'</div></div>'+
+    '<div class="mt act'+(has?'':' off')+'" role="button" data-act="clear"><div class="mn">테이블 비우기</div><div class="mp">계산 완료</div></div>';
+  $("menu").innerHTML=acts+MENU.map(function(m){
+    var q=cart[m.id]||0;
+    return '<div class="mt'+(q?' on':'')+'" role="button" tabindex="0" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 담기"><div class="me">'+m.e+'</div><div class="mn">'+m.name+'</div><div class="mp">'+won(m.price)+'</div>'+
+    (q?'<div class="mq">'+q+'</div><div class="mx" role="button" data-d="-1" data-id="'+m.id+'" aria-label="'+m.name+' 빼기">−</div>':'')+'</div>';
+  }).join("");
 }
 $("menu").addEventListener("click",function(e){
-  var t=e.target.closest("button");if(!t)return;
+  var a=e.target.closest("[data-act]");
+  if(a){if(a.classList.contains("off"))return;if(a.dataset.act==="order")doOrder();else doClear();return}
+  var t=e.target.closest("[data-d]");if(!t)return;
   cart[t.dataset.id]=Math.max(0,(cart[t.dataset.id]||0)+(+t.dataset.d));
   renderMenu();
 });
@@ -227,21 +269,28 @@ function renderGrid(){
 }
 function openGrid(){
   cart={};armed=false;$("memo").value="";renderMenu();
-  $("orderview").classList.add("hide");$("gridview").classList.remove("hide");
+  $("orderview").classList.add("hide");$("gridview").classList.remove("hide");syncBody();
 }
 $("grid").addEventListener("click",function(e){
   var t=e.target.closest("button");if(!t)return;
   cur=t.dataset.t;cart={};armed=false;$("memo").value="";renderMenu();renderHistory();
   $("otitle").textContent=cur+"번 테이블";$("toast").innerHTML="";
-  $("gridview").classList.add("hide");$("orderview").classList.remove("hide");
+  $("gridview").classList.add("hide");$("orderview").classList.remove("hide");syncBody();
   window.scrollTo(0,0);
 });
 $("back").addEventListener("click",openGrid);
+function doClear(){
+  if(!cur)return;
+  orders.forEach(function(o){if(o.table==cur&&!o.closed){o.closed=true;save(o)}});
+  openGrid();renderKitchen();
+}
+function syncBody(){document.body.classList.toggle("o",!$("cust").classList.contains("hide")&&!$("orderview").classList.contains("hide"))}
 
 function renderHistory(){
   var os=tableOrders(cur);
+  renderMenu();
   if(!os.length){$("history").innerHTML="";return}
-  var h='<div class="cat">지금까지 주문</div><div class="hist">';
+  var h='<div class="hist">';
   os.forEach(function(o){
     var tm=new Date(o.time).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
     h+='<div class="horder"><div class="hmeta">'+tm+' · '+LABEL[o.status]+(o.memo?' · 📝 '+esc(o.memo):'')+'</div>';
@@ -250,15 +299,11 @@ function renderHistory(){
     });
     h+='</div>';
   });
-  h+='<div class="htotal"><b>합계</b><b>'+won(total(cur))+'</b></div><button class="clear" id="clear">'+'테이블 비우기 (계산 완료)'+'</button></div>';
+  h+='<div class="htotal"><b>합계</b><b>'+won(total(cur))+'</b></div></div>';
   $("history").innerHTML=h;
 }
 $("history").addEventListener("click",function(e){
   var t=e.target.closest("button");if(!t)return;
-  if(t.id==="clear"){
-    orders.forEach(function(o){if(o.table==cur&&!o.closed){o.closed=true;save(o)}});
-    armed=false;openGrid();renderKitchen();return;
-  }
   var o=orders.filter(function(x){return x.id==t.dataset.o})[0];if(!o)return;
   var k=+t.dataset.i;o.items[k].qty--;
   if(o.items[k].qty<=0)o.items.splice(k,1);
@@ -266,7 +311,7 @@ $("history").addEventListener("click",function(e){
   armed=false;renderHistory();renderKitchen();
 });
 
-$("order").addEventListener("click",function(){
+function doOrder(){
   var items=MENU.filter(function(m){return cart[m.id]}).map(function(m){return{name:m.name,qty:cart[m.id],price:m.price}});
   if(!items.length)return;
   var no={id:newId(),table:cur,items:items,time:Date.now(),status:"new",memo:$("memo").value.trim(),closed:false};
@@ -275,7 +320,7 @@ $("order").addEventListener("click",function(){
   renderKitchen();beep();openGrid();
   $("toast").innerHTML='<div class="toast">'+tn+'번 테이블 주문이 주방에 전달됐어요.</div>';
   setTimeout(function(){$("toast").innerHTML=""},4000);
-});
+}
 
 var kview="board";
 function renderBoard(){
@@ -334,7 +379,7 @@ $("tickets").addEventListener("click",function(e){
 
 function show(which){
   var k=which==="kitchen";
-  $("cust").classList.toggle("hide",k);$("kitchen").classList.toggle("hide",!k);document.body.classList.toggle("k",k);
+  $("cust").classList.toggle("hide",k);$("kitchen").classList.toggle("hide",!k);document.body.classList.toggle("k",k);syncBody();
   $("t-cust").setAttribute("aria-selected",!k);$("t-kitchen").setAttribute("aria-selected",k);
   if(k)renderKitchen();
 }
