@@ -206,14 +206,14 @@ var MENU=[
   {id:3,c:"백반",name:"삼치구이 백반",price:13000,e:"🐟"},
   {id:4,c:"백반",name:"갈치구이 백반",price:13000,e:"🐟"},
   {id:5,c:"백반",name:"영광굴비 백반",price:15000,e:"🐟"},
-  {id:6,c:"고기·국",name:"소고기불백",price:12000,e:"🥩"},
-  {id:7,c:"고기·국",name:"쭈꾸미삼겹살",price:12000,e:"🍖"},
+  {id:6,c:"고기·국",name:"소고기불백(1인분)",price:12000,e:"🥩"},
+  {id:7,c:"고기·국",name:"쭈꾸미삼겹살(1인분)",price:12000,e:"🍖"},
   {id:8,c:"고기·국",name:"육개장",price:10000,e:"🍲"},
-  {id:9,c:"고기·국",name:"물갈비",price:12000,e:"🍖"},
+  {id:9,c:"고기·국",name:"물갈비(1인분)",price:12000,e:"🍖"},
   {id:10,c:"탕·조림",name:"닭볶음탕",price:30000,e:"🍗"},
-  {id:11,c:"탕·조림",name:"갈치조림",price:40000,e:"🥘"},
-  {id:12,c:"탕·조림",name:"고등어조림",price:30000,e:"🥘"},
-  {id:13,c:"탕·조림",name:"고등어김치조림",price:30000,e:"🥘"}
+  {id:11,c:"탕·조림",name:"갈치조림(1인분)",price:40000,e:"🥘"},
+  {id:12,c:"탕·조림",name:"고등어조림(1인분)",price:30000,e:"🥘"},
+  {id:13,c:"탕·조림",name:"고등어김치조림(1인분)",price:30000,e:"🥘"}
 ];
 var LABEL={new:"접수",cook:"조리중",done:"완료"};
 var cart={},orders=[],audio=null,fs=null,auth=null,unsub=null,first=true,pruned=false,cur=null,armed=false;
@@ -231,11 +231,11 @@ function renderMenu(){
   var n=0,sum=0;
   MENU.forEach(function(m){var q=cart[m.id]||0;n+=q;sum+=q*m.price});
   var has=cur&&tableOrders(cur).length>0;
-  var acts='<div class="mt act go'+(n?'':' off')+'" role="button" data-act="order"><div class="mn">주문하기</div><div class="mp">'+(n?n+'개 · '+won(sum):'메뉴를 골라주세요')+'</div></div>'+
+  var acts='<div class="mt act go'+(n?'':' off')+'" role="button" data-act="order"><div class="mn">주문하기</div><div class="mp">'+(n?n+'개':'메뉴를 골라주세요')+'</div></div>'+
     '<div class="mt act'+(has?'':' off')+'" role="button" data-act="clear"><div class="mn">테이블 비우기</div><div class="mp">계산 완료</div></div>';
   $("menu").innerHTML=acts+MENU.map(function(m){
     var q=cart[m.id]||0;
-    return '<div class="mt'+(q?' on':'')+'" role="button" tabindex="0" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 담기"><div class="me">'+m.e+'</div><div class="mn">'+m.name+'</div><div class="mp">'+won(m.price)+'</div>'+
+    return '<div class="mt'+(q?' on':'')+'" role="button" tabindex="0" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 담기"><div class="me">'+m.e+'</div><div class="mn">'+m.name+'</div>'+
     (q?'<div class="mq">'+q+'</div><div class="mx" role="button" data-d="-1" data-id="'+m.id+'" aria-label="'+m.name+' 빼기">−</div>':'')+'</div>';
   }).join("");
 }
@@ -263,7 +263,7 @@ function renderGrid(){
   for(var i=1;i<=14;i++){
     var mine=tableOrders(i);
     var st=!mine.length?"":mine.some(function(o){return o.status==="new"})?"new":mine.some(function(o){return o.status==="cook"})?"cook":"eat";
-    h+='<button class="tile '+st+'" data-t="'+i+'"><b>'+i+'</b><span>'+nm[st]+'</span>'+(mine.length?'<span class="sum">'+won(total(i))+'</span>':'')+'</button>';
+    h+='<button class="tile '+st+'" data-t="'+i+'"><b>'+i+'</b><span>'+nm[st]+'</span>'+'</button>';
   }
   $("grid").innerHTML=h;
 }
@@ -295,11 +295,11 @@ function renderHistory(){
     var tm=new Date(o.time).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
     h+='<div class="horder"><div class="hmeta">'+tm+' · '+LABEL[o.status]+(o.memo?' · 📝 '+esc(o.memo):'')+'</div>';
     o.items.forEach(function(it,idx){
-      h+='<div class="hrow"><span>'+it.name+' × '+it.qty+'</span><span>'+won(it.price*it.qty)+'</span><button class="mini" data-o="'+o.id+'" data-i="'+idx+'" aria-label="'+it.name+' 하나 빼기">−</button></div>';
+      h+='<div class="hrow"><span>'+it.name+' × '+it.qty+'</span><span></span><button class="mini" data-o="'+o.id+'" data-i="'+idx+'" aria-label="'+it.name+' 하나 빼기">−</button></div>';
     });
     h+='</div>';
   });
-  h+='<div class="htotal"><b>합계</b><b>'+won(total(cur))+'</b></div></div>';
+  h+='</div>';
   $("history").innerHTML=h;
 }
 $("history").addEventListener("click",function(e){
