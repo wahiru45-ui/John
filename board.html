@@ -81,10 +81,8 @@ body.k{padding-bottom:0}
 .kbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .kl{display:flex;align-items:center;gap:8px}
 .kbar .back{min-height:44px}
-#fsv{min-width:48px;text-align:center;font-weight:700}
-.alarm{flex:none;display:block;width:100%;margin:0 0 6px;padding:14px;border:0;border-radius:8px;background:var(--text);color:var(--bg);font:inherit;font-weight:900;font-size:clamp(18px,3vmin,30px);cursor:pointer;animation:fl 1s steps(2,jump-none) infinite}
-@keyframes fl{50%{opacity:.45}}
-@media (prefers-reduced-motion:reduce){.alarm{animation:none}}
+#fsv{text-align:center;font-weight:700;padding:0 4px}
+
 #tickets.board{display:grid;gap:8px;align-items:stretch;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(5,minmax(0,1fr));height:calc(100vh - 190px);height:calc(100dvh - 190px)}
 @media (min-width:600px){#tickets.board{grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,minmax(0,1fr))}}
 @media (min-width:1000px){#tickets.board{grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(2,minmax(0,1fr))}}
@@ -189,10 +187,9 @@ body.o #history{flex:1;max-height:none}
 
 <main id="kitchen" class="hide">
   <div class="kbar">
-    <div class="kl"><button class="back" id="fsm" aria-label="글자 작게">A−</button><span id="fsv">100%</span><button class="back" id="fsp" aria-label="글자 크게">A+</button></div>
+    <div class="kl"><button class="back" id="fsm" aria-label="글자 작게">A−</button><span id="fsv">글자크기</span><button class="back" id="fsp" aria-label="글자 크게">A+</button></div>
     <div class="kl"><button class="back" id="snd">🔔 알림음 켜짐</button><button class="back" id="kv">카드로 보기</button></div>
   </div>
-  <button class="alarm hide" id="alarm"></button>
   <div id="tickets"></div>
 </main>
 </div>
@@ -259,9 +256,9 @@ $("menu").addEventListener("click",function(e){
   renderMenu();
 });
 
-var soundOn=true,fs=0,alarmN=0,alarmTimer=null,alarmEnd0=0,wl=null;
-try{soundOn=localStorage.getItem("ksnd")!=="0";fs=parseFloat(localStorage.getItem("kfs"))||0}catch(err){}
-if(!fs)fs=window.innerWidth<1400?.8:1;
+var soundOn=true,kfs=0,wl=null;
+try{soundOn=localStorage.getItem("ksnd")!=="0";kfs=parseFloat(localStorage.getItem("kfs"))||0}catch(err){}
+if(!kfs)kfs=window.innerWidth<1400?.8:1;
 function unlock(){try{audio=audio||new (window.AudioContext||window.webkitAudioContext)();if(audio.state==="suspended")audio.resume()}catch(err){}}
 document.addEventListener("pointerdown",unlock,true);
 function tone(f,t0,d,v){
@@ -276,28 +273,19 @@ function beep(){
   try{if(navigator.vibrate)navigator.vibrate([300,150,300])}catch(err){}
 }
 function ping(){try{unlock();tone(880,audio.currentTime,.25,.3)}catch(err){}}
-function showAlarm(){var a=$("alarm");a.classList.remove("hide");a.textContent="🔔 새 주문 "+alarmN+"건 — 눌러서 확인"}
-function alarmStop(){if(alarmTimer){clearInterval(alarmTimer);alarmTimer=null}alarmN=0;$("alarm").classList.add("hide")}
-function alarmStart(n){
-  alarmN+=n;showAlarm();
-  if(alarmTimer)return;
-  beep();alarmEnd0=Date.now()+180000;
-  alarmTimer=setInterval(function(){if(Date.now()>alarmEnd0){alarmStop();return}beep()},4500);
-}
-$("alarm").addEventListener("click",alarmStop);
 function setFs(v){
-  fs=Math.max(.6,Math.min(2,Math.round(v*10)/10));
-  document.documentElement.style.setProperty("--fs",fs);$("fsv").textContent=Math.round(fs*100)+"%";
-  try{localStorage.setItem("kfs",fs)}catch(err){}
+  kfs=Math.max(.6,Math.min(2,Math.round(v*10)/10));
+  document.documentElement.style.setProperty("--fs",kfs);
+  try{localStorage.setItem("kfs",kfs)}catch(err){}
 }
 function setSound(on){
   soundOn=on;$("snd").textContent=on?"🔔 알림음 켜짐":"🔕 알림음 꺼짐";
   try{localStorage.setItem("ksnd",on?"1":"0")}catch(err){}
 }
-$("fsm").onclick=function(){setFs(fs-.1)};
-$("fsp").onclick=function(){setFs(fs+.1)};
+$("fsm").onclick=function(){setFs(kfs-.1)};
+$("fsp").onclick=function(){setFs(kfs+.1)};
 $("snd").onclick=function(){setSound(!soundOn);if(soundOn)beep()};
-setFs(fs);setSound(soundOn);
+setFs(kfs);setSound(soundOn);
 function wake(){
   try{if(wl||!navigator.wakeLock||document.hidden||$("kitchen").classList.contains("hide"))return;
     navigator.wakeLock.request("screen").then(function(l){wl=l;l.addEventListener("release",function(){wl=null})}).catch(function(){})}catch(err){}
@@ -425,7 +413,7 @@ $("tickets").addEventListener("click",function(e){
 
 function show(which){
   var k=which==="kitchen";
-  $("cust").classList.toggle("hide",k);$("kitchen").classList.toggle("hide",!k);document.body.classList.toggle("k",k);syncBody();if(k)wake();else alarmStop();
+  $("cust").classList.toggle("hide",k);$("kitchen").classList.toggle("hide",!k);document.body.classList.toggle("k",k);syncBody();if(k)wake();
   $("t-cust").setAttribute("aria-selected",!k);$("t-kitchen").setAttribute("aria-selected",k);
   if(k)renderKitchen();
 }
@@ -461,7 +449,7 @@ function start(){
     net(snap.metadata.fromCache?"off":"ok");
     renderKitchen();
     if(cur&&!$("orderview").classList.contains("hide"))renderHistory();
-    if(freshN&&!$("kitchen").classList.contains("hide"))alarmStart(freshN);
+    if(freshN&&!$("kitchen").classList.contains("hide"))beep();
   },function(){net("err")});
 }
 
