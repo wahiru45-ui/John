@@ -130,14 +130,16 @@ body.o .horder{padding:3px 0}
 .side .memo{margin:0;height:46px}
 .rp{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:flex;align-items:center;justify-content:center;padding:10px}
 .rp.hide{display:none}
-.rpb{background:var(--bg);border-radius:14px;padding:12px;width:100%;max-width:560px;max-height:100%;overflow:auto}
-.rpb h2{margin:0 0 6px;font-size:20px}
-.rpg{display:grid;gap:8px;margin-bottom:10px;grid-template-columns:repeat(4,1fr)}
-.rpg.m{grid-template-columns:repeat(6,1fr)}
-.rpg button,.rpf button{min-height:56px;border:2px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;font-weight:800;font-size:22px;cursor:pointer;touch-action:manipulation}
+.rpb{background:var(--bg);border-radius:14px;padding:12px;width:100%;max-width:720px;max-height:100%;overflow:auto}
+.rpb h2{margin:0 0 8px;font-size:24px}
+@media (max-height:700px){.rpg button,.rpf button{min-height:52px;font-size:22px}.rpg{gap:6px;margin-bottom:6px}}
+.rpg{display:grid;gap:10px;margin-bottom:12px;grid-template-columns:repeat(4,1fr)}
+.rpg.m{grid-template-columns:repeat(3,1fr)}
+.rpg button,.rpf button{min-height:76px;border:2px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;font-weight:800;font-size:28px;cursor:pointer;touch-action:manipulation}
 .rpg button.on{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
 .rpf{display:flex;gap:8px}.rpf button{flex:1}.rpf button.ok{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
-.rv{font-weight:800;background:var(--bg);border-radius:6px;padding:2px 6px;display:inline-block}
+.rv{font-weight:800;background:var(--text)!important;color:var(--bg);border-radius:6px;padding:2px 8px;display:inline-block;font-size:calc(clamp(16px,2.8vmin,32px)*var(--fs,1))!important}
+.note.rv{margin-bottom:8px}
 .acts{display:flex;gap:8px}
 .acts button{flex:1;min-height:68px;border:0;border-radius:8px;font:inherit;font-weight:800;font-size:20px;cursor:pointer;background:var(--accent);color:var(--accent-text)}
 .acts button.clearbig{flex:0 0 36%;background:var(--text);color:var(--bg)}
@@ -174,7 +176,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 789</span><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -196,8 +198,8 @@ body.o #history{flex:1;max-height:none}
 </main>
 
 <div id="rp" class="rp hide"><div class="rpb">
-  <h2>예약 시간</h2><div id="rph" class="rpg"></div><div id="rpm" class="rpg m"></div>
-  <div class="rpf"><button id="rpn" type="button">예약 안 함</button><button id="rpc" type="button">닫기</button><button id="rpo" class="ok" type="button">확인</button></div>
+  <h2>예약 시간 · 시를 누르고 분을 누르세요</h2><div id="rph" class="rpg"></div><div id="rpm" class="rpg m"></div>
+  <div class="rpf"><button id="rpn" type="button">예약 안 함</button><button id="rpc" type="button">닫기</button></div>
 </div></div>
 
 <main id="kitchen" class="hide">
@@ -256,8 +258,8 @@ function renderMenu(){
   MENU.forEach(function(m){var q=cart[m.id]||0;n+=q;sum+=q*m.price});
   var has=cur&&tableOrders(cur).length>0;
   var acts='<div class="mt act go'+(n?'':' off')+'" role="button" data-act="order"><div class="mn">주문하기</div><div class="mp">'+(n?n+'개':'메뉴를 골라주세요')+(rtv&&n?' · '+rtv+' 예약':'')+'</div></div>'+
-    '<div class="mt act'+(rtv?' on':'')+'" role="button" data-act="resv"><div class="mn">'+(rtv?'🕒 '+rtv:'예약')+'</div><div class="mp">'+(rtv?'예약 변경':'시간 선택')+'</div></div>'+
-    '<div class="mt act'+(has?'':' off')+'" role="button" data-act="clear"><div class="mn">테이블 비우기</div><div class="mp">계산 완료</div></div>';
+    '<div class="mt act'+(has?'':' off')+'" role="button" data-act="clear"><div class="mn">테이블 비우기</div><div class="mp">계산 완료</div></div>'+
+    '<div class="mt act'+(rtv?' on':'')+'" role="button" data-act="resv"><div class="mn">'+(rtv?'🕒 '+rtv:'예약')+'</div><div class="mp">'+(rtv?'예약 변경':'시간 선택')+'</div></div>';
   $("menu").innerHTML=acts+MENU.map(function(m){
     var q=cart[m.id]||0;
     return '<div class="mt'+(q?' on':'')+'" role="button" tabindex="0" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 담기"><div class="me">'+m.e+'</div><div class="mn">'+m.name+'</div>'+
@@ -363,7 +365,7 @@ $("history").addEventListener("click",function(e){
 
 var rtv="",ph="",pm="00";
 function drawResv(){
-  var h="",i;for(i=10;i<=22;i++){var v=(i<10?"0":"")+i;h+='<button type="button" data-h="'+v+'" class="'+(ph===v?"on":"")+'">'+i+'시</button>'}
+  var h="",i;for(i=10;i<=21;i++){var v=(i<10?"0":"")+i;h+='<button type="button" data-h="'+v+'" class="'+(ph===v?"on":"")+'">'+i+'시</button>'}
   $("rph").innerHTML=h;
   var m="";["00","10","20","30","40","50"].forEach(function(v){m+='<button type="button" data-m="'+v+'" class="'+(pm===v?"on":"")+'">'+v+'분</button>'});
   $("rpm").innerHTML=m;
@@ -373,7 +375,7 @@ $("rp").addEventListener("click",function(e){
   var t=e.target.closest("button");
   if(!t){if(e.target===$("rp"))$("rp").classList.add("hide");return}
   if(t.dataset.h){ph=t.dataset.h;drawResv();return}
-  if(t.dataset.m){pm=t.dataset.m;drawResv();return}
+  if(t.dataset.m){pm=t.dataset.m;if(ph){rtv=ph+":"+pm;$("rp").classList.add("hide");renderMenu()}else drawResv();return}
   if(t.id==="rpn"){rtv="";$("rp").classList.add("hide");renderMenu();return}
   if(t.id==="rpc"){$("rp").classList.add("hide");return}
   if(t.id==="rpo"){if(!ph)return;rtv=ph+":"+pm;$("rp").classList.add("hide");renderMenu()}
