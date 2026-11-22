@@ -87,7 +87,24 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, updateDoc, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig } from "./order-config.js";
+// Firebase 연결 정보
+// 기존 index.html과 같은 Firebase 프로젝트(house-order-a689f)
+const firebaseConfig = {
+  apiKey: "AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",
+  authDomain: "house-order-a689f.firebaseapp.com",
+  projectId: "house-order-a689f",
+  storageBucket: "house-order-a689f.firebasestorage.app",
+  messagingSenderId: "621901289473",
+  appId: "1:621901289473:web:952c5951744cd9f5b40800"
+};
+
+// 가게 정보
+const SHOP = {
+  name: "맛있는밥집 쌍촌본점",
+  phone: "010-6572-5152",
+  closedDay: 0 // 0 = 일요일 휴무
+};
+
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app), db = getFirestore(app);
