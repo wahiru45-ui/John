@@ -13,7 +13,14 @@
   section { background: #fff; margin: 12px; border-radius: 14px; padding: 16px; }
   h2 { font-size: 17px; margin-bottom: 6px; }
   .sub { font-size: 13px; color: #888; margin-bottom: 12px; }
-  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .weeknav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .weeknav span { font-weight: 700; font-size: 15px; }
+  .weeknav button { width: 40px; height: 36px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-size: 16px; }
+  .weeknav button:disabled { opacity: .3; }
+  .date:disabled { background: #f4f4f4; color: #ccc; border-color: #eee; }
+  .saved { font-size: 15px; line-height: 1.6; }
+  .saved button { margin-top: 8px; padding: 8px 14px; border-radius: 10px; border: 1px solid #ccc; background: #fafafa; font-size: 14px; }
   .date { border: 1px solid #ddd; border-radius: 12px; padding: 10px 4px; text-align: center; background: #fff; font-size: 15px; position: relative; }
   .date .d { font-weight: 700; }
   .date .w { font-size: 12px; color: #888; }
@@ -61,7 +68,12 @@
 
   <section>
     <h2>1. 날짜 고르기</h2>
-    <p class="sub">날짜를 누르면 아래에서 그날 도시락을 고를 수 있어요 (일요일 휴무)</p>
+    <p class="sub">날짜를 누르면 아래에서 그날 도시락을 고를 수 있어요</p>
+    <div class="weeknav">
+      <button id="wPrev">◀</button>
+      <span id="wTitle"></span>
+      <button id="wNext">▶</button>
+    </div>
     <div class="grid" id="dates"></div>
     <div class="panel" id="panel"></div>
   </section>
@@ -73,15 +85,18 @@
 
   <section>
     <h2>3. 받는 분 정보</h2>
+    <div class="saved" id="savedBox" style="display:none"></div>
+    <div id="infoForm">
     <label>연락처</label>
     <input id="phone" type="tel" placeholder="010-0000-0000">
     <label>이름</label>
     <input id="name" placeholder="홍길동">
     <label>배달 주소</label>
     <input id="addr" placeholder="주소와 상세주소">
+    </div>
     <label>요청사항 (선택)</label>
     <textarea id="memo" placeholder="예) 문 앞에 놓아주세요"></textarea>
-    <p class="hint">결제는 신청 확인 후 가게에서 연락드려 안내해 드려요.<br>나중에 날짜를 더 추가하고 싶으면 이 화면에서 다시 신청하시면 돼요.</p>
+    <p class="hint">처음 한 번만 입력하면 이 휴대폰에 자동 등록돼서 다음부터는 날짜만 고르면 돼요.<br>결제는 신청 확인 후 가게에서 연락드려 안내해 드려요.</p>
   </section>
 </div>
 
@@ -116,8 +131,8 @@ const MENUS = [
   { id: "warm",  name: "보온도시락",   price: 6600 },
   { id: "salad", name: "샐러드도시락", price: 6600 },
 ];
-const SHOW_DAYS = 14;      // 앞으로 며칠치 날짜를 보여줄지
-const CLOSED = [0];        // 휴무 요일 (0=일, 6=토)
+const CLOSED = [];          // 휴무 요일 넣으면 못 고름 (0=일, 6=토)
+const MAX_WEEK = 1;         // 이번 주 + 다음 몇 주까지 볼 수 있게 할지
 // ================
 
 const WD = ["일", "월", "화", "수", "목", "금", "토"];
@@ -131,12 +146,26 @@ let me = {};
 try { me = JSON.parse(localStorage.getItem(LS) || "{}"); } catch {}
 me.booked = me.booked || [];
 
-// 내일부터 SHOW_DAYS일 (휴무 제외), 날짜는 열 때마다 자동으로 바뀜
-const DATES = [];
-for (let i = 1; DATES.length < SHOW_DAYS && i < SHOW_DAYS * 2; i++) {
-  const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i);
-  if (!CLOSED.includes(d.getDay())) DATES.push(ymd(d));
+// 내일이 들어있는 주(월~일)부터 보여줌. 날짜는 열 때마다 자동으로 바뀜
+const tomorrow = new Date(); tomorrow.setHours(0, 0, 0, 0); tomorrow.setDate(tomorrow.getDate() + 1);
+const FIRST = ymd(tomorrow);
+const baseMon = new Date(tomorrow); baseMon.setDate(tomorrow.getDate() - ((tomorrow.getDay() + 6) % 7));
+let weekIdx = 0;
+let DATES = [];
+const ALL = [];   // 고를 수 있는 모든 날짜 (주 넘겨도 장바구니 유지)
+function buildWeek() {
+  DATES = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(baseMon); d.setDate(baseMon.getDate() + weekIdx * 7 + i);
+    DATES.push(ymd(d));
+  }
+  for (let w = 0; w <= MAX_WEEK; w++) for (let i = 0; i < 7; i++) {
+    const d = new Date(baseMon); d.setDate(baseMon.getDate() + w * 7 + i);
+    const s = ymd(d); if (!ALL.includes(s)) ALL.push(s);
+  }
 }
+buildWeek();
+const canPick = s => s >= FIRST && !CLOSED.includes(new Date(s + "T00:00").getDay());
 
 const cart = {};   // { "2026-11-24": {heat:1, warm:0, salad:2} }
 let active = null;
@@ -144,15 +173,18 @@ let lastPicked = null;
 
 const dayCount = s => cart[s] ? MENUS.reduce((a, m) => a + (cart[s][m.id] || 0), 0) : 0;
 const dayMoney = s => cart[s] ? MENUS.reduce((a, m) => a + m.price * (cart[s][m.id] || 0), 0) : 0;
-const pickedDates = () => DATES.filter(s => dayCount(s) > 0);
+const pickedDates = () => ALL.filter(s => dayCount(s) > 0);
 
 function render() {
+  document.getElementById("wTitle").textContent = `${label(DATES[0])} ~ ${label(DATES[6])}`;
+  document.getElementById("wPrev").disabled = weekIdx === 0;
+  document.getElementById("wNext").disabled = weekIdx >= MAX_WEEK;
   document.getElementById("dates").innerHTML = DATES.map(s => {
     const d = new Date(s + "T00:00");
     const n = dayCount(s);
     const done = me.booked.includes(s);
     const cls = ["date", n ? "has" : "", s === active ? "on" : "", done && !n ? "done" : ""].join(" ");
-    return `<button class="${cls}" data-date="${s}">
+    return `<button class="${cls}" data-date="${s}" ${canPick(s) ? "" : "disabled"}>
       <div class="d">${d.getMonth() + 1}/${d.getDate()}</div>
       <div class="w">${WD[d.getDay()]}</div>
       <div class="c">${n ? n + "개" : done ? "신청됨" : ""}</div>
@@ -202,6 +234,9 @@ document.addEventListener("click", e => {
   const t = e.target.closest("button");
   if (!t) return;
   if (t.dataset.date) { active = t.dataset.date; render(); }
+  if (t.id === "wPrev" && weekIdx > 0) { weekIdx--; buildWeek(); active = null; render(); }
+  if (t.id === "wNext" && weekIdx < MAX_WEEK) { weekIdx++; buildWeek(); active = null; render(); }
+  if (t.id === "editInfo") { document.getElementById("infoForm").style.display = "block"; document.getElementById("savedBox").style.display = "none"; }
   if (t.dataset.m) {
     cart[active] = cart[active] || {};
     cart[active][t.dataset.m] = Math.max(0, (cart[active][t.dataset.m] || 0) + Number(t.dataset.d));
@@ -217,7 +252,13 @@ if (me.phone) {
   ["phone", "name", "addr"].forEach(k => document.getElementById(k).value = me[k] || "");
   const w = document.getElementById("welcome");
   w.style.display = "block";
-  w.textContent = `${me.name || ""}님, 다시 오셨네요! 정보가 자동으로 채워졌어요. 추가할 날짜만 골라 주세요.`;
+  w.textContent = `${me.name || ""}님, 다시 오셨네요! 날짜만 골라서 신청하시면 돼요.`;
+  const sb = document.getElementById("savedBox");
+  sb.style.display = "block";
+  const esc = x => String(x ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  sb.innerHTML = `👤 ${esc(me.name)}<br>📞 ${esc(me.phone)}<br>📍 ${esc(me.addr)}<br><button id="editInfo">정보 수정</button>`;
+  document.getElementById("memo").value = me.memo || "";
+  document.getElementById("infoForm").style.display = "none";
 }
 
 document.getElementById("submit").addEventListener("click", async () => {
@@ -238,7 +279,7 @@ document.getElementById("submit").addEventListener("click", async () => {
       total: orders.reduce((a, o) => a + o.amount, 0),
       status: "신청", createdAt: serverTimestamp()
     });
-    me = { phone: v("phone"), name: v("name"), addr: v("addr"),
+    me = { phone: v("phone"), name: v("name"), addr: v("addr"), memo: v("memo"),
            booked: [...new Set([...me.booked, ...ps])].filter(s => s >= ymd(new Date())) };
     try { localStorage.setItem(LS, JSON.stringify(me)); } catch {}
     document.getElementById("form").style.display = "none";

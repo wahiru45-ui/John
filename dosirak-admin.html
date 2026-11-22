@@ -46,6 +46,12 @@
   .od b { white-space: nowrap; margin-left: 8px; }
   .btns { display: flex; gap: 8px; margin-top: 8px; }
   .btns button { flex: 1; padding: 9px; border-radius: 8px; border: 1px solid #ccc; background: #fff; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 6px 0 4px; }
+  th, td { padding: 6px 4px; border-bottom: 1px solid #dde6f3; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: #666; font-weight: 600; font-size: 13px; }
+  tr.tot td { font-weight: 700; border-top: 2px solid #b9c9e0; border-bottom: none; }
+  .gap { height: 14px; }
   .empty { text-align: center; color: #999; padding: 40px; }
 </style>
 </head>
@@ -67,7 +73,14 @@
     </div>
     <div id="daySum"></div>
   </div>
-  <div class="box all" id="allSum"></div>
+  <div class="box all">
+    <div class="daynav">
+      <button id="wPrev">◀</button>
+      <div id="wTitle" style="flex:1;text-align:center;font-weight:700"></div>
+      <button id="wNext">▶</button>
+    </div>
+    <div id="allSum"></div>
+  </div>
   <div class="tabs" id="tabs"></div>
   <div id="list"></div>
 </div>
@@ -174,13 +187,56 @@ function daySummary() {
     ${pending ? `<div class="pend">⚠️ 이 날짜에 아직 확인 안 한 신청이 ${pending}건 있어요</div>` : ""}`;
 }
 
-// 오늘 이후 전체 종합
+// 주간 정산 (월~일)
+const monOf = s => { const d = new Date(s + "T00:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return ymd(d); };
+let weekMon = monOf(TODAY);
+const weekDates = () => [...Array(7)].map((_, i) => { const d = new Date(weekMon + "T00:00"); d.setDate(d.getDate() + i); return ymd(d); });
+const moveWeek = n => { const d = new Date(weekMon + "T00:00"); d.setDate(d.getDate() + n * 7); weekMon = ymd(d); render(); };
+document.getElementById("wPrev").onclick = () => moveWeek(-1);
+document.getElementById("wNext").onclick = () => moveWeek(1);
+
 function allSummary() {
-  const block = (title, st) => {
-    const os = subs.filter(s => s.status === st).flatMap(s => s.orders.filter(o => o.date >= TODAY));
-    return `<div class="stitle">${title} · ${new Set(os.map(o => o.date)).size}일치</div>${lines(countUp(os))}`;
-  };
-  return block("🟢 확인된 주문 (오늘 이후 전체)", "진행중") + '<div style="height:12px"></div>' + block("🟠 확인 대기 (오늘 이후 전체)", "신청");
+  const W = weekDates();
+  document.getElementById("wTitle").textContent = `📊 주간 정산 ${label(W[0])} ~ ${label(W[6])}`;
+  const ok = subs.filter(s => s.status === "진행중");
+  const inWeek = s => s.orders.filter(o => W.includes(o.date));
+
+  // 요일별
+  const dayRows = W.map(d => {
+    const r = countUp(ok.flatMap(s => s.orders.filter(o => o.date === d)));
+    return `<tr><td>${label(d)}</td><td>${r.boxes}개</td><td>${won(r.money)}</td></tr>`;
+  }).join("");
+  const all = countUp(ok.flatMap(inWeek));
+
+  // 메뉴별
+  const menuRows = Object.entries(all.count).map(([k, v]) => {
+    const price = ok.flatMap(inWeek).flatMap(o => o.items).find(i => i.name === k)?.price || 0;
+    return `<tr><td>${k}</td><td>${v}개</td><td>${won(v * price)}</td></tr>`;
+  }).join("");
+
+  // 손님별 (전화번호 기준)
+  const per = {};
+  ok.forEach(s => inWeek(s).forEach(o => {
+    const p = per[s.phone] = per[s.phone] || { name: s.name, days: new Set(), boxes: 0, money: 0 };
+    p.days.add(o.date); o.items.forEach(i => p.boxes += i.qty); p.money += o.amount;
+  }));
+  const custRows = Object.values(per).sort((a, b) => b.money - a.money)
+    .map(p => `<tr><td>${esc(p.name)}</td><td>${p.days.size}일 · ${p.boxes}개</td><td>${won(p.money)}</td></tr>`).join("");
+
+  const wait = countUp(subs.filter(s => s.status === "신청").flatMap(inWeek));
+
+  return `
+    <div class="stitle">요일별</div>
+    <table><tr><th>날짜</th><th>개수</th><th>금액</th></tr>${dayRows}
+    <tr class="tot"><td>합계</td><td>${all.boxes}개</td><td>${won(all.money)}</td></tr></table>
+    <div class="gap"></div>
+    <div class="stitle">메뉴별</div>
+    <table><tr><th>메뉴</th><th>개수</th><th>금액</th></tr>${menuRows || '<tr><td colspan="3">없음</td></tr>'}</table>
+    <div class="gap"></div>
+    <div class="stitle">손님별 정산</div>
+    <table><tr><th>손님</th><th>받는 날</th><th>금액</th></tr>${custRows || '<tr><td colspan="3">없음</td></tr>'}
+    <tr class="tot"><td>${Object.keys(per).length}명</td><td></td><td>${won(all.money)}</td></tr></table>
+    ${wait.boxes ? `<div class="pend">⚠️ 이 주에 아직 확인 안 한 신청: ${wait.boxes}개 · ${won(wait.money)} (정산에 미포함)</div>` : ""}`;
 }
 
 function render() {
