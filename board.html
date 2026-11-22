@@ -113,7 +113,7 @@ body.o #orderview{flex:1;min-height:0;display:flex;flex-direction:column}
 .ohead{flex:none;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
 .ohead h1{font-size:22px;margin:0}
 .obody{flex:1;min-height:0;display:grid;gap:8px;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
-body.o #menu{display:grid;gap:8px;min-height:0;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(5,minmax(0,1fr))}
+body.o #menu{display:grid;gap:8px;min-height:0;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(6,minmax(0,1fr))}
 @media (min-width:600px){body.o #menu{grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,minmax(0,1fr))}}
 .mt{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:0;overflow:hidden;background:var(--card);border:2px solid var(--line);border-radius:12px;padding:4px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .mt.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--card))}
@@ -128,7 +128,15 @@ body.o .hist{padding:8px}
 body.o .htotal{padding:6px 0 0;font-size:18px}
 body.o .horder{padding:3px 0}
 .side .memo{margin:0;height:46px}
-.rrow{display:flex;align-items:center;gap:6px;margin-bottom:6px}.rrow label{font-weight:800;white-space:nowrap}.rrow input{flex:1;min-width:0;height:46px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;font-size:20px;font-weight:700}.rrow .mini{height:46px;width:auto;padding:0 12px}
+.rp{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:flex;align-items:center;justify-content:center;padding:10px}
+.rp.hide{display:none}
+.rpb{background:var(--bg);border-radius:14px;padding:12px;width:100%;max-width:560px;max-height:100%;overflow:auto}
+.rpb h2{margin:0 0 6px;font-size:20px}
+.rpg{display:grid;gap:8px;margin-bottom:10px;grid-template-columns:repeat(4,1fr)}
+.rpg.m{grid-template-columns:repeat(6,1fr)}
+.rpg button,.rpf button{min-height:56px;border:2px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;font-weight:800;font-size:22px;cursor:pointer;touch-action:manipulation}
+.rpg button.on{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.rpf{display:flex;gap:8px}.rpf button{flex:1}.rpf button.ok{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
 .rv{font-weight:800;background:var(--bg);border-radius:6px;padding:2px 6px;display:inline-block}
 .acts{display:flex;gap:8px}
 .acts button{flex:1;min-height:68px;border:0;border-radius:8px;font:inherit;font-weight:800;font-size:20px;cursor:pointer;background:var(--accent);color:var(--accent-text)}
@@ -136,7 +144,7 @@ body.o .horder{padding:3px 0}
 .acts button:disabled{background:var(--line);color:var(--muted);cursor:default}
 @media (min-width:900px) and (orientation:landscape){
 .obody{grid-template-columns:minmax(0,1fr) 360px;grid-template-rows:minmax(0,1fr)}
-body.o #menu{grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(3,minmax(0,1fr))}
+body.o #menu{grid-template-columns:repeat(6,1fr);grid-template-rows:repeat(3,minmax(0,1fr))}
 body.o #history{flex:1;max-height:none}
 .acts{flex-direction:column}
 .acts button{flex:none;min-height:88px;font-size:24px}
@@ -181,12 +189,16 @@ body.o #history{flex:1;max-height:none}
       <div id="menu"></div>
       <aside class="side">
         <div id="history"></div>
-        <div class="rrow"><label for="rt">🕒 예약시간</label><input id="rt" type="time"><button class="mini" id="rtx" type="button">지움</button></div>
         <input id="memo" class="memo" maxlength="60" placeholder="요청사항 (예: 공기밥 빼주세요)">
       </aside>
     </div>
   </div>
 </main>
+
+<div id="rp" class="rp hide"><div class="rpb">
+  <h2>예약 시간</h2><div id="rph" class="rpg"></div><div id="rpm" class="rpg m"></div>
+  <div class="rpf"><button id="rpn" type="button">예약 안 함</button><button id="rpc" type="button">닫기</button><button id="rpo" class="ok" type="button">확인</button></div>
+</div></div>
 
 <main id="kitchen" class="hide">
   <div class="kbar">
@@ -243,7 +255,8 @@ function renderMenu(){
   var n=0,sum=0;
   MENU.forEach(function(m){var q=cart[m.id]||0;n+=q;sum+=q*m.price});
   var has=cur&&tableOrders(cur).length>0;
-  var acts='<div class="mt act go'+(n?'':' off')+'" role="button" data-act="order"><div class="mn">'+(($("rt")&&$("rt").value)?'예약 '+$("rt").value:'주문하기')+'</div><div class="mp">'+(n?n+'개':'메뉴를 골라주세요')+'</div></div>'+
+  var acts='<div class="mt act go'+(n?'':' off')+'" role="button" data-act="order"><div class="mn">주문하기</div><div class="mp">'+(n?n+'개':'메뉴를 골라주세요')+(rtv&&n?' · '+rtv+' 예약':'')+'</div></div>'+
+    '<div class="mt act'+(rtv?' on':'')+'" role="button" data-act="resv"><div class="mn">'+(rtv?'🕒 '+rtv:'예약')+'</div><div class="mp">'+(rtv?'예약 변경':'시간 선택')+'</div></div>'+
     '<div class="mt act'+(has?'':' off')+'" role="button" data-act="clear"><div class="mn">테이블 비우기</div><div class="mp">계산 완료</div></div>';
   $("menu").innerHTML=acts+MENU.map(function(m){
     var q=cart[m.id]||0;
@@ -253,7 +266,7 @@ function renderMenu(){
 }
 $("menu").addEventListener("click",function(e){
   var a=e.target.closest("[data-act]");
-  if(a){if(a.classList.contains("off"))return;if(a.dataset.act==="order")doOrder();else doClear();return}
+  if(a){if(a.classList.contains("off"))return;if(a.dataset.act==="order")doOrder();else if(a.dataset.act==="resv")openResv();else doClear();return}
   var t=e.target.closest("[data-d]");if(!t)return;
   cart[t.dataset.id]=Math.max(0,(cart[t.dataset.id]||0)+(+t.dataset.d));
   renderMenu();
@@ -310,7 +323,7 @@ function openGrid(){
 }
 $("grid").addEventListener("click",function(e){
   var t=e.target.closest("button");if(!t)return;
-  cur=t.dataset.t;cart={};armed=false;$("memo").value="";renderMenu();renderHistory();
+  cur=t.dataset.t;cart={};rtv="";armed=false;$("memo").value="";renderMenu();renderHistory();
   $("otitle").textContent=cur+"번 테이블";$("toast").innerHTML="";
   $("gridview").classList.add("hide");$("orderview").classList.remove("hide");syncBody();
   window.scrollTo(0,0);
@@ -348,14 +361,30 @@ $("history").addEventListener("click",function(e){
   armed=false;renderHistory();renderKitchen();
 });
 
-$("rt").addEventListener("input",renderMenu);$("rtx").onclick=function(){$("rt").value="";renderMenu()};
+var rtv="",ph="",pm="00";
+function drawResv(){
+  var h="",i;for(i=10;i<=22;i++){var v=(i<10?"0":"")+i;h+='<button type="button" data-h="'+v+'" class="'+(ph===v?"on":"")+'">'+i+'시</button>'}
+  $("rph").innerHTML=h;
+  var m="";["00","10","20","30","40","50"].forEach(function(v){m+='<button type="button" data-m="'+v+'" class="'+(pm===v?"on":"")+'">'+v+'분</button>'});
+  $("rpm").innerHTML=m;
+}
+function openResv(){ph=rtv?rtv.slice(0,2):"";pm=rtv?rtv.slice(3):"00";drawResv();$("rp").classList.remove("hide")}
+$("rp").addEventListener("click",function(e){
+  var t=e.target.closest("button");
+  if(!t){if(e.target===$("rp"))$("rp").classList.add("hide");return}
+  if(t.dataset.h){ph=t.dataset.h;drawResv();return}
+  if(t.dataset.m){pm=t.dataset.m;drawResv();return}
+  if(t.id==="rpn"){rtv="";$("rp").classList.add("hide");renderMenu();return}
+  if(t.id==="rpc"){$("rp").classList.add("hide");return}
+  if(t.id==="rpo"){if(!ph)return;rtv=ph+":"+pm;$("rp").classList.add("hide");renderMenu()}
+});
 function doOrder(){
   var items=MENU.filter(function(m){return cart[m.id]}).map(function(m){return{name:m.name,qty:cart[m.id],price:m.price}});
   if(!items.length)return;
-  var no={id:newId(),table:cur,items:items,time:Date.now(),status:"new",memo:$("memo").value.trim(),resv:$("rt").value||"",closed:false};
+  var no={id:newId(),table:cur,items:items,time:Date.now(),status:"new",memo:$("memo").value.trim(),resv:rtv,closed:false};
   orders.push(no);save(no);
   var tn=cur;
-  $("rt").value="";renderKitchen();ping();openGrid();
+  rtv="";renderKitchen();ping();openGrid();
   $("toast").innerHTML='<div class="toast">'+tn+'번 테이블 '+(no.resv?no.resv+' 예약 ':'')+'주문이 주방에 전달됐어요.</div>';
   setTimeout(function(){$("toast").innerHTML=""},4000);
 }
