@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>주문 QR 인쇄</title>
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Noto+Sans+KR:wght@500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f4eadb;font-family:"Noto Sans KR",sans-serif;color:#1f1a15;padding:16px}
+.tools{max-width:900px;margin:0 auto 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.tools label{font-weight:700}
+.tools input{width:80px;font-size:16px;padding:8px;border-radius:8px;border:1.5px solid #e3d7c4}
+.tools button{border:0;background:#1f1a15;color:#fff;border-radius:10px;padding:10px 18px;font:700 16px "Noto Sans KR",sans-serif;min-height:44px}
+.grid{max-width:900px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.card{background:#fff;border:2px solid #c3321c;border-radius:16px;text-align:center;overflow:hidden;break-inside:avoid}
+.card .top{background:#c3321c;color:#fff;padding:10px 8px}
+.card .top b{display:block;font:400 30px/1.1 "Do Hyeon",sans-serif}
+.card .top span{font-size:13px}
+.card img{width:80%;aspect-ratio:1;display:block;margin:12px auto 4px}
+.card p{margin:0 0 12px;font:400 19px "Do Hyeon",sans-serif}
+.card.out{border-color:#2556a8}.card.out .top{background:#2556a8}
+@media print{body{background:#fff;padding:0}.tools{display:none}.grid{gap:8px}}
+</style>
+</head>
+<body>
+<div class="tools">
+  <label>테이블 수 <input id="n" type="number" min="1" max="40" value="16"></label>
+  <button onclick="window.print()">인쇄하기</button>
+</div>
+<div class="grid" id="grid"></div>
+<script>
+{
+const grid = document.getElementById("grid"), n = document.getElementById("n");
+const qr = url => "https://api.qrserver.com/v1/create-qr-code/?size=500x500&margin=8&data=" + encodeURIComponent(url);
+const base = new URL("order.html", location.href).href;
+const draw = () => {
+  const count = Math.max(1, Math.min(40, parseInt(n.value, 10) || 16));
+  let h = `<div class="card out"><div class="top"><b>포장·배달 주문</b><span>맛있는밥집 쌍촌본점</span></div><img src="${qr(base)}" alt="포장 배달 주문 QR"><p>찍고 바로 주문하세요</p></div>`;
+  for (let i = 1; i <= count; i++) h += `<div class="card"><div class="top"><b>${i}번 테이블</b><span>맛있는밥집 쌍촌본점</span></div><img src="${qr(base + "?table=" + i)}" alt="${i}번 테이블 주문 QR"><p>찍고 바로 주문하세요</p></div>`;
+  grid.innerHTML = h;
+};
+n.addEventListener("change", draw);
+draw();
+}
+</script>
+</body>
+</html>
