@@ -128,6 +128,8 @@ body.o .hist{padding:8px}
 body.o .htotal{padding:6px 0 0;font-size:18px}
 body.o .horder{padding:3px 0}
 .side .memo{margin:0;height:46px}
+.rrow{display:flex;align-items:center;gap:6px;margin-bottom:6px}.rrow label{font-weight:800;white-space:nowrap}.rrow input{flex:1;min-width:0;height:46px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;font-size:20px;font-weight:700}.rrow .mini{height:46px;width:auto;padding:0 12px}
+.rv{font-weight:800;background:var(--bg);border-radius:6px;padding:2px 6px;display:inline-block}
 .acts{display:flex;gap:8px}
 .acts button{flex:1;min-height:68px;border:0;border-radius:8px;font:inherit;font-weight:800;font-size:20px;cursor:pointer;background:var(--accent);color:var(--accent-text)}
 .acts button.clearbig{flex:0 0 36%;background:var(--text);color:var(--bg)}
@@ -179,6 +181,7 @@ body.o #history{flex:1;max-height:none}
       <div id="menu"></div>
       <aside class="side">
         <div id="history"></div>
+        <div class="rrow"><label for="rt">🕒 예약시간</label><input id="rt" type="time"><button class="mini" id="rtx" type="button">지움</button></div>
         <input id="memo" class="memo" maxlength="60" placeholder="요청사항 (예: 공기밥 빼주세요)">
       </aside>
     </div>
@@ -240,7 +243,7 @@ function renderMenu(){
   var n=0,sum=0;
   MENU.forEach(function(m){var q=cart[m.id]||0;n+=q;sum+=q*m.price});
   var has=cur&&tableOrders(cur).length>0;
-  var acts='<div class="mt act go'+(n?'':' off')+'" role="button" data-act="order"><div class="mn">주문하기</div><div class="mp">'+(n?n+'개':'메뉴를 골라주세요')+'</div></div>'+
+  var acts='<div class="mt act go'+(n?'':' off')+'" role="button" data-act="order"><div class="mn">'+(($("rt")&&$("rt").value)?'예약 '+$("rt").value:'주문하기')+'</div><div class="mp">'+(n?n+'개':'메뉴를 골라주세요')+'</div></div>'+
     '<div class="mt act'+(has?'':' off')+'" role="button" data-act="clear"><div class="mn">테이블 비우기</div><div class="mp">계산 완료</div></div>';
   $("menu").innerHTML=acts+MENU.map(function(m){
     var q=cart[m.id]||0;
@@ -327,7 +330,7 @@ function renderHistory(){
   var h='<div class="hist">';
   os.forEach(function(o){
     var tm=new Date(o.time).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
-    h+='<div class="horder"><div class="hmeta">'+tm+' · '+LABEL[o.status]+(o.memo?' · 📝 '+esc(o.memo):'')+'</div>';
+    h+='<div class="horder"><div class="hmeta">'+tm+' · '+LABEL[o.status]+(o.resv?' · 🕒 '+o.resv+' 예약':'')+(o.memo?' · 📝 '+esc(o.memo):'')+'</div>';
     o.items.forEach(function(it,idx){
       h+='<div class="hrow"><span>'+it.name+' × '+it.qty+'</span><span></span><button class="mini" data-o="'+o.id+'" data-i="'+idx+'" aria-label="'+it.name+' 하나 빼기">−</button></div>';
     });
@@ -345,14 +348,15 @@ $("history").addEventListener("click",function(e){
   armed=false;renderHistory();renderKitchen();
 });
 
+$("rt").addEventListener("input",renderMenu);$("rtx").onclick=function(){$("rt").value="";renderMenu()};
 function doOrder(){
   var items=MENU.filter(function(m){return cart[m.id]}).map(function(m){return{name:m.name,qty:cart[m.id],price:m.price}});
   if(!items.length)return;
-  var no={id:newId(),table:cur,items:items,time:Date.now(),status:"new",memo:$("memo").value.trim(),closed:false};
+  var no={id:newId(),table:cur,items:items,time:Date.now(),status:"new",memo:$("memo").value.trim(),resv:$("rt").value||"",closed:false};
   orders.push(no);save(no);
   var tn=cur;
-  renderKitchen();ping();openGrid();
-  $("toast").innerHTML='<div class="toast">'+tn+'번 테이블 주문이 주방에 전달됐어요.</div>';
+  $("rt").value="";renderKitchen();ping();openGrid();
+  $("toast").innerHTML='<div class="toast">'+tn+'번 테이블 '+(no.resv?no.resv+' 예약 ':'')+'주문이 주방에 전달됐어요.</div>';
   setTimeout(function(){$("toast").innerHTML=""},4000);
 }
 
@@ -362,7 +366,7 @@ function renderBoard(){
   for(var t=1;t<=16;t++){
     var os=tableOrders(t),pend=os.filter(function(o){return o.status!=="done"});
     var st=!os.length?"blank":pend.some(function(o){return o.status==="new"})?"new":pend.length?"cook":"eat";
-    var lines={},keys=[],memos=[],qn=0,old=Infinity;
+    var lines={},keys=[],memos=[],qn=0,old=Infinity,rv='';
     pend.forEach(function(o){
       if(o.time<old)old=o.time;
       o.items.forEach(function(i){
@@ -371,11 +375,12 @@ function renderBoard(){
         lines[k].q+=i.qty;qn+=i.qty;
       });
       if(o.memo)memos.push(o.memo);
+      if(o.resv&&(!rv||o.resv<rv))rv=o.resv;
     });
     keys.sort(function(a,b){return a[0]===b[0]?0:a[0]==="n"?-1:1});
     var mins=pend.length?Math.floor((Date.now()-old)/60000):0;
     var body=st==="blank"?'<div class="cn">빈 테이블</div>':st==="eat"?'<div class="cn">서빙 완료</div>':
-      '<ul>'+keys.map(function(k){var l=lines[k];return '<li class="'+(l.s==="new"?"n":"")+'"><span>'+l.n+'</span><span class="q">× '+l.q+'</span></li>'}).join("")+'</ul>'+(memos.length?'<div class="mm">📝 '+esc(memos.join(" / "))+'</div>':'');
+      '<ul>'+keys.map(function(k){var l=lines[k];return '<li class="'+(l.s==="new"?"n":"")+'"><span>'+l.n+'</span><span class="q">× '+l.q+'</span></li>'}).join("")+'</ul>'+(rv?'<div class="mm rv">🕒 '+rv+' 예약</div>':'')+(memos.length?'<div class="mm">📝 '+esc(memos.join(" / "))+'</div>':'');
     var btn=pend.length?'<button class="act finish" data-t="'+t+'" data-a="done">완료</button>':'';
     h+='<div class="cell '+st+'"><div class="ch"><b>'+t+'번</b><span>'+(pend.length?(mins<1?"방금":mins+"분")+" · "+qn+"개":"")+'</span></div>'+body+btn+'</div>';
   }
@@ -398,7 +403,7 @@ function renderKitchen(){
     var btn=o.status!=="done"?'<button class="act finish" data-id="'+o.id+'">완료</button>':'';
     return '<div class="ticket '+o.status+'"><div class="thead"><b>'+o.table+'번 테이블<span class="state">'+LABEL[o.status]+'</span></b><span>'+(mins<1?"방금":mins+"분 전")+'</span></div><ul>'+
       o.items.map(function(i){return '<li><span>'+i.name+'</span><b>× '+i.qty+'</b></li>'}).join("")+'</ul>'+
-      (o.memo?'<div class="note">📝 '+esc(o.memo)+'</div>':'')+btn+'</div>';
+      (o.resv?'<div class="note rv">🕒 '+o.resv+' 예약</div>':'')+(o.memo?'<div class="note">📝 '+esc(o.memo)+'</div>':'')+btn+'</div>';
   }).join("");
 }
 $("tickets").addEventListener("click",function(e){
