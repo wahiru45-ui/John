@@ -90,6 +90,26 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
 .save{display:block;width:100%;border:0;background:var(--red);color:#fff;border-radius:14px;padding:16px;font-weight:700;font-size:17px;margin-top:14px}
 .save:disabled{opacity:.5}
 .etotal{display:flex;justify-content:space-between;font-weight:700;font-size:18px;padding-top:8px;border-top:1px solid var(--line);margin-top:6px}
+.state{border-radius:999px;padding:5px 12px;font-weight:700;font-size:14px;background:#555}
+.state.open{background:var(--ok)}.state.shut{background:var(--red)}
+.paid{background:#e7f1ea;color:var(--ok);border-radius:8px;padding:3px 8px;font-size:14px;font-weight:700;margin-left:6px}
+.unpaid{background:#fdecea;color:var(--red);border-radius:8px;padding:3px 8px;font-size:14px;font-weight:700;margin-left:6px}
+.money{font-size:15px}
+.money .line b{white-space:nowrap}
+.money .dc{color:var(--red)}
+.hrow{display:grid;grid-template-columns:44px 74px minmax(0,1fr) 14px minmax(0,1fr);gap:6px;align-items:center;padding:6px 0;border-top:1px dashed var(--line)}
+.hrow:first-of-type{border-top:0}
+.hrow b{font-size:17px}
+.hrow select{width:100%;padding:9px 4px;border:1.5px solid var(--line);border-radius:8px;font-size:16px;background:#fff;color:var(--ink)}
+.hrow select:disabled{opacity:.35}
+.tog{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700}
+.tog input{width:20px;height:20px;accent-color:var(--red)}
+.trow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,.8fr) auto 36px;gap:6px;align-items:center;padding:5px 0;font-size:14px}
+.trow input{width:100%;padding:9px 8px;border:1.5px solid var(--line);border-radius:8px;font-size:16px}
+.tdel{border:0;background:#eee;border-radius:8px;height:36px;color:var(--red);font-weight:700}
+.pause{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pause input{width:24px;height:24px;accent-color:var(--red)}
+.sum{grid-template-columns:repeat(5,minmax(0,1fr))}
 @media(max-width:600px){.sum{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
@@ -106,6 +126,8 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
 <div id="app" class="hide">
   <div class="top">
     <h1>배달·포장 주문</h1>
+    <span class="state" id="statePill">확인 중</span>
+    <button id="setBtn">⚙ 영업시간·할인</button>
     <button id="soundBtn">🔔 알림 소리 켜기</button>
     <button id="logout">로그아웃</button>
   </div>
@@ -136,8 +158,9 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
       <label class="field"><span>전화번호</span><input id="ePhone" type="tel" inputmode="numeric"></label>
       <label class="field" id="eAddrF"><span>배달 주소</span><input id="eAddr"></label>
     </div>
-    <div class="box"><h4>결제 (현장결제)</h4>
-      <div class="seg"><label><input type="radio" name="ePay" value="card"><span>카드</span></label><label><input type="radio" name="ePay" value="cash"><span>현금</span></label></div>
+    <div class="box"><h4>결제</h4>
+      <div class="seg" style="--n:3"><label><input type="radio" name="ePay" value="card"><span>카드</span></label><label><input type="radio" name="ePay" value="transfer"><span>계좌이체</span></label><label><input type="radio" name="ePay" value="cash"><span>현금</span></label></div>
+      <label class="field" id="eDepF"><span>입금자명</span><input id="eDep"></label>
       <div id="eRcBox">
         <h4 style="margin:12px 0 8px">현금영수증</h4>
         <div class="seg" style="--n:3"><label><input type="radio" name="eRc" value="no"><span>필요 없음</span></label><label><input type="radio" name="eRc" value="personal"><span>개인</span></label><label><input type="radio" name="eRc" value="business"><span>사업자</span></label></div>
@@ -150,10 +173,30 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
   </div>
 </div>
 
+<!-- 영업시간·할인 설정 창 -->
+<div class="modal" id="setModal">
+  <div class="sheet">
+    <div class="shead"><h3>영업시간·할인 설정</h3><button id="sClose">닫기</button></div>
+    <div class="box">
+      <div class="pause"><div><b>지금 주문 잠시 멈추기</b><div style="font-size:13px;color:var(--soft)">바쁠 때 켜면 영업시간이어도 손님 주문이 막혀요.</div></div><input type="checkbox" id="sPause"></div>
+    </div>
+    <div class="box"><h4>요일별 주문 받는 시간</h4><div id="sHours"></div>
+      <p style="font-size:13px;color:var(--soft);margin:8px 0 0">마감 시간이 시작보다 이르면 다음 날 새벽까지로 계산해요.</p>
+    </div>
+    <div class="box"><h4>주문 할인</h4>
+      <p style="font-size:13px;color:var(--soft);margin:0 0 6px">상품 금액이 기준 이상이면 결제 금액에서 한 번 할인돼요. 여러 구간에 해당하면 가장 큰 할인 하나만 적용돼요.</p>
+      <div id="sTiers"></div>
+      <button type="button" id="sAddTier" style="margin-top:8px;border:1.5px dashed var(--line);background:#fff;border-radius:10px;padding:10px;width:100%;font-weight:700">+ 할인 구간 추가</button>
+    </div>
+    <p class="err" id="sErr"></p>
+    <button class="save" id="sSave">설정 저장</button>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, setDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",
@@ -1187,8 +1230,76 @@ onAuthStateChanged(auth, user => {
   $("loginView").classList.toggle("hide", !!user);
   $("app").classList.toggle("hide", !user);
   if (unsub) { unsub(); unsub = null; }
-  if (user) listen();
+  if (unsubS) { unsubS(); unsubS = null; }
+  if (user) { listen(); listenSettings(); }
 });
+
+// ===== 영업시간·할인 설정 =====
+const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+const DEFAULTS = { hours: { 0: { closed: true, open: "10:00", close: "20:00" } }, paused: false, tiers: [{ min: 15000, amount: 3000 }, { min: 35000, amount: 5000 }, { min: 50000, amount: 7000 }] };
+let S = DEFAULTS, unsubS = null;
+// 결제 금액 구간별 할인: 상품 금액이 min 이상이면 amount 할인 (가장 큰 구간 하나만)
+const tiersOf = s => (Array.isArray(s.tiers) ? s.tiers : (s.discount ? [{ min: s.discountMin || 0, amount: s.discount }] : []))
+  .filter(t => t.amount > 0).sort((a, b) => a.min - b.min);
+const tierDiscount = (s, sub) => { let d = 0; for (const t of tiersOf(s)) if (sub > 0 && sub >= t.min) d = Math.max(d, t.amount); return Math.min(d, sub); };
+const nextTier = (s, sub) => tiersOf(s).find(t => t.min > sub && t.amount > tierDiscount(s, sub));
+const dayHours = d => (S.hours || {})[d] || { closed: false, open: "00:00", close: "24:00" };
+function shopOpen() {
+  if (S.paused) return false;
+  const k = new Date(Date.now() + 9 * 3600e3), h = dayHours(k.getUTCDay()), hm = k.toISOString().slice(11, 16);
+  if (h.closed) return false;
+  return h.close > h.open ? (hm >= h.open && hm < h.close) : (hm >= h.open || hm < h.close);
+}
+function showState() {
+  const o = shopOpen();
+  $("statePill").textContent = S.paused ? "주문 멈춤" : o ? "주문 받는 중" : "영업시간 아님";
+  $("statePill").className = "state " + (o ? "open" : "shut");
+}
+function listenSettings() {
+  unsubS = onSnapshot(doc(db, "settings", "shop"), s => { S = s.exists() ? { ...DEFAULTS, ...s.data() } : DEFAULTS; showState(); },
+    e => { console.error(e); $("statePill").textContent = "설정 규칙 확인 필요"; });
+}
+setInterval(showState, 30000);
+const TIMES = Array.from({ length: 49 }, (_, k) => String(Math.floor(k / 2)).padStart(2, "0") + (k % 2 ? ":30" : ":00"));
+const timeOpts = v => (TIMES.includes(v) ? TIMES : [...TIMES, v].sort()).map(t => `<option ${t === v ? "selected" : ""}>${t}</option>`).join("");
+$("setBtn").onclick = () => {
+  $("sPause").checked = !!S.paused;
+  drawTiers(tiersOf(S));
+  $("sHours").innerHTML = DAYS.map((d, i) => {
+    const h = dayHours(i), op = h.open === "00:00" && h.close === "24:00" ? "10:00" : h.open, cl = h.close === "24:00" ? "21:00" : h.close;
+    return `<div class="hrow"><b>${d}</b><label class="tog"><input type="checkbox" data-day="${i}" class="sOff" ${h.closed ? "checked" : ""}>휴무</label>
+      <select id="sO${i}" ${h.closed ? "disabled" : ""}>${timeOpts(op)}</select><span>~</span><select id="sC${i}" ${h.closed ? "disabled" : ""}>${timeOpts(cl)}</select></div>`;
+  }).join("");
+  $("sErr").textContent = "";
+  $("setModal").classList.add("on"); document.body.style.overflow = "hidden";
+};
+$("sHours").addEventListener("change", e => {
+  const c = e.target.closest(".sOff"); if (!c) return;
+  const i = c.dataset.day; $("sO" + i).disabled = $("sC" + i).disabled = c.checked;
+});
+function drawTiers(ts) {
+  $("sTiers").innerHTML = ts.map(t => `<div class="trow"><input class="tmin" type="number" inputmode="numeric" step="1000" value="${t.min}" aria-label="기준 금액"><span>원 이상 →</span><input class="tamt" type="number" inputmode="numeric" step="500" value="${t.amount}" aria-label="할인 금액"><span>원 할인</span><button type="button" class="tdel" aria-label="구간 삭제">✕</button></div>`).join("") || `<p style="color:var(--soft);font-size:14px">할인 없음</p>`;
+}
+const readTiers = () => [...document.querySelectorAll("#sTiers .trow")].map(r => ({ min: +r.querySelector(".tmin").value || 0, amount: +r.querySelector(".tamt").value || 0 }));
+$("sAddTier").onclick = () => { const ts = readTiers(); const last = ts[ts.length - 1]; ts.push({ min: last ? last.min + 10000 : 15000, amount: last ? last.amount + 1000 : 3000 }); drawTiers(ts); };
+$("sTiers").addEventListener("click", e => { const d = e.target.closest(".tdel"); if (!d) return; d.closest(".trow").remove(); if (!readTiers().length) drawTiers([]); });
+const closeSet = () => { $("setModal").classList.remove("on"); document.body.style.overflow = ""; };
+$("sClose").onclick = closeSet;
+$("setModal").addEventListener("click", e => { if (e.target === $("setModal")) closeSet(); });
+$("sSave").onclick = async () => {
+  const hours = {};
+  for (let i = 0; i < 7; i++) {
+    const closed = document.querySelector(`.sOff[data-day="${i}"]`).checked, open = $("sO" + i).value, close = $("sC" + i).value;
+    if (!closed && (!open || !close || open === close)) { $("sErr").textContent = `${DAYS[i]}요일 시간을 확인해 주세요.`; return; }
+    hours[i] = { closed, open: open || "10:00", close: close || "20:00" };
+  }
+  const tiers = [...document.querySelectorAll("#sTiers .trow")].map(r => ({ min: Math.max(0, parseInt(r.querySelector(".tmin").value, 10) || 0), amount: Math.max(0, parseInt(r.querySelector(".tamt").value, 10) || 0) }))
+    .filter(t => t.amount > 0).sort((a, b) => a.min - b.min);
+  $("sSave").disabled = true; $("sSave").textContent = "저장 중…";
+  try { await setDoc(doc(db, "settings", "shop"), { hours, paused: $("sPause").checked, tiers, updatedAt: serverTimestamp() }); closeSet(); }
+  catch (err) { console.error(err); $("sErr").textContent = "저장하지 못했어요. Firebase 규칙에 settings가 추가됐는지 확인해 주세요."; }
+  finally { $("sSave").disabled = false; $("sSave").textContent = "설정 저장"; }
+};
 function listen() {
   const kst = new Date(Date.now() + 9 * 3600e3);
   const start = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()) - 9 * 3600e3);
@@ -1229,8 +1340,8 @@ $("tabs").onclick = e => {
 function payText(o) {
   if (o.type === "table") return "카운터 계산";
   const p = o.payment || {};
-  if (p.method === "card") return "💳 카드 (현장결제)";
-  let t = "💵 현금 (현장결제)";
+  if (p.method === "card") return "💳 카드 (받을 때 결제)";
+  let t = p.method === "transfer" ? `🏦 계좌이체${p.depositor ? " (입금자 " + esc(p.depositor) + ")" : ""}${p.paid ? '<span class="paid">입금 확인</span>' : '<span class="unpaid">입금 전</span>'}` : "💵 현금 (받을 때 결제)";
   t += p.receipt ? ` · 현금영수증 ${p.receiptType === "business" ? "사업자" : "개인"} ${esc(p.receiptType === "business" ? p.receiptNo : fmtPhone(p.receiptNo))}` : " · 현금영수증 필요 없음";
   return t;
 }
@@ -1249,7 +1360,8 @@ function card(o) {
   return `<div class="card ${o.status === "new" ? "new" : ""}">
     <div class="head"><span class="code">${esc(o.code)}</span><span class="tag t-${o.type}">${TYPE[o.type] || ""}${o.type === "table" ? " " + esc(o.table) + "번" : ""}</span><span class="st">${ST[o.status] || ""}</span>${o.editedAt ? `<span class="edited">수정됨</span>` : ""}<span class="time">${time}</span></div>
     <ul class="items">${(o.items || []).map(i => `<li><span>${esc(i.name)}</span><b>× ${i.qty}</b></li>`).join("")}</ul>
-    <div class="total">${won(o.total)}</div>
+    ${o.discount ? `<div class="money"><div class="line"><span>상품 금액</span><b>${won(o.subtotal)}</b></div><div class="line dc"><span>할인</span><b>−${won(o.discount)}</b></div></div>` : ""}
+    <div class="total">${o.discount ? "결제 " : ""}${won(o.total)}</div>
     ${o.type !== "table" ? `
       ${c.name ? `<div class="line"><span>이름</span><b>${esc(c.name)}</b></div>` : ""}
       <div class="line"><span>전화</span><a href="tel:${esc(c.phone)}">${esc(fmtPhone(c.phone))}</a></div>
@@ -1258,6 +1370,7 @@ function card(o) {
     ${o.memo ? `<div class="memo">요청: ${esc(o.memo)}</div>` : ""}
     <div class="acts">
       ${act ? `<button class="go" data-id="${o.id}" data-to="${act[0]}">${act[1]}</button>` : ""}
+      ${o.payment?.method === "transfer" && !o.payment?.paid && o.status !== "canceled" ? `<button class="sub" data-paid="${o.id}">입금 확인</button>` : ""}
       ${!closed ? `<button class="sub" data-edit="${o.id}">수정</button>` : ""}
       ${["new", "accepted"].includes(o.status) ? `<button class="warn" data-id="${o.id}" data-to="canceled">취소</button>` : ""}
       ${closed ? `<button class="sub" data-id="${o.id}" data-to="accepted">되돌리기</button><button class="warn" data-delete="${o.id}">삭제</button>` : ""}
@@ -1279,6 +1392,7 @@ function render() {
     <div><small>오늘 배달·포장</small><b>${live.length}건</b></div>
     <div><small>합계</small><b>${won(sumBy(() => true))}</b></div>
     <div><small>카드</small><b>${won(sumBy(o => o.payment?.method === "card"))}</b></div>
+    <div><small>계좌이체</small><b>${won(sumBy(o => o.payment?.method === "transfer"))}</b></div>
     <div><small>현금 (영수증 ${live.filter(o => o.payment?.receipt).length}건)</small><b>${won(sumBy(o => o.payment?.method === "cash"))}</b></div>`;
 }
 
@@ -1290,6 +1404,13 @@ const confirmTap = (b, label) => {
   return false;
 };
 document.addEventListener("click", async e => {
+  const pd = e.target.closest("[data-paid]");
+  if (pd) {
+    if (!confirmTap(pd, "입금 확인했나요?")) return;
+    pd.disabled = true;
+    try { await updateDoc(doc(db, "onlineOrders", pd.dataset.paid), { "payment.paid": true }); } catch (err) { console.error(err); pd.disabled = false; }
+    return;
+  }
   const ed = e.target.closest("[data-edit]");
   if (ed) { openEdit(ed.dataset.edit); return; }
   const del = e.target.closest("[data-delete]");
@@ -1312,7 +1433,7 @@ const radio = (name, v) => { const r = document.querySelector(`input[name=${name
 const val = name => document.querySelector(`input[name=${name}]:checked`)?.value;
 function openEdit(id) {
   const o = orders.find(x => x.id === id); if (!o) return;
-  edit = { id, type: o.type, items: (o.items || []).map(i => ({ ...i, price: Number(i.price ?? ALL.find(m => m.name === i.name)?.price) || 0 })) };
+  edit = { id, type: o.type, discount: o.discount || 0, paid: !!o.payment?.paid, items: (o.items || []).map(i => ({ ...i, price: Number(i.price ?? ALL.find(m => m.name === i.name)?.price) || 0 })) };
   $("eTitle").textContent = `${o.code} 주문 수정`;
   const c = o.customer || {}, p = o.payment || {};
   radio("eHow", o.type === "delivery" ? "delivery" : "pickup");
@@ -1320,6 +1441,7 @@ function openEdit(id) {
   radio("ePay", p.method || "card");
   radio("eRc", p.receipt ? (p.receiptType || "personal") : "no");
   $("eRcNo").value = p.receiptNo || "";
+  $("eDep").value = p.depositor || "";
   $("eMemo").value = o.memo || "";
   $("eFind").value = ""; $("eFound").innerHTML = ""; $("eErr").textContent = "";
   document.querySelectorAll("#modal .box")[1].classList.toggle("hide", o.type === "table");
@@ -1330,12 +1452,14 @@ function openEdit(id) {
 function closeEdit() { $("modal").classList.remove("on"); document.body.style.overflow = ""; edit = null; }
 $("eClose").onclick = closeEdit;
 $("modal").addEventListener("click", e => { if (e.target === $("modal")) closeEdit(); });
-const eTotal = () => edit.items.reduce((s, i) => s + i.price * i.qty, 0);
+const eSub = () => edit.items.reduce((s, i) => s + i.price * i.qty, 0);
+const eDisc = () => tierDiscount(S, eSub());
+const eTotal = () => eSub() - eDisc();
 function drawItems() {
   $("eItems").innerHTML = edit.items.map((i, k) => `<div class="erow"><span class="nm">${esc(i.name)}<small>${won(i.price)}</small></span>
     <div class="step"><button data-eq="${k}" data-d="-1" aria-label="빼기">−</button><b>${i.qty}</b><button data-eq="${k}" data-d="1" aria-label="더하기">+</button></div>
     <button class="del" data-erm="${k}">삭제</button></div>`).join("") || `<p class="empty" style="padding:6px 0">메뉴가 없어요. 아래에서 추가하세요.</p>`;
-  $("eTotal").textContent = won(eTotal());
+  $("eTotal").textContent = eDisc() ? `${won(eSub())} − 할인 ${won(eDisc())} = ${won(eTotal())}` : won(eTotal());
 }
 $("eItems").addEventListener("click", e => {
   const q = e.target.closest("[data-eq]"), rm = e.target.closest("[data-erm]");
@@ -1356,7 +1480,8 @@ $("eFound").addEventListener("click", e => {
 });
 function syncEdit() {
   $("eAddrF").classList.toggle("hide", val("eHow") !== "delivery");
-  $("eRcBox").classList.toggle("hide", val("ePay") !== "cash");
+  $("eRcBox").classList.toggle("hide", val("ePay") === "card");
+  $("eDepF").classList.toggle("hide", val("ePay") !== "transfer");
   const rc = val("eRc");
   $("eRcF").classList.toggle("hide", rc === "no");
   $("eRcL").textContent = rc === "business" ? "사업자등록번호 (10자리)" : "휴대폰 번호";
@@ -1366,7 +1491,7 @@ $("eSave").onclick = async () => {
   if (!edit) return;
   $("eErr").textContent = "";
   if (!edit.items.length) { $("eErr").textContent = "메뉴가 하나 이상 있어야 해요. 주문을 없애려면 취소를 누르세요."; return; }
-  const upd = { items: edit.items, total: eTotal(), memo: $("eMemo").value.trim().slice(0, 300), editedAt: serverTimestamp() };
+  const upd = { items: edit.items, subtotal: eSub(), discount: eDisc(), total: eTotal(), memo: $("eMemo").value.trim().slice(0, 300), editedAt: serverTimestamp() };
   if (edit.type !== "table") {
     const type = val("eHow"), phone = digits($("ePhone").value), address = $("eAddr").value.trim();
     if (phone.length < 10 || phone.length > 11) { $("eErr").textContent = "전화번호를 확인해 주세요."; return; }
@@ -1375,7 +1500,8 @@ $("eSave").onclick = async () => {
     upd.customer = { name: $("eName").value.trim().slice(0, 30), phone, address: type === "delivery" ? address.slice(0, 150) : "" };
     const pay = { method: val("ePay"), receipt: false };
     const rc = val("eRc");
-    if (pay.method === "cash" && rc !== "no") {
+    if (pay.method === "transfer") { pay.depositor = $("eDep").value.trim().slice(0, 30); pay.paid = edit.paid; }
+    if (pay.method !== "card" && rc !== "no") {
       const no = digits($("eRcNo").value);
       if (rc === "business" ? no.length !== 10 : (no.length < 10 || no.length > 11)) { $("eErr").textContent = rc === "business" ? "사업자등록번호 10자리를 확인해 주세요." : "현금영수증 휴대폰 번호를 확인해 주세요."; return; }
       Object.assign(pay, { receipt: true, receiptType: rc, receiptNo: no });
