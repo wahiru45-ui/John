@@ -183,8 +183,9 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
     <div class="box"><h4>요일별 주문 받는 시간</h4><div id="sHours"></div>
       <p style="font-size:13px;color:var(--soft);margin:8px 0 0">마감 시간이 시작보다 이르면 다음 날 새벽까지로 계산해요.</p>
     </div>
-    <div class="box"><h4>주문 할인</h4>
+    <div class="box"><h4>최소 주문금액·할인</h4>
       <p style="font-size:13px;color:var(--soft);margin:0 0 6px">상품 금액이 기준 이상이면 결제 금액에서 한 번 할인돼요. 여러 구간에 해당하면 가장 큰 할인 하나만 적용돼요.</p>
+      <label class="field" style="margin:0 0 12px"><span>최소 주문금액 (원, 이 금액보다 적으면 손님이 주문할 수 없어요. 0이면 제한 없음)</span><input id="sMin" type="number" inputmode="numeric" min="0" step="1000"></label>
       <div id="sTiers"></div>
       <button type="button" id="sAddTier" style="margin-top:8px;border:1.5px dashed var(--line);background:#fff;border-radius:10px;padding:10px;width:100%;font-weight:700">+ 할인 구간 추가</button>
     </div>
@@ -1236,7 +1237,7 @@ onAuthStateChanged(auth, user => {
 
 // ===== 영업시간·할인 설정 =====
 const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
-const DEFAULTS = { hours: { 0: { closed: true, open: "10:00", close: "20:00" } }, paused: false, tiers: [{ min: 15000, amount: 3000 }, { min: 35000, amount: 5000 }, { min: 50000, amount: 7000 }] };
+const DEFAULTS = { hours: { 0: { closed: true, open: "10:00", close: "20:00" } }, paused: false, minOrder: 15000, tiers: [{ min: 15000, amount: 3000 }, { min: 35000, amount: 5000 }, { min: 50000, amount: 7000 }] };
 let S = DEFAULTS, unsubS = null;
 // 결제 금액 구간별 할인: 상품 금액이 min 이상이면 amount 할인 (가장 큰 구간 하나만)
 const tiersOf = s => (Array.isArray(s.tiers) ? s.tiers : (s.discount ? [{ min: s.discountMin || 0, amount: s.discount }] : []))
@@ -1265,6 +1266,7 @@ const timeOpts = v => (TIMES.includes(v) ? TIMES : [...TIMES, v].sort()).map(t =
 $("setBtn").onclick = () => {
   $("sPause").checked = !!S.paused;
   drawTiers(tiersOf(S));
+  $("sMin").value = S.minOrder ?? 15000;
   $("sHours").innerHTML = DAYS.map((d, i) => {
     const h = dayHours(i), op = h.open === "00:00" && h.close === "24:00" ? "10:00" : h.open, cl = h.close === "24:00" ? "21:00" : h.close;
     return `<div class="hrow"><b>${d}</b><label class="tog"><input type="checkbox" data-day="${i}" class="sOff" ${h.closed ? "checked" : ""}>휴무</label>
@@ -1296,7 +1298,7 @@ $("sSave").onclick = async () => {
   const tiers = [...document.querySelectorAll("#sTiers .trow")].map(r => ({ min: Math.max(0, parseInt(r.querySelector(".tmin").value, 10) || 0), amount: Math.max(0, parseInt(r.querySelector(".tamt").value, 10) || 0) }))
     .filter(t => t.amount > 0).sort((a, b) => a.min - b.min);
   $("sSave").disabled = true; $("sSave").textContent = "저장 중…";
-  try { await setDoc(doc(db, "settings", "shop"), { hours, paused: $("sPause").checked, tiers, updatedAt: serverTimestamp() }); closeSet(); }
+  try { await setDoc(doc(db, "settings", "shop"), { hours, paused: $("sPause").checked, minOrder: Math.max(0, parseInt($("sMin").value, 10) || 0), tiers, updatedAt: serverTimestamp() }); closeSet(); }
   catch (err) { console.error(err); $("sErr").textContent = "저장하지 못했어요. Firebase 규칙에 settings가 추가됐는지 확인해 주세요."; }
   finally { $("sSave").disabled = false; $("sSave").textContent = "설정 저장"; }
 };

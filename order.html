@@ -198,8 +198,9 @@ const firebaseConfig = {
 };
 const SHOP = { name: "맛있는밥집 쌍촌본점", phone: "010-6572-5152", bank: "광주은행 1121-023-048337 (예금주 민지송)", bankNo: "1121-023-048337" };
 // 직원 화면에서 설정하기 전 기본값: 일요일 휴무, 나머지 요일은 시간 제한 없음
+// 최소 주문금액 15,000원
 // 할인: 15,000원 이상 3,000원 / 35,000원 이상 5,000원 / 50,000원 이상 7,000원
-const DEFAULTS = { hours: { 0: { closed: true, open: "10:00", close: "20:00" } }, paused: false, tiers: [{ min: 15000, amount: 3000 }, { min: 35000, amount: 5000 }, { min: 50000, amount: 7000 }] };
+const DEFAULTS = { hours: { 0: { closed: true, open: "10:00", close: "20:00" } }, paused: false, minOrder: 15000, tiers: [{ min: 15000, amount: 3000 }, { min: 35000, amount: 5000 }, { min: 50000, amount: 7000 }] };
 // 주문 메뉴. 가격을 바꾸려면 숫자만 고치세요. [이름, 가격, 안내]
 const MENU = [
 {
@@ -1276,17 +1277,19 @@ const tiersOf = s => (Array.isArray(s.tiers) ? s.tiers : (s.discount ? [{ min: s
 const tierDiscount = (s, sub) => { let d = 0; for (const t of tiersOf(s)) if (sub > 0 && sub >= t.min) d = Math.max(d, t.amount); return Math.min(d, sub); };
 const nextTier = (s, sub) => tiersOf(s).find(t => t.min > sub && t.amount > tierDiscount(s, sub));
 const discountOf = sub => tierDiscount(S, sub);
+const minOrder = () => Math.max(0, +S.minOrder || 0);
+const short = sub => Math.max(0, minOrder() - sub);
 function updateBar(bump) {
   const n = [...cart.values()].reduce((a, b) => a + b, 0), sub = subTotal(), dc = discountOf(sub);
   $("cartbar").classList.toggle("show", n > 0);
   $("cartN").textContent = n;
   $("cartSum").textContent = n ? won(sub - dc) : "";
   const nx = nextTier(S, sub), ts = tiersOf(S);
-  $("cartDisc").textContent = !n ? "" : nx ? `${won(nx.min - sub)} 더 담으면 ${won(nx.amount)} 할인${dc ? ` (지금 ${won(dc)})` : ""}` : dc ? `${won(dc)} 할인 적용` : "";
+  $("cartDisc").textContent = !n ? "" : short(sub) ? `${won(short(sub))} 더 담아야 주문할 수 있어요` : nx ? `${won(nx.min - sub)} 더 담으면 ${won(nx.amount)} 할인${dc ? ` (지금 ${won(dc)})` : ""}` : dc ? `${won(dc)} 할인 적용` : "";
   $("discPill").textContent = ts.length ? `결제 할인 최대 ${won(Math.max(...ts.map(t => t.amount)))}` : "";
   $("discPill").classList.toggle("hide", !ts.length);
-  $("tierBar").innerHTML = ts.map(t => `<span>${won(t.min)} 이상 <b>−${won(t.amount)}</b></span>`).join("");
-  $("tierBar").classList.toggle("hide", !ts.length);
+  $("tierBar").innerHTML = (minOrder() ? `<span>최소 주문 <b style="color:var(--ink)">${won(minOrder())}</b></span>` : "") + ts.map(t => `<span>${won(t.min)} 이상 <b>−${won(t.amount)}</b></span>`).join("");
+  $("tierBar").classList.toggle("hide", !ts.length && !minOrder());
   if (bump) { const b = $("openCart"); b.classList.remove("bump"); void b.offsetWidth; b.classList.add("bump"); }
 }
 let toastT;
@@ -1328,10 +1331,12 @@ function renderCart() {
   $("mDisc").textContent = "−" + won(dc);
   $("mTotal").textContent = won(sub - dc);
   const nx = nextTier(S, sub);
-  $("mNudge").textContent = nx ? `${won(nx.min - sub)} 더 담으면 ${won(nx.amount)} 할인돼요.` : "";
-  $("mNudge").classList.toggle("hide", !nx);
-  $("submit").disabled = !open;
-  $("submit").textContent = open ? `${won(sub - dc)} 주문하기` : "지금은 주문 시간이 아니에요";
+  const sh = short(sub);
+  $("mNudge").textContent = sh ? `최소 주문금액은 ${won(minOrder())}이에요. ${won(sh)} 더 담아주세요.` : nx ? `${won(nx.min - sub)} 더 담으면 ${won(nx.amount)} 할인돼요.` : "";
+  $("mNudge").style.color = sh ? "var(--red)" : "";
+  $("mNudge").classList.toggle("hide", !sh && !nx);
+  $("submit").disabled = !open || !!sh;
+  $("submit").textContent = !open ? "지금은 주문 시간이 아니에요" : sh ? `${won(minOrder())} 이상 주문할 수 있어요` : `${won(sub - dc)} 주문하기`;
 }
 function openPanel(id) { $(id).classList.add("on"); $(id).scrollTop = 0; document.body.style.overflow = "hidden"; }
 function closePanel() { $("checkout").classList.remove("on"); document.body.style.overflow = ""; }
@@ -1366,6 +1371,7 @@ $("submit").onclick = async () => {
   applyHours();
   if (!open) { $("err").textContent = S.paused ? "지금은 주문을 잠시 받지 않아요." : "지금은 주문 시간이 아니에요. " + nextOpenText(); return; }
   const sub = subTotal(), dc = discountOf(sub);
+  if (short(sub)) { $("err").textContent = `최소 주문금액은 ${won(minOrder())}이에요. ${won(short(sub))} 더 담아주세요.`; return; }
   const order = {
     type: val("how"),
     table: null,
