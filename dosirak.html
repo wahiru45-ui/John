@@ -6,22 +6,36 @@
 <title>정기 도시락 신청</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; background: #f6f3ee; color: #2b2b2b; padding-bottom: 120px; }
+  body { font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; background: #f6f3ee; color: #2b2b2b; padding-bottom: 130px; }
   header { background: #d9532b; color: #fff; padding: 22px 18px; }
   header h1 { font-size: 22px; }
   header p { font-size: 14px; opacity: .9; margin-top: 4px; }
   section { background: #fff; margin: 12px; border-radius: 14px; padding: 16px; }
-  h2 { font-size: 17px; margin-bottom: 12px; }
-  .menu { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
-  .menu:last-child { border-bottom: none; }
+  h2 { font-size: 17px; margin-bottom: 6px; }
+  .sub { font-size: 13px; color: #888; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .date { border: 1px solid #ddd; border-radius: 12px; padding: 10px 4px; text-align: center; background: #fff; font-size: 15px; position: relative; }
+  .date .d { font-weight: 700; }
+  .date .w { font-size: 12px; color: #888; }
+  .date .c { font-size: 12px; color: #d9532b; font-weight: 700; margin-top: 2px; min-height: 15px; }
+  .date.has { background: #fff1ea; border-color: #f0a888; }
+  .date.on { border: 2px solid #d9532b; }
+  .date.done { background: #eee; color: #aaa; }
+  .date.done .c { color: #2a8a4a; }
+  .panel { margin-top: 14px; border-top: 1px dashed #ddd; padding-top: 12px; }
+  .ptitle { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .menu { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+  .menu:last-of-type { border-bottom: none; }
   .menu .name { font-size: 16px; font-weight: 600; }
   .menu .price { font-size: 14px; color: #d9532b; margin-top: 2px; }
   .qty { display: flex; align-items: center; gap: 10px; }
   .qty button { width: 36px; height: 36px; border-radius: 50%; border: 1px solid #ccc; background: #fff; font-size: 20px; }
   .qty span { min-width: 20px; text-align: center; font-size: 17px; font-weight: 600; }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip { padding: 10px 14px; border-radius: 20px; border: 1px solid #ccc; background: #fff; font-size: 15px; }
-  .chip.on { background: #d9532b; border-color: #d9532b; color: #fff; }
+  .tools { display: flex; gap: 8px; margin-top: 10px; }
+  .tools button { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid #ccc; background: #fafafa; font-size: 14px; }
+  .pick { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f3f3; font-size: 14px; }
+  .pick:last-child { border-bottom: none; }
+  .pick b { white-space: nowrap; margin-left: 8px; }
   label { display: block; font-size: 14px; color: #666; margin: 12px 0 6px; }
   input, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; font-family: inherit; }
   textarea { height: 70px; resize: none; }
@@ -32,54 +46,53 @@
   .submit:disabled { background: #ccc; }
   .done { text-align: center; padding: 60px 20px; }
   .done h2 { font-size: 22px; margin-bottom: 10px; }
+  .done button { margin-top: 24px; padding: 14px 24px; border-radius: 12px; border: none; background: #d9532b; color: #fff; font-size: 16px; }
   .hint { font-size: 13px; color: #999; margin-top: 8px; }
+  .welcome { background: #eaf6ee; color: #2a6a3a; font-size: 14px; padding: 10px 12px; border-radius: 10px; margin: 12px 12px 0; }
 </style>
 </head>
 <body>
 <div id="form">
   <header>
     <h1>🍱 정기 보온도시락 신청</h1>
-    <p>원하는 도시락과 요일을 고르면 정해진 날 따뜻하게 배달해 드려요</p>
+    <p>받고 싶은 날짜를 고르고, 날짜마다 도시락을 골라 주세요</p>
   </header>
+  <div class="welcome" id="welcome" style="display:none"></div>
 
   <section>
-    <h2>1. 도시락 고르기 (하루 기준 개수)</h2>
-    <div id="menus"></div>
+    <h2>1. 날짜 고르기</h2>
+    <p class="sub">날짜를 누르면 아래에서 그날 도시락을 고를 수 있어요 (일요일 휴무)</p>
+    <div class="grid" id="dates"></div>
+    <div class="panel" id="panel"></div>
+  </section>
+
+  <section id="pickedBox" style="display:none">
+    <h2>2. 고른 내역</h2>
+    <div id="picked"></div>
   </section>
 
   <section>
-    <h2>2. 받을 요일</h2>
-    <div class="chips" id="days"></div>
-  </section>
-
-  <section>
-    <h2>3. 신청 기간</h2>
-    <div class="chips" id="weeks"></div>
-    <label>시작 날짜</label>
-    <input type="date" id="start">
-  </section>
-
-  <section>
-    <h2>4. 받는 분 정보</h2>
-    <label>이름</label>
-    <input id="name" placeholder="홍길동">
+    <h2>3. 받는 분 정보</h2>
     <label>연락처</label>
     <input id="phone" type="tel" placeholder="010-0000-0000">
+    <label>이름</label>
+    <input id="name" placeholder="홍길동">
     <label>배달 주소</label>
     <input id="addr" placeholder="주소와 상세주소">
     <label>요청사항 (선택)</label>
     <textarea id="memo" placeholder="예) 문 앞에 놓아주세요"></textarea>
-    <p class="hint">결제는 신청 확인 후 가게에서 연락드려 안내해 드려요.</p>
+    <p class="hint">결제는 신청 확인 후 가게에서 연락드려 안내해 드려요.<br>나중에 날짜를 더 추가하고 싶으면 이 화면에서 다시 신청하시면 돼요.</p>
   </section>
 </div>
 
 <div id="done" class="done" style="display:none">
   <h2>신청이 접수됐어요 ✅</h2>
   <p>가게에서 확인 후 연락드릴게요.</p>
+  <button id="again">날짜 더 추가하기</button>
 </div>
 
 <div class="bar" id="bar">
-  <div class="sum" id="sumText">도시락을 골라주세요</div>
+  <div class="sum" id="sumText">날짜와 도시락을 골라주세요</div>
   <button class="submit" id="submit" disabled>신청하기</button>
 </div>
 
@@ -97,71 +110,137 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const db = getFirestore(initializeApp(firebaseConfig));
 
+// ===== 설정 =====
 const MENUS = [
   { id: "heat",  name: "발열도시락",   price: 7500 },
   { id: "warm",  name: "보온도시락",   price: 6600 },
   { id: "salad", name: "샐러드도시락", price: 6600 },
 ];
-const DAYS = ["월", "화", "수", "목", "금", "토"];
-const WEEKS = [1, 2, 4];
+const SHOW_DAYS = 14;      // 앞으로 며칠치 날짜를 보여줄지
+const CLOSED = [0];        // 휴무 요일 (0=일, 6=토)
+// ================
 
-const qty = { heat: 0, warm: 0, salad: 0 };
-const days = new Set(["월", "화", "수", "목", "금"]);
-let weeks = 4;
-
+const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const won = n => n.toLocaleString("ko-KR") + "원";
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const label = s => { const d = new Date(s + "T00:00"); return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`; };
+
+// 이 휴대폰에 저장된 손님 정보 (다음에 들어오면 자동으로 채워짐)
+const LS = "dosirak_me";
+let me = {};
+try { me = JSON.parse(localStorage.getItem(LS) || "{}"); } catch {}
+me.booked = me.booked || [];
+
+// 내일부터 SHOW_DAYS일 (휴무 제외), 날짜는 열 때마다 자동으로 바뀜
+const DATES = [];
+for (let i = 1; DATES.length < SHOW_DAYS && i < SHOW_DAYS * 2; i++) {
+  const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i);
+  if (!CLOSED.includes(d.getDay())) DATES.push(ymd(d));
+}
+
+const cart = {};   // { "2026-11-24": {heat:1, warm:0, salad:2} }
+let active = null;
+let lastPicked = null;
+
+const dayCount = s => cart[s] ? MENUS.reduce((a, m) => a + (cart[s][m.id] || 0), 0) : 0;
+const dayMoney = s => cart[s] ? MENUS.reduce((a, m) => a + m.price * (cart[s][m.id] || 0), 0) : 0;
+const pickedDates = () => DATES.filter(s => dayCount(s) > 0);
 
 function render() {
-  document.getElementById("menus").innerHTML = MENUS.map(m => `
-    <div class="menu">
-      <div><div class="name">${m.name}</div><div class="price">${won(m.price)}</div></div>
-      <div class="qty">
-        <button data-m="${m.id}" data-d="-1">−</button>
-        <span>${qty[m.id]}</span>
-        <button data-m="${m.id}" data-d="1">+</button>
-      </div>
-    </div>`).join("");
-  document.getElementById("days").innerHTML = DAYS.map(d =>
-    `<button class="chip ${days.has(d) ? "on" : ""}" data-day="${d}">${d}</button>`).join("");
-  document.getElementById("weeks").innerHTML = WEEKS.map(w =>
-    `<button class="chip ${weeks === w ? "on" : ""}" data-w="${w}">${w}주</button>`).join("");
+  document.getElementById("dates").innerHTML = DATES.map(s => {
+    const d = new Date(s + "T00:00");
+    const n = dayCount(s);
+    const done = me.booked.includes(s);
+    const cls = ["date", n ? "has" : "", s === active ? "on" : "", done && !n ? "done" : ""].join(" ");
+    return `<button class="${cls}" data-date="${s}">
+      <div class="d">${d.getMonth() + 1}/${d.getDate()}</div>
+      <div class="w">${WD[d.getDay()]}</div>
+      <div class="c">${n ? n + "개" : done ? "신청됨" : ""}</div>
+    </button>`;
+  }).join("");
 
-  const perDay = MENUS.reduce((s, m) => s + m.price * qty[m.id], 0);
-  const count = days.size * weeks;
-  const total = perDay * count;
-  const ok = perDay > 0 && days.size > 0;
-  document.getElementById("sumText").innerHTML = ok
-    ? `하루 ${won(perDay)} × ${count}회 = <b>${won(total)}</b>`
-    : "도시락과 요일을 골라주세요";
-  document.getElementById("submit").disabled = !ok;
+  const panel = document.getElementById("panel");
+  if (!active) {
+    panel.innerHTML = `<p class="sub" style="margin:0">↑ 위에서 날짜를 눌러 주세요</p>`;
+  } else {
+    const c = cart[active] || {};
+    const done = me.booked.includes(active);
+    panel.innerHTML = `
+      <div class="ptitle">${label(active)} 도시락</div>
+      ${done ? `<p class="sub" style="margin:0 0 4px">이 날짜는 이미 신청하셨어요. 더 고르면 추가로 신청돼요.</p>` : ""}
+      ${MENUS.map(m => `
+        <div class="menu">
+          <div><div class="name">${m.name}</div><div class="price">${won(m.price)}</div></div>
+          <div class="qty">
+            <button data-m="${m.id}" data-d="-1">−</button>
+            <span>${c[m.id] || 0}</span>
+            <button data-m="${m.id}" data-d="1">+</button>
+          </div>
+        </div>`).join("")}
+      <div class="tools">
+        ${lastPicked && lastPicked !== active && dayCount(lastPicked) ? `<button data-copy="1">${label(lastPicked)}과 똑같이</button>` : ""}
+        ${dayCount(active) ? `<button data-clear="1">이 날 비우기</button>` : ""}
+      </div>`;
+  }
+
+  const ps = pickedDates();
+  document.getElementById("pickedBox").style.display = ps.length ? "block" : "none";
+  document.getElementById("picked").innerHTML = ps.map(s => {
+    const txt = MENUS.filter(m => cart[s][m.id]).map(m => `${m.name} ${cart[s][m.id]}`).join(", ");
+    return `<div class="pick"><span>${label(s)} ${txt}</span><b>${won(dayMoney(s))}</b></div>`;
+  }).join("");
+
+  const total = ps.reduce((a, s) => a + dayMoney(s), 0);
+  const boxes = ps.reduce((a, s) => a + dayCount(s), 0);
+  document.getElementById("sumText").innerHTML = ps.length
+    ? `${ps.length}일 · 도시락 ${boxes}개 = <b>${won(total)}</b>`
+    : "날짜와 도시락을 골라주세요";
+  document.getElementById("submit").disabled = !ps.length;
 }
 
 document.addEventListener("click", e => {
-  const t = e.target;
-  if (t.dataset.m) { qty[t.dataset.m] = Math.max(0, qty[t.dataset.m] + Number(t.dataset.d)); render(); }
-  if (t.dataset.day) { days.has(t.dataset.day) ? days.delete(t.dataset.day) : days.add(t.dataset.day); render(); }
-  if (t.dataset.w) { weeks = Number(t.dataset.w); render(); }
+  const t = e.target.closest("button");
+  if (!t) return;
+  if (t.dataset.date) { active = t.dataset.date; render(); }
+  if (t.dataset.m) {
+    cart[active] = cart[active] || {};
+    cart[active][t.dataset.m] = Math.max(0, (cart[active][t.dataset.m] || 0) + Number(t.dataset.d));
+    if (dayCount(active)) lastPicked = active;
+    render();
+  }
+  if (t.dataset.copy) { cart[active] = { ...cart[lastPicked] }; render(); }
+  if (t.dataset.clear) { delete cart[active]; render(); }
 });
 
-// 시작일 기본값: 내일
-const tm = new Date(Date.now() + 86400000);
-document.getElementById("start").value = tm.toISOString().slice(0, 10);
+// 이전에 신청한 정보 자동 채우기
+if (me.phone) {
+  ["phone", "name", "addr"].forEach(k => document.getElementById(k).value = me[k] || "");
+  const w = document.getElementById("welcome");
+  w.style.display = "block";
+  w.textContent = `${me.name || ""}님, 다시 오셨네요! 정보가 자동으로 채워졌어요. 추가할 날짜만 골라 주세요.`;
+}
 
 document.getElementById("submit").addEventListener("click", async () => {
   const v = id => document.getElementById(id).value.trim();
-  if (!v("name") || !v("phone") || !v("addr")) { alert("이름, 연락처, 주소를 입력해 주세요."); return; }
+  if (!v("name") || !v("phone") || !v("addr")) { alert("연락처, 이름, 주소를 입력해 주세요."); return; }
   const btn = document.getElementById("submit");
   btn.disabled = true; btn.textContent = "보내는 중...";
-  const perDay = MENUS.reduce((s, m) => s + m.price * qty[m.id], 0);
+  const ps = pickedDates();
+  const orders = ps.map(s => ({
+    date: s,
+    items: MENUS.filter(m => cart[s][m.id]).map(m => ({ name: m.name, price: m.price, qty: cart[s][m.id] })),
+    amount: dayMoney(s)
+  }));
   try {
     await addDoc(collection(db, "subscriptions"), {
-      items: MENUS.filter(m => qty[m.id] > 0).map(m => ({ name: m.name, price: m.price, qty: qty[m.id] })),
-      days: DAYS.filter(d => days.has(d)),
-      weeks, start: v("start"),
+      orders,
       name: v("name"), phone: v("phone"), addr: v("addr"), memo: v("memo"),
-      perDay, total: perDay * days.size * weeks,
+      total: orders.reduce((a, o) => a + o.amount, 0),
       status: "신청", createdAt: serverTimestamp()
     });
+    me = { phone: v("phone"), name: v("name"), addr: v("addr"),
+           booked: [...new Set([...me.booked, ...ps])].filter(s => s >= ymd(new Date())) };
+    try { localStorage.setItem(LS, JSON.stringify(me)); } catch {}
     document.getElementById("form").style.display = "none";
     document.getElementById("bar").style.display = "none";
     document.getElementById("done").style.display = "block";
@@ -170,6 +249,7 @@ document.getElementById("submit").addEventListener("click", async () => {
     btn.disabled = false; btn.textContent = "신청하기";
   }
 });
+document.getElementById("again").onclick = () => location.reload();
 
 render();
 </script>

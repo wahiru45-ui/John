@@ -6,32 +6,46 @@
 <title>도시락 신청 관리</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; background: #f2f2f2; color: #222; }
+  body { font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; background: #f2f2f2; color: #222; padding-bottom: 30px; }
   header { background: #333; color: #fff; padding: 16px; display: flex; justify-content: space-between; align-items: center; }
   header h1 { font-size: 19px; }
   header button { background: none; border: 1px solid #888; color: #fff; padding: 6px 10px; border-radius: 8px; }
   .login { max-width: 360px; margin: 60px auto; background: #fff; padding: 24px; border-radius: 14px; }
   .login input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; }
   .login button { width: 100%; padding: 14px; background: #d9532b; color: #fff; border: none; border-radius: 10px; font-size: 16px; }
-  .tabs { display: flex; gap: 8px; padding: 12px; overflow-x: auto; }
-  .tab { padding: 8px 14px; border-radius: 18px; border: 1px solid #ccc; background: #fff; white-space: nowrap; font-size: 15px; }
-  .tab.on { background: #333; color: #fff; border-color: #333; }
-  .today { margin: 0 12px 12px; background: #fff3e8; border-radius: 12px; padding: 14px; font-size: 15px; }
-  .today b { color: #d9532b; }
+  .box { margin: 12px; background: #fff; border-radius: 12px; padding: 14px; font-size: 15px; }
+  .box.day { background: #fff3e8; }
+  .box.all { background: #eef5ff; }
+  .daynav { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .daynav button { width: 40px; height: 40px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-size: 18px; }
+  .daynav input { flex: 1; padding: 9px; border: 1px solid #ccc; border-radius: 10px; font-size: 16px; }
   .stitle { font-weight: 700; margin-bottom: 6px; }
   .sline { display: flex; justify-content: space-between; padding: 3px 0; }
   .total2 { border-top: 1px solid #ddd; margin-top: 4px; padding-top: 6px; font-weight: 700; }
+  .deliv { border-top: 1px dashed #e3c3ad; margin-top: 10px; padding-top: 8px; }
+  .dv { padding: 6px 0; border-bottom: 1px solid #f3e1d4; font-size: 14px; }
+  .dv:last-child { border-bottom: none; }
+  .dv .dn { font-weight: 700; }
+  .dv .da { color: #666; }
+  .pend { color: #d9532b; font-size: 13px; margin-top: 6px; }
+  .tabs { display: flex; gap: 8px; padding: 0 12px 12px; overflow-x: auto; }
+  .tab { padding: 8px 14px; border-radius: 18px; border: 1px solid #ccc; background: #fff; white-space: nowrap; font-size: 15px; }
+  .tab.on { background: #333; color: #fff; border-color: #333; }
   .card { background: #fff; margin: 0 12px 12px; border-radius: 12px; padding: 14px; }
-  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
   .top .nm { font-size: 17px; font-weight: 700; }
-  .badge { font-size: 13px; padding: 4px 10px; border-radius: 12px; color: #fff; }
-  .신청 { background: #d9532b; } .진행중 { background: #2a8a4a; } .종료 { background: #999; }
+  .top .ct { font-weight: 700; color: #d9532b; }
   .row { font-size: 14px; color: #555; margin: 3px 0; }
   .row a { color: #1a6ad1; }
-  .items { margin: 8px 0; font-size: 15px; }
-  .total { font-weight: 700; font-size: 16px; }
-  .btns { display: flex; gap: 8px; margin-top: 10px; }
-  .btns button { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc; background: #fff; font-size: 14px; }
+  .sub { border: 1px solid #eee; border-radius: 10px; padding: 10px; margin-top: 10px; }
+  .shead { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #888; margin-bottom: 6px; }
+  .badge { font-size: 12px; padding: 3px 9px; border-radius: 12px; color: #fff; }
+  .신청 { background: #d9532b; } .진행중 { background: #2a8a4a; } .종료 { background: #999; }
+  .od { display: flex; justify-content: space-between; font-size: 14px; padding: 3px 0; }
+  .od.past { color: #aaa; }
+  .od b { white-space: nowrap; margin-left: 8px; }
+  .btns { display: flex; gap: 8px; margin-top: 8px; }
+  .btns button { flex: 1; padding: 9px; border-radius: 8px; border: 1px solid #ccc; background: #fff; font-size: 14px; }
   .empty { text-align: center; color: #999; padding: 40px; }
 </style>
 </head>
@@ -45,9 +59,16 @@
 </div>
 
 <div id="app" style="display:none">
+  <div class="box day">
+    <div class="daynav">
+      <button id="prev">◀</button>
+      <input type="date" id="pickDay">
+      <button id="next">▶</button>
+    </div>
+    <div id="daySum"></div>
+  </div>
+  <div class="box all" id="allSum"></div>
   <div class="tabs" id="tabs"></div>
-  <div class="today" id="today"></div>
-  <div class="today" id="totalBox" style="background:#eef5ff"></div>
   <div id="list"></div>
 </div>
 
@@ -69,12 +90,33 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
+const WD = ["일", "월", "화", "수", "목", "금", "토"];
+const won = n => (n || 0).toLocaleString("ko-KR") + "원";
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const label = s => { const d = new Date(s + "T00:00"); return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`; };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const TODAY = ymd(new Date());
+
 const TABS = ["전체", "신청", "진행중", "종료"];
 let tab = "전체";
 let subs = [];
 let unsub = null;
-const won = n => (n || 0).toLocaleString("ko-KR") + "원";
-const DAYNAME = ["일", "월", "화", "수", "목", "금", "토"];
+let day = TODAY;
+
+// 예전 방식(요일+주) 신청도 날짜별로 바꿔서 보여줌
+function normalize(s) {
+  if (Array.isArray(s.orders)) return s;
+  const orders = [];
+  if (s.start && s.days && s.weeks) {
+    const st = new Date(s.start + "T00:00");
+    for (let i = 0; i < s.weeks * 7; i++) {
+      const d = new Date(st); d.setDate(st.getDate() + i);
+      if (s.days.includes(WD[d.getDay()]))
+        orders.push({ date: ymd(d), items: s.items, amount: s.items.reduce((a, x) => a + x.price * x.qty, 0) });
+    }
+  }
+  return { ...s, orders };
+}
 
 document.getElementById("loginBtn").onclick = async () => {
   try {
@@ -89,79 +131,107 @@ onAuthStateChanged(auth, user => {
   document.getElementById("logout").style.display = user ? "block" : "none";
   if (user && !unsub) {
     unsub = onSnapshot(query(collection(db, "subscriptions"), orderBy("createdAt", "desc")), snap => {
-      subs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      subs = snap.docs.map(d => normalize({ id: d.id, ...d.data() }));
       render();
-    });
+    }, err => { document.getElementById("list").innerHTML = `<div class="empty">불러오기 실패: ${esc(err.message)}</div>`; });
   }
   if (!user && unsub) { unsub(); unsub = null; }
 });
 
-// 오늘 배달할 도시락 합계 (진행중 + 오늘 요일 + 기간 안)
-function todaySummary() {
-  const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
-  const dn = DAYNAME[now.getDay()];
-  const count = {};
-  let people = 0, money = 0, boxes = 0;
-  subs.filter(s => s.status === "진행중" && s.days?.includes(dn)).forEach(s => {
-    const end = new Date(s.start); end.setDate(end.getDate() + s.weeks * 7 - 1);
-    if (todayStr < s.start || todayStr > end.toISOString().slice(0, 10)) return;
-    people++;
-    s.items.forEach(i => { count[i.name] = (count[i.name] || 0) + i.qty; boxes += i.qty; money += i.price * i.qty; });
-  });
-  const lines = Object.entries(count).map(([k, v]) => `<div class="sline">${k}<span><b>${v}개</b></span></div>`).join("");
-  return `<div class="stitle">📦 오늘(${dn}) 배달 · ${people}곳</div>
-    ${lines || '<div class="sline">없음</div>'}
-    <div class="sline total2">합계<span>${boxes}개 · ${won(money)}</span></div>`;
+// 날짜 고르기
+const pick = document.getElementById("pickDay");
+pick.value = day;
+pick.onchange = () => { day = pick.value || TODAY; render(); };
+const move = n => { const d = new Date(day + "T00:00"); d.setDate(d.getDate() + n); day = ymd(d); pick.value = day; render(); };
+document.getElementById("prev").onclick = () => move(-1);
+document.getElementById("next").onclick = () => move(1);
+
+function countUp(list) {
+  const count = {}; let boxes = 0, money = 0;
+  list.forEach(o => o.items.forEach(i => {
+    count[i.name] = (count[i.name] || 0) + i.qty; boxes += i.qty; money += i.price * i.qty;
+  }));
+  return { count, boxes, money };
+}
+const lines = r => (Object.entries(r.count).map(([k, v]) => `<div class="sline">${k}<span><b>${v}개</b></span></div>`).join("") || '<div class="sline">없음</div>')
+  + `<div class="sline total2">합계<span>${r.boxes}개 · ${won(r.money)}</span></div>`;
+
+// 선택한 날 배달 (진행중만)
+function daySummary() {
+  const rows = [];
+  let pending = 0;
+  subs.forEach(s => s.orders.filter(o => o.date === day).forEach(o => {
+    if (s.status === "진행중") rows.push({ s, o });
+    if (s.status === "신청") pending++;
+  }));
+  const r = countUp(rows.map(x => x.o));
+  const who = rows.map(({ s, o }) => `
+    <div class="dv"><span class="dn">${esc(s.name)}</span> · ${o.items.map(i => `${esc(i.name)} ${i.qty}`).join(", ")}
+    <div class="da">📍 ${esc(s.addr)}${s.memo ? ` · 📝 ${esc(s.memo)}` : ""}</div></div>`).join("");
+  return `<div class="stitle">📦 ${label(day)}${day === TODAY ? " 오늘" : ""} 배달 · ${rows.length}곳</div>
+    ${lines(r)}
+    ${who ? `<div class="deliv">${who}</div>` : ""}
+    ${pending ? `<div class="pend">⚠️ 이 날짜에 아직 확인 안 한 신청이 ${pending}건 있어요</div>` : ""}`;
 }
 
-// 전체 종합 (진행중 + 신청 대기, 기간 전체 기준)
-function totalSummary() {
-  const sum = st => {
-    const count = {}; let boxes = 0, money = 0;
-    subs.filter(s => s.status === st).forEach(s => {
-      const times = (s.days?.length || 0) * (s.weeks || 0);
-      s.items.forEach(i => { count[i.name] = (count[i.name] || 0) + i.qty * times; boxes += i.qty * times; money += i.price * i.qty * times; });
-    });
-    return { count, boxes, money, n: subs.filter(s => s.status === st).length };
+// 오늘 이후 전체 종합
+function allSummary() {
+  const block = (title, st) => {
+    const os = subs.filter(s => s.status === st).flatMap(s => s.orders.filter(o => o.date >= TODAY));
+    return `<div class="stitle">${title} · ${new Set(os.map(o => o.date)).size}일치</div>${lines(countUp(os))}`;
   };
-  const block = (title, r) => `
-    <div class="stitle">${title} · ${r.n}건</div>
-    ${Object.entries(r.count).map(([k, v]) => `<div class="sline">${k}<span>${v}개</span></div>`).join("") || '<div class="sline">없음</div>'}
-    <div class="sline total2">합계<span>${r.boxes}개 · ${won(r.money)}</span></div>`;
-  return block("🟢 진행중 전체 (기간 총합)", sum("진행중")) + '<div style="height:12px"></div>' + block("🟠 신청 대기 (기간 총합)", sum("신청"));
+  return block("🟢 확인된 주문 (오늘 이후 전체)", "진행중") + '<div style="height:12px"></div>' + block("🟠 확인 대기 (오늘 이후 전체)", "신청");
 }
 
 function render() {
+  document.getElementById("daySum").innerHTML = daySummary();
+  document.getElementById("allSum").innerHTML = allSummary();
+
   document.getElementById("tabs").innerHTML = TABS.map(t => {
     const n = t === "전체" ? subs.length : subs.filter(s => s.status === t).length;
-    return `<button class="tab ${t === tab ? "on" : ""}" data-tab="${t}">${t} ${n}</button>`;
+    const nm = { 신청: "확인 대기", 진행중: "확인됨", 종료: "취소/종료" }[t] || t;
+    return `<button class="tab ${t === tab ? "on" : ""}" data-tab="${t}">${nm} ${n}</button>`;
   }).join("");
-  document.getElementById("today").innerHTML = todaySummary();
-  document.getElementById("totalBox").innerHTML = totalSummary();
-  const list = tab === "전체" ? subs : subs.filter(s => s.status === tab);
-  document.getElementById("list").innerHTML = list.length ? list.map(s => `
+
+  // 손님(전화번호)별로 묶기
+  const shown = tab === "전체" ? subs : subs.filter(s => s.status === tab);
+  const groups = {};
+  shown.forEach(s => { (groups[s.phone] = groups[s.phone] || []).push(s); });
+
+  document.getElementById("list").innerHTML = Object.values(groups).map(g => {
+    const f = g[0];
+    const sum = g.filter(s => s.status !== "종료").reduce((a, s) => a + s.orders.reduce((b, o) => b + o.amount, 0), 0);
+    return `
     <div class="card">
-      <div class="top"><span class="nm">${esc(s.name)}</span><span class="badge ${s.status}">${s.status}</span></div>
-      <div class="row">📞 <a href="tel:${esc(s.phone)}">${esc(s.phone)}</a></div>
-      <div class="row">📍 ${esc(s.addr)}</div>
-      ${s.memo ? `<div class="row">📝 ${esc(s.memo)}</div>` : ""}
-      <div class="items">${s.items.map(i => `${esc(i.name)} ${i.qty}개`).join(", ")}</div>
-      <div class="row">${s.days.join("·")} / ${s.weeks}주 / ${s.start} 시작</div>
-      <div class="total">하루 ${won(s.perDay)} · 총 ${won(s.total)}</div>
-      <div class="btns">
-        ${s.status !== "진행중" ? `<button data-id="${s.id}" data-st="진행중">진행중으로</button>` : ""}
-        ${s.status !== "종료" ? `<button data-id="${s.id}" data-st="종료">종료</button>` : ""}
-      </div>
-    </div>`).join("") : `<div class="empty">신청이 없어요</div>`;
+      <div class="top"><span class="nm">${esc(f.name)}</span><span class="ct">${won(sum)}</span></div>
+      <div class="row">📞 <a href="tel:${esc(f.phone)}">${esc(f.phone)}</a></div>
+      <div class="row">📍 ${esc(f.addr)}</div>
+      ${g.map(s => `
+        <div class="sub">
+          <div class="shead">
+            <span>${s.createdAt?.toDate ? s.createdAt.toDate().toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) + " 신청" : ""}</span>
+            <span class="badge ${s.status}">${{ 신청: "확인 대기", 진행중: "확인됨", 종료: "취소/종료" }[s.status] || s.status}</span>
+          </div>
+          ${s.memo ? `<div class="row">📝 ${esc(s.memo)}</div>` : ""}
+          ${s.orders.map(o => `<div class="od ${o.date < TODAY ? "past" : ""}"><span>${label(o.date)} ${o.items.map(i => `${esc(i.name)} ${i.qty}`).join(", ")}</span><b>${won(o.amount)}</b></div>`).join("")}
+          <div class="od" style="font-weight:700;border-top:1px solid #eee;margin-top:4px;padding-top:6px"><span>${s.orders.length}일</span><b>${won(s.orders.reduce((a, o) => a + o.amount, 0))}</b></div>
+          <div class="btns">
+            ${s.status !== "진행중" ? `<button data-id="${s.id}" data-st="진행중">✅ 확인</button>` : ""}
+            ${s.status !== "종료" ? `<button data-id="${s.id}" data-st="종료">취소/종료</button>` : ""}
+          </div>
+        </div>`).join("")}
+    </div>`;
+  }).join("") || `<div class="empty">신청이 없어요</div>`;
 }
 
-function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
-
 document.addEventListener("click", async e => {
-  const t = e.target;
+  const t = e.target.closest("button");
+  if (!t) return;
   if (t.dataset.tab) { tab = t.dataset.tab; render(); }
-  if (t.dataset.st) await updateDoc(doc(db, "subscriptions", t.dataset.id), { status: t.dataset.st });
+  if (t.dataset.st) {
+    if (t.dataset.st === "종료" && !confirm("이 신청을 취소/종료할까요?")) return;
+    await updateDoc(doc(db, "subscriptions", t.dataset.id), { status: t.dataset.st });
+  }
 });
 </script>
 </body>
