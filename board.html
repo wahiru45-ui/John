@@ -86,7 +86,7 @@ body.k{padding-bottom:0}
 #tickets.board{display:grid;gap:8px;align-items:stretch;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(6,minmax(0,1fr));--rows:6;height:calc(100vh - 190px);height:calc(100dvh - 190px)}
 @media (min-width:600px){#tickets.board{grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,minmax(0,1fr));--rows:4}}
 @media (min-width:1000px){#tickets.board{grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(2,minmax(0,1fr));--rows:2}}
-#tickets.board.cards{grid-template-rows:none;grid-auto-rows:calc((100vh - 190px)/var(--rows) - 8px);grid-auto-rows:calc((100dvh - 190px)/var(--rows) - 8px)}
+#tickets.board.cards{grid-template-rows:none;grid-auto-rows:max(230px,calc((100vh - 190px)/var(--rows) - 8px));grid-auto-rows:max(230px,calc((100dvh - 190px)/var(--rows) - 8px))}
 body.k #tickets.board.cards{overflow:auto}
 #tickets.cards .cell{grid-column:span 3}
 @media (min-width:600px){#tickets.cards .cell{grid-column:span 2}}
@@ -183,7 +183,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 795</span><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 797</span><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
