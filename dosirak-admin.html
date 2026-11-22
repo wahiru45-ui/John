@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>도시락 신청 관리</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; background: #f2f2f2; color: #222; }
+  header { background: #333; color: #fff; padding: 16px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 19px; }
+  header button { background: none; border: 1px solid #888; color: #fff; padding: 6px 10px; border-radius: 8px; }
+  .login { max-width: 360px; margin: 60px auto; background: #fff; padding: 24px; border-radius: 14px; }
+  .login input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; }
+  .login button { width: 100%; padding: 14px; background: #d9532b; color: #fff; border: none; border-radius: 10px; font-size: 16px; }
+  .tabs { display: flex; gap: 8px; padding: 12px; overflow-x: auto; }
+  .tab { padding: 8px 14px; border-radius: 18px; border: 1px solid #ccc; background: #fff; white-space: nowrap; font-size: 15px; }
+  .tab.on { background: #333; color: #fff; border-color: #333; }
+  .today { margin: 0 12px 12px; background: #fff3e8; border-radius: 12px; padding: 14px; font-size: 15px; }
+  .today b { color: #d9532b; }
+  .card { background: #fff; margin: 0 12px 12px; border-radius: 12px; padding: 14px; }
+  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .top .nm { font-size: 17px; font-weight: 700; }
+  .badge { font-size: 13px; padding: 4px 10px; border-radius: 12px; color: #fff; }
+  .신청 { background: #d9532b; } .진행중 { background: #2a8a4a; } .종료 { background: #999; }
+  .row { font-size: 14px; color: #555; margin: 3px 0; }
+  .row a { color: #1a6ad1; }
+  .items { margin: 8px 0; font-size: 15px; }
+  .total { font-weight: 700; font-size: 16px; }
+  .btns { display: flex; gap: 8px; margin-top: 10px; }
+  .btns button { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc; background: #fff; font-size: 14px; }
+  .empty { text-align: center; color: #999; padding: 40px; }
+</style>
+</head>
+<body>
+<header><h1>🍱 도시락 신청 관리</h1><button id="logout" style="display:none">로그아웃</button></header>
+
+<div class="login" id="login">
+  <input id="email" type="email" placeholder="이메일">
+  <input id="pw" type="password" placeholder="비밀번호">
+  <button id="loginBtn">로그인</button>
+</div>
+
+<div id="app" style="display:none">
+  <div class="tabs" id="tabs"></div>
+  <div class="today" id="today"></div>
+  <div id="list"></div>
+</div>
+
+<script type="module">
+const firebaseConfig = {
+  apiKey: "AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",
+  authDomain: "house-order-a689f.firebaseapp.com",
+  projectId: "house-order-a689f",
+  storageBucket: "house-order-a689f.firebasestorage.app",
+  messagingSenderId: "621901289473",
+  appId: "1:621901289473:web:952c5951744cd9f5b40800"
+};
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+const TABS = ["전체", "신청", "진행중", "종료"];
+let tab = "전체";
+let subs = [];
+let unsub = null;
+const won = n => (n || 0).toLocaleString("ko-KR") + "원";
+const DAYNAME = ["일", "월", "화", "수", "목", "금", "토"];
+
+document.getElementById("loginBtn").onclick = async () => {
+  try {
+    await signInWithEmailAndPassword(auth, document.getElementById("email").value, document.getElementById("pw").value);
+  } catch { alert("로그인 실패. 이메일/비밀번호를 확인해 주세요."); }
+};
+document.getElementById("logout").onclick = () => signOut(auth);
+
+onAuthStateChanged(auth, user => {
+  document.getElementById("login").style.display = user ? "none" : "block";
+  document.getElementById("app").style.display = user ? "block" : "none";
+  document.getElementById("logout").style.display = user ? "block" : "none";
+  if (user && !unsub) {
+    unsub = onSnapshot(query(collection(db, "subscriptions"), orderBy("createdAt", "desc")), snap => {
+      subs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      render();
+    });
+  }
+  if (!user && unsub) { unsub(); unsub = null; }
+});
+
+// 오늘 배달할 도시락 합계 (진행중 + 오늘 요일 + 기간 안)
+function todaySummary() {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const dn = DAYNAME[now.getDay()];
+  const count = {};
+  let people = 0;
+  subs.filter(s => s.status === "진행중" && s.days?.includes(dn)).forEach(s => {
+    const end = new Date(s.start); end.setDate(end.getDate() + s.weeks * 7 - 1);
+    if (todayStr < s.start || todayStr > end.toISOString().slice(0, 10)) return;
+    people++;
+    s.items.forEach(i => count[i.name] = (count[i.name] || 0) + i.qty);
+  });
+  const txt = Object.entries(count).map(([k, v]) => `${k} <b>${v}개</b>`).join(" · ");
+  return `📦 오늘(${dn}) 배달: ${people}곳 ${txt ? "— " + txt : "— 없음"}`;
+}
+
+function render() {
+  document.getElementById("tabs").innerHTML = TABS.map(t => {
+    const n = t === "전체" ? subs.length : subs.filter(s => s.status === t).length;
+    return `<button class="tab ${t === tab ? "on" : ""}" data-tab="${t}">${t} ${n}</button>`;
+  }).join("");
+  document.getElementById("today").innerHTML = todaySummary();
+  const list = tab === "전체" ? subs : subs.filter(s => s.status === tab);
+  document.getElementById("list").innerHTML = list.length ? list.map(s => `
+    <div class="card">
+      <div class="top"><span class="nm">${esc(s.name)}</span><span class="badge ${s.status}">${s.status}</span></div>
+      <div class="row">📞 <a href="tel:${esc(s.phone)}">${esc(s.phone)}</a></div>
+      <div class="row">📍 ${esc(s.addr)}</div>
+      ${s.memo ? `<div class="row">📝 ${esc(s.memo)}</div>` : ""}
+      <div class="items">${s.items.map(i => `${esc(i.name)} ${i.qty}개`).join(", ")}</div>
+      <div class="row">${s.days.join("·")} / ${s.weeks}주 / ${s.start} 시작</div>
+      <div class="total">하루 ${won(s.perDay)} · 총 ${won(s.total)}</div>
+      <div class="btns">
+        ${s.status !== "진행중" ? `<button data-id="${s.id}" data-st="진행중">진행중으로</button>` : ""}
+        ${s.status !== "종료" ? `<button data-id="${s.id}" data-st="종료">종료</button>` : ""}
+      </div>
+    </div>`).join("") : `<div class="empty">신청이 없어요</div>`;
+}
+
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+document.addEventListener("click", async e => {
+  const t = e.target;
+  if (t.dataset.tab) { tab = t.dataset.tab; render(); }
+  if (t.dataset.st) await updateDoc(doc(db, "subscriptions", t.dataset.id), { status: t.dataset.st });
+});
+</script>
+</body>
+</html>

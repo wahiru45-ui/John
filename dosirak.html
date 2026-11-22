@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>정기 도시락 신청</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; background: #f6f3ee; color: #2b2b2b; padding-bottom: 120px; }
+  header { background: #d9532b; color: #fff; padding: 22px 18px; }
+  header h1 { font-size: 22px; }
+  header p { font-size: 14px; opacity: .9; margin-top: 4px; }
+  section { background: #fff; margin: 12px; border-radius: 14px; padding: 16px; }
+  h2 { font-size: 17px; margin-bottom: 12px; }
+  .menu { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
+  .menu:last-child { border-bottom: none; }
+  .menu .name { font-size: 16px; font-weight: 600; }
+  .menu .price { font-size: 14px; color: #d9532b; margin-top: 2px; }
+  .qty { display: flex; align-items: center; gap: 10px; }
+  .qty button { width: 36px; height: 36px; border-radius: 50%; border: 1px solid #ccc; background: #fff; font-size: 20px; }
+  .qty span { min-width: 20px; text-align: center; font-size: 17px; font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { padding: 10px 14px; border-radius: 20px; border: 1px solid #ccc; background: #fff; font-size: 15px; }
+  .chip.on { background: #d9532b; border-color: #d9532b; color: #fff; }
+  label { display: block; font-size: 14px; color: #666; margin: 12px 0 6px; }
+  input, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; font-family: inherit; }
+  textarea { height: 70px; resize: none; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #ddd; padding: 12px 16px; }
+  .sum { font-size: 14px; color: #666; margin-bottom: 8px; }
+  .sum b { font-size: 20px; color: #2b2b2b; }
+  .submit { width: 100%; padding: 16px; border: none; border-radius: 12px; background: #d9532b; color: #fff; font-size: 17px; font-weight: 700; }
+  .submit:disabled { background: #ccc; }
+  .done { text-align: center; padding: 60px 20px; }
+  .done h2 { font-size: 22px; margin-bottom: 10px; }
+  .hint { font-size: 13px; color: #999; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div id="form">
+  <header>
+    <h1>🍱 정기 보온도시락 신청</h1>
+    <p>원하는 도시락과 요일을 고르면 정해진 날 따뜻하게 배달해 드려요</p>
+  </header>
+
+  <section>
+    <h2>1. 도시락 고르기 (하루 기준 개수)</h2>
+    <div id="menus"></div>
+  </section>
+
+  <section>
+    <h2>2. 받을 요일</h2>
+    <div class="chips" id="days"></div>
+  </section>
+
+  <section>
+    <h2>3. 신청 기간</h2>
+    <div class="chips" id="weeks"></div>
+    <label>시작 날짜</label>
+    <input type="date" id="start">
+  </section>
+
+  <section>
+    <h2>4. 받는 분 정보</h2>
+    <label>이름</label>
+    <input id="name" placeholder="홍길동">
+    <label>연락처</label>
+    <input id="phone" type="tel" placeholder="010-0000-0000">
+    <label>배달 주소</label>
+    <input id="addr" placeholder="주소와 상세주소">
+    <label>요청사항 (선택)</label>
+    <textarea id="memo" placeholder="예) 문 앞에 놓아주세요"></textarea>
+    <p class="hint">결제는 신청 확인 후 가게에서 연락드려 안내해 드려요.</p>
+  </section>
+</div>
+
+<div id="done" class="done" style="display:none">
+  <h2>신청이 접수됐어요 ✅</h2>
+  <p>가게에서 확인 후 연락드릴게요.</p>
+</div>
+
+<div class="bar" id="bar">
+  <div class="sum" id="sumText">도시락을 골라주세요</div>
+  <button class="submit" id="submit" disabled>신청하기</button>
+</div>
+
+<script type="module">
+const firebaseConfig = {
+  apiKey: "AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",
+  authDomain: "house-order-a689f.firebaseapp.com",
+  projectId: "house-order-a689f",
+  storageBucket: "house-order-a689f.firebasestorage.app",
+  messagingSenderId: "621901289473",
+  appId: "1:621901289473:web:952c5951744cd9f5b40800"
+};
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const db = getFirestore(initializeApp(firebaseConfig));
+
+const MENUS = [
+  { id: "heat",  name: "발열도시락",   price: 7500 },
+  { id: "warm",  name: "보온도시락",   price: 6600 },
+  { id: "salad", name: "샐러드도시락", price: 6600 },
+];
+const DAYS = ["월", "화", "수", "목", "금", "토"];
+const WEEKS = [1, 2, 4];
+
+const qty = { heat: 0, warm: 0, salad: 0 };
+const days = new Set(["월", "화", "수", "목", "금"]);
+let weeks = 4;
+
+const won = n => n.toLocaleString("ko-KR") + "원";
+
+function render() {
+  document.getElementById("menus").innerHTML = MENUS.map(m => `
+    <div class="menu">
+      <div><div class="name">${m.name}</div><div class="price">${won(m.price)}</div></div>
+      <div class="qty">
+        <button data-m="${m.id}" data-d="-1">−</button>
+        <span>${qty[m.id]}</span>
+        <button data-m="${m.id}" data-d="1">+</button>
+      </div>
+    </div>`).join("");
+  document.getElementById("days").innerHTML = DAYS.map(d =>
+    `<button class="chip ${days.has(d) ? "on" : ""}" data-day="${d}">${d}</button>`).join("");
+  document.getElementById("weeks").innerHTML = WEEKS.map(w =>
+    `<button class="chip ${weeks === w ? "on" : ""}" data-w="${w}">${w}주</button>`).join("");
+
+  const perDay = MENUS.reduce((s, m) => s + m.price * qty[m.id], 0);
+  const count = days.size * weeks;
+  const total = perDay * count;
+  const ok = perDay > 0 && days.size > 0;
+  document.getElementById("sumText").innerHTML = ok
+    ? `하루 ${won(perDay)} × ${count}회 = <b>${won(total)}</b>`
+    : "도시락과 요일을 골라주세요";
+  document.getElementById("submit").disabled = !ok;
+}
+
+document.addEventListener("click", e => {
+  const t = e.target;
+  if (t.dataset.m) { qty[t.dataset.m] = Math.max(0, qty[t.dataset.m] + Number(t.dataset.d)); render(); }
+  if (t.dataset.day) { days.has(t.dataset.day) ? days.delete(t.dataset.day) : days.add(t.dataset.day); render(); }
+  if (t.dataset.w) { weeks = Number(t.dataset.w); render(); }
+});
+
+// 시작일 기본값: 내일
+const tm = new Date(Date.now() + 86400000);
+document.getElementById("start").value = tm.toISOString().slice(0, 10);
+
+document.getElementById("submit").addEventListener("click", async () => {
+  const v = id => document.getElementById(id).value.trim();
+  if (!v("name") || !v("phone") || !v("addr")) { alert("이름, 연락처, 주소를 입력해 주세요."); return; }
+  const btn = document.getElementById("submit");
+  btn.disabled = true; btn.textContent = "보내는 중...";
+  const perDay = MENUS.reduce((s, m) => s + m.price * qty[m.id], 0);
+  try {
+    await addDoc(collection(db, "subscriptions"), {
+      items: MENUS.filter(m => qty[m.id] > 0).map(m => ({ name: m.name, price: m.price, qty: qty[m.id] })),
+      days: DAYS.filter(d => days.has(d)),
+      weeks, start: v("start"),
+      name: v("name"), phone: v("phone"), addr: v("addr"), memo: v("memo"),
+      perDay, total: perDay * days.size * weeks,
+      status: "신청", createdAt: serverTimestamp()
+    });
+    document.getElementById("form").style.display = "none";
+    document.getElementById("bar").style.display = "none";
+    document.getElementById("done").style.display = "block";
+  } catch (err) {
+    alert("신청에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    btn.disabled = false; btn.textContent = "신청하기";
+  }
+});
+
+render();
+</script>
+</body>
+</html>
