@@ -6,54 +6,68 @@
 <title>맛있는밥집 주문하기</title>
 <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#fffaf1;--card:#fff;--ink:#1f1a15;--soft:#6f6358;--line:#eadfce;--red:#c3321c;--brown:#8a5a2b;--chip:#f4eadb;--ok:#2f7d4f}
-*{box-sizing:border-box;min-width:0}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Noto Sans KR",system-ui,sans-serif;padding-bottom:96px}
+:root{--bg:#fffaf1;--card:#fff;--ink:#1f1a15;--soft:#6f6358;--line:#eadfce;--red:#c3321c;--brown:#8a5a2b;--chip:#f4eadb;--ok:#2f7d4f;--pick:#fdf0ec}
+*{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Noto Sans KR",system-ui,sans-serif;padding-bottom:100px}
+button,a,label{touch-action:manipulation}
+button{cursor:pointer}
 .wrap{max-width:720px;margin:0 auto;padding:0 16px}
 header{background:var(--red);color:#fff;padding:20px 0 16px}
 header h1{font:400 30px/1.1 "Do Hyeon",sans-serif;margin:0}
 .mode{display:inline-block;margin-top:8px;background:#fff;color:var(--red);font-weight:700;border-radius:999px;padding:4px 12px;font-size:15px}
 .closed{background:#fff3c4;color:#6b4e00;padding:10px 16px;font-size:14px;display:none}
 .bar{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 0 6px}
-input,textarea,select{font:16px "Noto Sans KR",sans-serif;color:var(--ink)}
+input,textarea{font:16px "Noto Sans KR",sans-serif;color:var(--ink)}
 .search{width:100%;padding:10px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--card)}
-.chips{display:flex;gap:8px;overflow-x:auto;padding:8px 0 2px;scrollbar-width:none}
+.search:focus{outline:2px solid var(--red);outline-offset:1px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:8px 0 2px;scrollbar-width:none;scroll-behavior:smooth}
 .chips::-webkit-scrollbar{display:none}
-.chips a{flex:none;text-decoration:none;color:var(--ink);background:var(--chip);border-radius:999px;padding:7px 13px;font-size:14px;font-weight:500;white-space:nowrap}
-section{padding-top:18px}
+.chips a{flex:none;text-decoration:none;color:var(--ink);background:var(--chip);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:500;white-space:nowrap;transition:background .2s,color .2s}
+.chips a.on{background:var(--red);color:#fff}
+section{padding-top:18px;scroll-margin-top:118px}
 h2{font:400 23px/1.1 "Do Hyeon",sans-serif;margin:0 0 8px;color:var(--brown)}
 ul{list-style:none;margin:0;padding:0;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-li{display:flex;align-items:center;gap:10px;padding:12px 14px;border-top:1px dashed var(--line)}
+li{display:flex;align-items:center;gap:10px;padding:12px 14px;border-top:1px dashed var(--line);transition:background .25s}
 li:first-child{border-top:0}
+li.in{background:var(--pick)}
 .nm{flex:1;font-weight:500}
 .nt{display:block;font-size:13px;color:var(--soft);font-weight:400}
 .pr{font-weight:700;white-space:nowrap;font-size:15px}
-.add{border:0;background:var(--red);color:#fff;border-radius:10px;min-width:44px;height:40px;font-size:22px;font-weight:700}
+.ctl{flex:none;width:128px;display:flex;justify-content:flex-end}
+.add{border:0;background:var(--red);color:#fff;border-radius:12px;width:48px;height:44px;font-size:24px;font-weight:700;transition:transform .12s}
+.add:active,.step button:active{transform:scale(.9)}
 .step{display:flex;align-items:center;gap:4px}
-.step button{border:1.5px solid var(--line);background:var(--card);border-radius:10px;width:40px;height:40px;font-size:20px;font-weight:700;color:var(--ink)}
-.step b{min-width:24px;text-align:center}
-.cartbar{position:fixed;left:0;right:0;bottom:0;z-index:10;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 30%)}
-.cartbar button{display:flex;justify-content:space-between;width:100%;max-width:688px;margin:0 auto;border:0;background:var(--ink);color:#fff;border-radius:14px;padding:16px 18px;font:700 17px "Noto Sans KR",sans-serif}
-.cartbar button:disabled{opacity:.35}
-.panel{position:fixed;inset:0;z-index:20;background:var(--bg);overflow-y:auto;display:none}
-.panel.on{display:block}
+.step button{border:1.5px solid var(--line);background:var(--card);border-radius:12px;width:44px;height:44px;font-size:22px;font-weight:700;color:var(--ink);transition:transform .12s}
+.step button.plus{background:var(--red);border-color:var(--red);color:#fff}
+.step b{min-width:26px;text-align:center;font-size:17px}
+.cartbar{position:fixed;left:0;right:0;bottom:0;z-index:10;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 30%);transform:translateY(110%);transition:transform .25s ease}
+.cartbar.show{transform:none}
+.cartbar button{display:flex;justify-content:space-between;align-items:center;width:100%;max-width:688px;margin:0 auto;border:0;background:var(--ink);color:#fff;border-radius:14px;padding:16px 18px;font:700 17px "Noto Sans KR",sans-serif}
+.cartbar .n{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;background:var(--red);margin-right:8px;font-size:15px}
+.bump{animation:bump .3s ease}
+@keyframes bump{40%{transform:scale(1.04)}}
+.toast{position:fixed;left:50%;bottom:96px;z-index:15;transform:translate(-50%,12px);opacity:0;background:rgba(31,26,21,.92);color:#fff;border-radius:999px;padding:9px 16px;font-size:14px;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis;pointer-events:none;transition:opacity .2s,transform .2s}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.panel{position:fixed;inset:0;z-index:20;background:var(--bg);overflow-y:auto;transform:translateY(100%);visibility:hidden;transition:transform .28s ease,visibility 0s .28s;overscroll-behavior:contain}
+.panel.on{transform:none;visibility:visible;transition:transform .28s ease}
 .ptop{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 0;z-index:2}
 .ptop .wrap{display:flex;align-items:center;gap:10px}
-.back{border:0;background:var(--chip);border-radius:10px;height:40px;padding:0 14px;font:500 15px "Noto Sans KR",sans-serif;color:var(--ink)}
+.back{border:0;background:var(--chip);border-radius:10px;height:42px;padding:0 14px;font:500 15px "Noto Sans KR",sans-serif;color:var(--ink)}
 .ptop h3{font:400 24px "Do Hyeon",sans-serif;margin:0}
 .box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:14px}
 .box h4{margin:0 0 10px;font-size:16px}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .seg label{position:relative}
 .seg input{position:absolute;opacity:0}
-.seg span{display:block;text-align:center;padding:12px 8px;border:1.5px solid var(--line);border-radius:12px;font-weight:700}
+.seg span{display:block;text-align:center;padding:12px 8px;border:1.5px solid var(--line);border-radius:12px;font-weight:700;transition:background .15s,color .15s}
 .seg input:checked+span{border-color:var(--red);background:var(--red);color:#fff}
 .seg input:focus-visible+span{outline:2px solid var(--ink)}
 .field{display:block;margin-top:10px}
 .field span{display:block;font-size:14px;color:var(--soft);margin-bottom:4px}
 .field input,.field textarea{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;background:#fff}
 .field textarea{min-height:70px;resize:vertical}
-.row{display:flex;justify-content:space-between;gap:10px;padding:6px 0}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0}
 .total{font-size:19px;font-weight:700;border-top:1px solid var(--line);margin-top:6px;padding-top:10px}
 .err{color:var(--red);font-size:14px;min-height:20px;margin:10px 0 0}
 .big{display:block;width:100%;border:0;background:var(--red);color:#fff;border-radius:14px;padding:17px;font:700 18px "Noto Sans KR",sans-serif;margin:16px 0 30px}
@@ -64,6 +78,7 @@ li:first-child{border-top:0}
 .badge{display:inline-block;padding:6px 14px;border-radius:999px;background:var(--chip);font-weight:700}
 .badge.ok{background:var(--ok);color:#fff}
 .empty{text-align:center;color:var(--soft);padding:30px 0;display:none}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}html{scroll-behavior:auto}}
 </style>
 </head>
 <body>
@@ -75,11 +90,12 @@ li:first-child{border-top:0}
 </div></div>
 <main class="wrap"><div id="list"></div><p class="empty" id="empty">찾는 메뉴가 없어요.</p></main>
 
-<div class="cartbar"><button id="openCart" disabled><span id="cartCount">메뉴를 담아주세요</span><span id="cartSum"></span></button></div>
+<div class="toast" id="toast"></div>
+<div class="cartbar" id="cartbar"><button id="openCart"><span><span class="n" id="cartN">0</span>주문서 보기</span><span id="cartSum"></span></button></div>
 
 <!-- 주문서 -->
 <div class="panel" id="checkout">
-  <div class="ptop"><div class="wrap"><button class="back" data-close>← 메뉴</button><h3>주문서</h3></div></div>
+  <div class="ptop"><div class="wrap"><button class="back" data-close>← 메뉴 더 담기</button><h3>주문서</h3></div></div>
   <div class="wrap">
     <div class="box"><h4>담은 메뉴</h4><div id="cartList"></div><div class="row total"><span>합계</span><span id="cartTotal"></span></div></div>
 
@@ -137,8 +153,7 @@ li:first-child{border-top:0}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, addDoc, doc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-// Firebase 연결 정보
-// 기존 index.html과 같은 Firebase 프로젝트(house-order-a689f)
+
 const firebaseConfig = {
   apiKey: "AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",
   authDomain: "house-order-a689f.firebaseapp.com",
@@ -147,15 +162,8 @@ const firebaseConfig = {
   messagingSenderId: "621901289473",
   appId: "1:621901289473:web:952c5951744cd9f5b40800"
 };
-
-// 가게 정보
-const SHOP = {
-  name: "맛있는밥집 쌍촌본점",
-  phone: "010-6572-5152",
-  closedDay: 0 // 0 = 일요일 휴무
-};
-
-// 맛있는밥집 주문 메뉴 179개. 가격을 바꾸려면 숫자만 고치세요.
+const SHOP = { name: "맛있는밥집 쌍촌본점", phone: "010-6572-5152", closedDay: 0 };
+// 주문 메뉴. 가격을 바꾸려면 숫자만 고치세요. [이름, 가격, 안내]
 const MENU = [
 {
 "c": "도시락",
@@ -1154,71 +1162,100 @@ const MENU = [
 }
 ];
 
-
 const db = getFirestore(initializeApp(firebaseConfig));
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString("ko-KR") + "원";
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
-// 테이블 QR이면 ?table=번호
 const tableNo = parseInt(new URLSearchParams(location.search).get("table"), 10) || null;
 $("shopName").textContent = SHOP.name;
 $("modeLabel").textContent = tableNo ? `${tableNo}번 테이블 주문` : "포장·배달 주문";
 if (tableNo) { $("howBox").classList.add("hide"); $("payBox").classList.add("hide"); }
-const kstDay = new Date(Date.now() + 9 * 3600e3).getUTCDay();
-if (kstDay === SHOP.closedDay) $("closed").style.display = "block";
+if (new Date(Date.now() + 9 * 3600e3).getUTCDay() === SHOP.closedDay) $("closed").style.display = "block";
 
-// 메뉴 그리기
 const items = [];
 MENU.forEach((c, ci) => c.i.forEach(([name, price, note]) => items.push({ id: items.length, cat: ci, name, price, note })));
-const cart = new Map(); // id -> qty
-$("chips").innerHTML = MENU.map((c, ci) => `<a href="#c${ci}">${c.c}</a>`).join("");
+const cart = new Map();
+$("chips").innerHTML = MENU.map((c, ci) => `<a href="#c${ci}" data-c="${ci}">${c.c}</a>`).join("");
 
-function itemRow(it) {
-  const q = cart.get(it.id) || 0;
-  const ctl = q ? `<div class="step"><button data-minus="${it.id}" aria-label="빼기">−</button><b>${q}</b><button data-plus="${it.id}" aria-label="더하기">+</button></div>`
-                : `<button class="add" data-plus="${it.id}" aria-label="${esc(it.name)} 담기">+</button>`;
-  return `<li><span class="nm">${esc(it.name)}${it.note ? `<span class="nt">${esc(it.note)}</span>` : ""}</span><span class="pr">${won(it.price)}</span>${ctl}</li>`;
-}
-function render() {
+// 수량 버튼 (누른 줄만 바꿔서 화면이 흔들리지 않게)
+const ctlHTML = id => {
+  const q = cart.get(id) || 0;
+  return q ? `<div class="step"><button data-minus="${id}" aria-label="빼기">−</button><b>${q}</b><button class="plus" data-plus="${id}" aria-label="더하기">+</button></div>`
+           : `<button class="add" data-plus="${id}" aria-label="${esc(items[id].name)} 담기">+</button>`;
+};
+const rowHTML = it => `<li id="r${it.id}" class="${cart.has(it.id) ? "in" : ""}"><span class="nm">${esc(it.name)}${it.note ? `<span class="nt">${esc(it.note)}</span>` : ""}</span><span class="pr">${won(it.price)}</span><span class="ctl">${ctlHTML(it.id)}</span></li>`;
+
+function renderList() {
   const w = $("q").value.replace(/\s/g, "");
   let shown = 0;
   $("list").innerHTML = MENU.map((c, ci) => {
     const its = items.filter(it => it.cat === ci && (!w || it.name.replace(/\s/g, "").includes(w)));
     shown += its.length;
-    return its.length ? `<section id="c${ci}"><h2>${c.c}</h2><ul>${its.map(itemRow).join("")}</ul></section>` : "";
+    return its.length ? `<section id="c${ci}" data-c="${ci}"><h2>${c.c}</h2><ul>${its.map(rowHTML).join("")}</ul></section>` : "";
   }).join("");
   $("empty").style.display = shown ? "none" : "block";
-  updateBar();
+  watchSections();
 }
-function cartLines() { return [...cart].map(([id, qty]) => ({ ...items[id], qty })); }
-function cartSum() { return cartLines().reduce((s, l) => s + l.price * l.qty, 0); }
-function updateBar() {
+function updateRow(id) {
+  const li = document.getElementById("r" + id);
+  if (!li) return;
+  li.classList.toggle("in", cart.has(id));
+  li.querySelector(".ctl").innerHTML = ctlHTML(id);
+}
+const cartLines = () => [...cart].map(([id, qty]) => ({ ...items[id], qty }));
+const cartSum = () => cartLines().reduce((s, l) => s + l.price * l.qty, 0);
+function updateBar(bump) {
   const n = [...cart.values()].reduce((a, b) => a + b, 0);
-  $("openCart").disabled = !n;
-  $("cartCount").textContent = n ? `장바구니 ${n}개 · 주문하기` : "메뉴를 담아주세요";
+  $("cartbar").classList.toggle("show", n > 0);
+  $("cartN").textContent = n;
   $("cartSum").textContent = n ? won(cartSum()) : "";
+  if (bump) { const b = $("openCart"); b.classList.remove("bump"); void b.offsetWidth; b.classList.add("bump"); }
+}
+let toastT;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 1200);
 }
 function change(id, d) {
   const q = (cart.get(id) || 0) + d;
   if (q <= 0) cart.delete(id); else cart.set(id, Math.min(q, 30));
+  updateRow(id); updateBar(d > 0);
+  if (d > 0 && q === 1) toast(`${items[id].name} 담았어요`);
+  if ($("checkout").classList.contains("on")) { if (!cart.size) closePanel(); else renderCart(); }
+  try { navigator.vibrate && navigator.vibrate(8); } catch {}
 }
 document.addEventListener("click", e => {
-  const p = e.target.closest("[data-plus]"), m = e.target.closest("[data-minus]");
+  const p = e.target.closest("[data-plus]"), m = e.target.closest("[data-minus]"), x = e.target.closest("[data-remove]");
+  if (x) { cart.delete(+x.dataset.remove); updateRow(+x.dataset.remove); updateBar(); if (!cart.size) closePanel(); else renderCart(); return; }
   if (!p && !m) return;
   change(+(p || m).dataset[p ? "plus" : "minus"], p ? 1 : -1);
-  render();
-  if ($("checkout").classList.contains("on")) { if (!cart.size) closePanel(); else renderCart(); }
 });
-$("q").addEventListener("input", render);
+let qT;
+$("q").addEventListener("input", () => { clearTimeout(qT); qT = setTimeout(() => { renderList(); window.scrollTo({ top: 0 }); }, 150); });
+
+// 카테고리 버튼: 보고 있는 곳 표시
+let io;
+function watchSections() {
+  if (io) io.disconnect();
+  io = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return;
+    const c = e.target.dataset.c;
+    $("chips").querySelectorAll("a").forEach(a => a.classList.toggle("on", a.dataset.c === c));
+    const on = $("chips").querySelector(".on");
+    if (on) $("chips").scrollTo({ left: on.offsetLeft - 16, behavior: "smooth" });
+  }), { rootMargin: "-125px 0px -65% 0px" });
+  document.querySelectorAll("#list section").forEach(s => io.observe(s));
+}
 
 // 주문서
 function renderCart() {
-  $("cartList").innerHTML = cartLines().map(l => `<div class="row"><span>${esc(l.name)}<br><small style="color:var(--soft)">${won(l.price)}</small></span><div class="step"><button data-minus="${l.id}">−</button><b>${l.qty}</b><button data-plus="${l.id}">+</button></div></div>`).join("");
+  $("cartList").innerHTML = cartLines().map(l => `<div class="row"><span>${esc(l.name)}<br><small style="color:var(--soft)">${won(l.price * l.qty)}</small></span><div class="step"><button data-minus="${l.id}" aria-label="빼기">−</button><b>${l.qty}</b><button class="plus" data-plus="${l.id}" aria-label="더하기">+</button></div></div>`).join("");
   $("cartTotal").textContent = won(cartSum());
 }
+function openPanel(id) { $(id).classList.add("on"); $(id).scrollTop = 0; document.body.style.overflow = "hidden"; }
 function closePanel() { $("checkout").classList.remove("on"); document.body.style.overflow = ""; }
-$("openCart").onclick = () => { renderCart(); $("err").textContent = ""; $("checkout").classList.add("on"); document.body.style.overflow = "hidden"; $("checkout").scrollTop = 0; };
+$("openCart").onclick = () => { renderCart(); $("err").textContent = ""; openPanel("checkout"); };
 document.querySelectorAll("[data-close]").forEach(b => b.onclick = closePanel);
 
 const val = name => document.querySelector(`input[name=${name}]:checked`).value;
@@ -1276,20 +1313,21 @@ $("submit").onclick = async () => {
 const STATUS = { new: "가게에서 확인 중이에요", accepted: "주문이 접수됐어요. 조리 중이에요", ready: "음식이 준비됐어요", out: "배달 출발했어요", done: "완료된 주문이에요", canceled: "주문이 취소됐어요. 가게로 문의해 주세요" };
 let unsub = null;
 function showDone(id, order) {
-  closePanel(); cart.clear(); $("memo").value = ""; render();
+  const ids = [...cart.keys()];
+  closePanel(); cart.clear(); ids.forEach(updateRow); updateBar(); $("memo").value = "";
   $("doneCode").textContent = order.code;
   $("doneInfo").textContent = order.type === "table" ? `${order.table}번 테이블 · ${won(order.total)} · 계산은 카운터에서 해주세요`
     : `${order.type === "delivery" ? "배달" : "포장"} · ${won(order.total)} · ${order.payment.method === "card" ? "카드" : "현금"} 현장결제${order.payment.receipt ? " · 현금영수증 신청" : ""}`;
-  $("donePanel").classList.add("on");
+  openPanel("donePanel");
   if (unsub) unsub();
   unsub = onSnapshot(doc(db, "onlineOrders", id), s => {
-    const st = s.data()?.status || "new";
+    const st = s.exists() ? (s.data().status || "new") : "canceled";
     $("doneStatus").textContent = STATUS[st] || STATUS.new;
     $("doneStatus").classList.toggle("ok", ["accepted", "ready", "out", "done"].includes(st));
   }, () => {});
 }
-$("again").onclick = () => { if (unsub) unsub(); $("donePanel").classList.remove("on"); window.scrollTo(0, 0); };
-render();
+$("again").onclick = () => { if (unsub) unsub(); $("donePanel").classList.remove("on"); document.body.style.overflow = ""; window.scrollTo({ top: 0 }); };
+renderList(); updateBar();
 </script>
 </body>
 </html>

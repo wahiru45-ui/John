@@ -6,10 +6,11 @@
 <title>배달·포장 주문 접수</title>
 <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f6f1e8;--card:#fff;--ink:#1f1a15;--soft:#6f6358;--line:#e3d7c4;--red:#c3321c;--ok:#2f7d4f;--blue:#2556a8;--amber:#b7791f}
-*{box-sizing:border-box;min-width:0}
+:root{--bg:#f6f1e8;--card:#fff;--ink:#1f1a15;--soft:#6f6358;--line:#e3d7c4;--red:#c3321c;--ok:#2f7d4f;--blue:#2556a8;--amber:#b7791f;--chip:#f4eadb}
+*{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 "Noto Sans KR",system-ui,sans-serif}
-button,input{font:inherit}
+button,input,textarea{font:inherit}
+button{touch-action:manipulation;cursor:pointer}
 .top{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
 .top h1{font:400 24px "Do Hyeon",sans-serif;margin:0;flex:1 1 auto}
 .top button{border:0;border-radius:10px;padding:9px 14px;font-weight:700;background:#fff;color:var(--ink);min-height:40px}
@@ -30,7 +31,8 @@ h2{font:400 22px "Do Hyeon",sans-serif;margin:18px 16px 8px}
 .tag{border-radius:999px;padding:3px 10px;font-size:14px;font-weight:700;color:#fff}
 .t-delivery{background:var(--blue)}.t-pickup{background:var(--amber)}.t-table{background:var(--ok)}
 .time{margin-left:auto;color:var(--soft);font-size:14px}
-.items{margin:0;padding:0;list-style:none;border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);padding:6px 0}
+.edited{font-size:13px;color:var(--blue);font-weight:700}
+.items{margin:0;padding:6px 0;list-style:none;border-top:1px dashed var(--line);border-bottom:1px dashed var(--line)}
 .items li{display:flex;justify-content:space-between;gap:8px;padding:2px 0}
 .items b{white-space:nowrap}
 .line{display:flex;justify-content:space-between;gap:8px;font-size:15px}
@@ -42,7 +44,9 @@ h2{font:400 22px "Do Hyeon",sans-serif;margin:18px 16px 8px}
 .acts{display:flex;gap:8px;flex-wrap:wrap}
 .acts button{flex:1;border:0;border-radius:12px;padding:12px;font-weight:700;min-height:48px;color:#fff;background:var(--ink)}
 .acts .go{background:var(--red)}
-.acts .cancel{flex:0 0 auto;background:#eee;color:var(--soft)}
+.acts .sub{flex:0 0 auto;background:#eee;color:var(--ink)}
+.acts .warn{flex:0 0 auto;background:#eee;color:var(--red)}
+.acts .warn.sure{background:var(--red);color:#fff}
 .st{font-weight:700;color:var(--soft);font-size:14px}
 .empty{padding:6px 16px;color:var(--soft)}
 .login{max-width:380px;margin:60px auto;padding:0 16px}
@@ -52,6 +56,40 @@ h2{font:400 22px "Do Hyeon",sans-serif;margin:18px 16px 8px}
 .hide{display:none!important}
 details{margin:0 16px 40px}
 summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
+/* 수정 창 */
+.modal{position:fixed;inset:0;z-index:30;background:rgba(31,26,21,.45);display:flex;align-items:flex-end;justify-content:center;opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s}
+.modal.on{opacity:1;visibility:visible;transition:opacity .2s}
+.sheet{background:var(--bg);width:100%;max-width:640px;max-height:92vh;overflow-y:auto;border-radius:20px 20px 0 0;padding:0 16px 20px;transform:translateY(30px);transition:transform .25s;overscroll-behavior:contain}
+.modal.on .sheet{transform:none}
+@media(min-width:700px){.modal{align-items:center}.sheet{border-radius:20px}}
+.shead{position:sticky;top:0;background:var(--bg);display:flex;align-items:center;gap:10px;padding:14px 0 10px;border-bottom:1px solid var(--line);z-index:2}
+.shead h3{font:400 24px "Do Hyeon",sans-serif;margin:0;flex:1}
+.shead button{border:0;background:var(--chip);border-radius:10px;height:42px;padding:0 14px;font-weight:700}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:12px}
+.box h4{margin:0 0 8px;font-size:16px}
+.erow{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px dashed var(--line)}
+.erow:first-child{border-top:0}
+.erow .nm{flex:1}
+.erow small{display:block;color:var(--soft)}
+.step{display:flex;align-items:center;gap:4px}
+.step button{border:1.5px solid var(--line);background:var(--card);border-radius:10px;width:40px;height:40px;font-size:20px;font-weight:700}
+.step b{min-width:24px;text-align:center}
+.del{border:0;background:none;color:var(--red);font-weight:700;padding:8px;min-height:40px}
+.find{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;margin-top:8px;font-size:16px}
+.found button{display:flex;justify-content:space-between;width:100%;border:0;border-bottom:1px dashed var(--line);background:none;padding:10px 4px;text-align:left}
+.found button:active{background:var(--chip)}
+.seg{display:grid;grid-template-columns:repeat(var(--n,2),1fr);gap:8px}
+.seg label{position:relative}
+.seg input{position:absolute;opacity:0}
+.seg span{display:block;text-align:center;padding:10px 6px;border:1.5px solid var(--line);border-radius:10px;font-weight:700;font-size:15px}
+.seg input:checked+span{border-color:var(--red);background:var(--red);color:#fff}
+.field{display:block;margin-top:8px}
+.field span{display:block;font-size:14px;color:var(--soft);margin-bottom:3px}
+.field input,.field textarea{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:#fff;font-size:16px}
+.field textarea{min-height:64px;resize:vertical}
+.save{display:block;width:100%;border:0;background:var(--red);color:#fff;border-radius:14px;padding:16px;font-weight:700;font-size:17px;margin-top:14px}
+.save:disabled{opacity:.5}
+.etotal{display:flex;justify-content:space-between;font-weight:700;font-size:18px;padding-top:8px;border-top:1px solid var(--line);margin-top:6px}
 @media(max-width:600px){.sum{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
@@ -75,7 +113,6 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
     <button data-f="all" class="on">전체</button>
     <button data-f="delivery">배달</button>
     <button data-f="pickup">포장</button>
-    <button data-f="table">테이블 QR</button>
   </div>
   <div class="sum" id="sum"></div>
   <h2 id="newTitle">새 주문</h2><div class="grid" id="newList"></div>
@@ -83,12 +120,41 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
   <details><summary id="doneTitle">완료·취소</summary><div class="grid" id="doneList" style="padding:0"></div></details>
 </div>
 
+<!-- 주문 수정 창 -->
+<div class="modal" id="modal">
+  <div class="sheet">
+    <div class="shead"><h3 id="eTitle">주문 수정</h3><button id="eClose">닫기</button></div>
+    <div class="box"><h4>메뉴</h4>
+      <div id="eItems"></div>
+      <div class="etotal"><span>합계</span><span id="eTotal"></span></div>
+      <input class="find" id="eFind" type="search" placeholder="메뉴 추가: 이름으로 찾기">
+      <div class="found" id="eFound"></div>
+    </div>
+    <div class="box"><h4>받는 방법</h4>
+      <div class="seg"><label><input type="radio" name="eHow" value="pickup"><span>포장</span></label><label><input type="radio" name="eHow" value="delivery"><span>배달</span></label></div>
+      <label class="field"><span>이름</span><input id="eName"></label>
+      <label class="field"><span>전화번호</span><input id="ePhone" type="tel" inputmode="numeric"></label>
+      <label class="field" id="eAddrF"><span>배달 주소</span><input id="eAddr"></label>
+    </div>
+    <div class="box"><h4>결제 (현장결제)</h4>
+      <div class="seg"><label><input type="radio" name="ePay" value="card"><span>카드</span></label><label><input type="radio" name="ePay" value="cash"><span>현금</span></label></div>
+      <div id="eRcBox">
+        <h4 style="margin:12px 0 8px">현금영수증</h4>
+        <div class="seg" style="--n:3"><label><input type="radio" name="eRc" value="no"><span>필요 없음</span></label><label><input type="radio" name="eRc" value="personal"><span>개인</span></label><label><input type="radio" name="eRc" value="business"><span>사업자</span></label></div>
+        <label class="field" id="eRcF"><span id="eRcL">휴대폰 번호</span><input id="eRcNo" inputmode="numeric"></label>
+      </div>
+    </div>
+    <div class="box"><h4>요청사항</h4><label class="field" style="margin-top:0"><textarea id="eMemo"></textarea></label></div>
+    <p class="err" id="eErr"></p>
+    <button class="save" id="eSave">수정 저장</button>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, updateDoc, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-// Firebase 연결 정보
-// 기존 index.html과 같은 Firebase 프로젝트(house-order-a689f)
+import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
 const firebaseConfig = {
   apiKey: "AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",
   authDomain: "house-order-a689f.firebaseapp.com",
@@ -97,20 +163,1012 @@ const firebaseConfig = {
   messagingSenderId: "621901289473",
   appId: "1:621901289473:web:952c5951744cd9f5b40800"
 };
-
-// 가게 정보
-const SHOP = {
-  name: "맛있는밥집 쌍촌본점",
-  phone: "010-6572-5152",
-  closedDay: 0 // 0 = 일요일 휴무
-};
-
+// 메뉴 추가할 때 쓰는 목록 (손님 주문 화면과 같은 메뉴)
+const MENU = [
+{
+"c": "도시락",
+"i": [
+[
+"기본도시락(1인분)",
+10000,
+""
+],
+[
+"제육볶음도시락",
+13000,
+"제육양 조리후 250~260g"
+],
+[
+"갈치튀김백반도시락",
+12500,
+""
+],
+[
+"고등어구이 도시락(1인분)",
+15000,
+""
+],
+[
+"삼치구이 도시락",
+16500,
+""
+],
+[
+"갈치구이 도시락(1인분)",
+15000,
+""
+],
+[
+"영광굴비도시락",
+17500,
+"반찬8가지+국+밥"
+],
+[
+"한판 생선구이 도시락(2~3인분)",
+33000,
+"고등어1+삼치1+갈치1+조기2+밥2+국2"
+],
+[
+"불고기 도시락(1인분)",
+13000,
+"불고기양 조리후 220~230g"
+],
+[
+"매콤주꾸미삼겹살 도시락(1인분)",
+14500,
+"상추·쌈장 미포함"
+],
+[
+"매콤쭈꾸미볶음도시락",
+14500,
+"상추·쌈장 미포함"
+],
+[
+"삼겹살도시락(1인분)",
+15000,
+"상추·쌈장 미포함"
+],
+[
+"대패삼겹살도시락",
+15000,
+"상추·쌈장 미포함"
+],
+[
+"돼지갈비도시락",
+15000,
+"상추·쌈장 미포함"
+],
+[
+"우삼겹살도시락",
+15000,
+"상추·쌈장 미포함"
+],
+[
+"떡갈비도시락",
+13500,
+""
+],
+[
+"돈까스도시락",
+9500,
+""
+],
+[
+"치즈돈까스도시락",
+11000,
+""
+],
+[
+"돈까스곱빼기도시락",
+12500,
+""
+],
+[
+"치킨가라아게도시락",
+10500,
+""
+],
+[
+"생선까스도시락",
+10500,
+""
+],
+[
+"스팸도시락",
+10500,
+""
+],
+[
+"조기백반도시락",
+12500,
+""
+],
+[
+"뚝배기불고기도시락(1인분)",
+14000,
+""
+],
+[
+"떡갈비왕교자도시락",
+10500,
+"떡갈비1개+왕교자2개"
+],
+[
+"항정살도시락",
+15000,
+"상추·쌈장 미포함"
+],
+[
+"기사식당돼지불백도시락(260g)",
+13000,
+"상추·쌈장 미포함"
+],
+[
+"디진다돈까스도시락",
+13000,
+""
+]
+]
+},
+{
+"c": "탕·찌개",
+"i": [
+[
+"1인 닭도리탕(1인분)",
+16000,
+""
+],
+[
+"닭도리탕(한마리)(2인이상)",
+28500,
+""
+],
+[
+"순두부찌개(1인분)",
+10500,
+""
+],
+[
+"육개장(1인분)",
+11500,
+""
+],
+[
+"김치찌개(1인분)",
+11000,
+""
+],
+[
+"꽁치김치찌개",
+13000,
+""
+],
+[
+"소불고기 전골(2인분)",
+24500,
+""
+],
+[
+"북어해장국",
+11500,
+"반찬6개+밥"
+],
+[
+"된장찌개",
+11000,
+""
+],
+[
+"해물순두부찌개",
+11000,
+""
+],
+[
+"오늘의국(소)",
+6000,
+""
+],
+[
+"부대찌개",
+11000,
+""
+],
+[
+"사골우거지탕",
+11000,
+""
+],
+[
+"내장탕",
+12000,
+""
+],
+[
+"우삼겹된장찌개",
+12500,
+""
+],
+[
+"오늘의국(대)",
+8500,
+""
+],
+[
+"뼈해장국(1인분)",
+12000,
+""
+],
+[
+"청국장",
+11000,
+""
+],
+[
+"순두부육계장",
+14000,
+""
+],
+[
+"순두부청국장",
+13000,
+""
+],
+[
+"참치김치찌개",
+13500,
+""
+],
+[
+"우삼겹순두부",
+13500,
+""
+],
+[
+"차돌청국장",
+15000,
+""
+],
+[
+"차돌된장찌개",
+15000,
+""
+],
+[
+"차돌육계장",
+15000,
+""
+],
+[
+"차돌순두부",
+15000,
+""
+]
+]
+},
+{
+"c": "매운맛",
+"i": [
+[
+"매운 1인 닭도리탕",
+16000,
+""
+],
+[
+"매운 닭도리탕(한마리)",
+29500,
+""
+],
+[
+"매운 순두부찌개",
+10500,
+""
+],
+[
+"매운 쭈꾸미볶음(공기미포함)",
+12500,
+"공깃밥 미포함"
+],
+[
+"매운갈치조림",
+24500,
+""
+],
+[
+"매운순살갈치조림",
+30000,
+""
+]
+]
+},
+{
+"c": "조림 요리",
+"i": [
+[
+"고등어조림",
+17500,
+""
+],
+[
+"순살고등어조림",
+18500,
+"순살고등어 1마리"
+],
+[
+"고등어김치조림",
+17500,
+""
+],
+[
+"순살고등어김치조림",
+18500,
+"순살고등어1마리"
+],
+[
+"갈치조림",
+22500,
+""
+],
+[
+"삼치조림",
+23500,
+""
+],
+[
+"삼겹살김치조림",
+17500,
+""
+],
+[
+"꽁치김치조림",
+15000,
+""
+],
+[
+"순살갈치조림(갈치500g)",
+28000,
+"일부 가시가 있을 수 있어요"
+]
+]
+},
+{
+"c": "김치",
+"i": [
+[
+"배추겉절이",
+8000,
+""
+],
+[
+"매운배추겉절이",
+8000,
+""
+],
+[
+"완전매운배추겉절이",
+10000,
+""
+],
+[
+"알타리김치",
+7500,
+""
+],
+[
+"무생채",
+7000,
+""
+],
+[
+"깎두기",
+7000,
+""
+],
+[
+"깻잎김치",
+7500,
+""
+],
+[
+"파김치",
+13000,
+""
+],
+[
+"열무김치",
+7000,
+""
+],
+[
+"봄동겉절이",
+7500,
+""
+]
+]
+},
+{
+"c": "마른반찬",
+"i": [
+[
+"진미채",
+11000,
+""
+],
+[
+"견과류멸치볶음",
+7000,
+""
+],
+[
+"빨간어묵볶음",
+6500,
+""
+],
+[
+"매운꽈리멸치볶음",
+7000,
+""
+],
+[
+"명엽채",
+6000,
+""
+]
+]
+},
+{
+"c": "나물·무침",
+"i": [
+[
+"도라지무침",
+6500,
+""
+],
+[
+"콩나물무침(고추가루양념)",
+5500,
+""
+],
+[
+"콩나물무침(고추가루양념X)",
+5500,
+""
+],
+[
+"매운콩나물무침",
+5500,
+""
+],
+[
+"미역줄기볶음",
+5500,
+""
+],
+[
+"고춧가루단무지무침",
+6000,
+""
+],
+[
+"오이무침",
+7000,
+""
+],
+[
+"시금치",
+7500,
+""
+]
+]
+},
+{
+"c": "젓갈·장아찌",
+"i": [
+[
+"오징어젓갈",
+6500,
+""
+],
+[
+"고추장아찌",
+7000,
+""
+],
+[
+"낙지젓갈",
+20000,
+""
+],
+[
+"갈치속젓갈",
+7000,
+""
+],
+[
+"마늘장아찌",
+5500,
+""
+]
+]
+},
+{
+"c": "전·햄·소세지",
+"i": [
+[
+"소세지부침",
+5500,
+""
+],
+[
+"비엔나케첩볶음",
+6500,
+""
+],
+[
+"두부전",
+5500,
+""
+],
+[
+"불닭비엔나볶음",
+7500,
+""
+],
+[
+"스팸햄(1장)",
+5000,
+""
+],
+[
+"스팸햄(2장)",
+8500,
+""
+],
+[
+"떡갈비전",
+6500,
+""
+]
+]
+},
+{
+"c": "반찬 조림",
+"i": [
+[
+"메추리알장조림",
+8000,
+""
+]
+]
+},
+{
+"c": "생선",
+"i": [
+[
+"갈치튀김(1토막)",
+4000,
+""
+],
+[
+"갈치구이(1토막)",
+8500,
+""
+],
+[
+"삼치구이(1토막)",
+8500,
+""
+],
+[
+"고등어구이(1마리)",
+8500,
+""
+],
+[
+"조기튀김(1마리)",
+4000,
+""
+],
+[
+"영광굴비(1마리)",
+6500,
+""
+]
+]
+},
+{
+"c": "고기",
+"i": [
+[
+"우삼겹살(200g)",
+8000,
+"상추·쌈장 미포함"
+],
+[
+"삼겹살(150g)",
+8000,
+"상추·쌈장 미포함"
+],
+[
+"불고기",
+9000,
+"불고기양 조리후 220~230g"
+],
+[
+"제육볶음",
+9000,
+"상추·쌈장 미포함"
+],
+[
+"대패삼겹살(150g)",
+8000,
+"상추·쌈장 미포함"
+],
+[
+"항정살(150g)",
+8500,
+"상추·쌈장 미포함"
+],
+[
+"돼지불백(공깃밥미포함)(260g)",
+8500,
+"상추·쌈장 미포함"
+],
+[
+"돼지갈비",
+9000,
+"상추·쌈장 미포함"
+],
+[
+"불닭제육볶음",
+10500,
+"260g~280g"
+],
+[
+"차돌구이(150g)",
+9000,
+"구우면 질겨질 수 있어요"
+]
+]
+},
+{
+"c": "튀김·돈까스",
+"i": [
+[
+"돈까스(1장)",
+5000,
+""
+],
+[
+"치즈돈까스(1장)",
+6000,
+""
+],
+[
+"돈까스(2장)",
+8500,
+""
+],
+[
+"꼬마돈까스",
+5000,
+""
+],
+[
+"치킨너겟",
+5000,
+""
+],
+[
+"치킨가라아게",
+5000,
+""
+],
+[
+"생선까스(3개)",
+5500,
+""
+],
+[
+"돈까스카레",
+7000,
+""
+],
+[
+"고구마치즈돈까스(1장)",
+6500,
+""
+],
+[
+"치즈돈까스(2장)",
+10000,
+""
+],
+[
+"디진다돈까스",
+8000,
+""
+],
+[
+"피카츄돈까스",
+2500,
+""
+]
+]
+},
+{
+"c": "조각치킨",
+"i": [
+[
+"매콤점보닭다리",
+4700,
+""
+],
+[
+"순살치킨꼬치",
+3500,
+""
+],
+[
+"매콤순살치킨꼬치",
+3500,
+""
+],
+[
+"버팔로윙(4개)",
+5500,
+""
+],
+[
+"버팔로봉(4개)",
+5500,
+""
+]
+]
+},
+{
+"c": "계란",
+"i": [
+[
+"계란찜",
+4500,
+""
+],
+[
+"계란후라이3알",
+2500,
+""
+]
+]
+},
+{
+"c": "밥·덮밥",
+"i": [
+[
+"공기밥",
+1200,
+""
+],
+[
+"누룽지곱빼기",
+7000,
+""
+],
+[
+"누룽지",
+4500,
+""
+],
+[
+"오뚜기밥",
+1700,
+""
+],
+[
+"돈까스카레덮밥",
+9500,
+""
+],
+[
+"돈까스짜장덮밥",
+9500,
+""
+],
+[
+"돈까스제육덮밥",
+12500,
+"반찬6칸"
+],
+[
+"제육덮밥곱빼기",
+14500,
+""
+],
+[
+"카레듬뿍 카레밥",
+7000,
+"오뚜기 3분카레 + 밥"
+],
+[
+"짜장듬뿍 짜장밥",
+7000,
+""
+],
+[
+"제육덮밥",
+10500,
+""
+],
+[
+"봄동비빔밥1인+삼겹살(150g)",
+16800,
+""
+],
+[
+"김치볶음밥",
+8500,
+""
+]
+]
+},
+{
+"c": "라면",
+"i": [
+[
+"짜파게티 곱배기(면 불어요)",
+8000,
+"짜파게티 2봉지+계란후라이2알"
+],
+[
+"사천짜파게티곱빼기(면불어요)",
+9000,
+"사천짜파게티2봉지+계란2알"
+],
+[
+"불닭볶음면 곱빼기(면불어요)",
+8000,
+"불닭볶음면2개+계란후라이2알"
+],
+[
+"간짬뽕 곱빼기(면불어요)",
+8000,
+"간짬뽕2개+계란후라이2알"
+],
+[
+"스파게티라면 곱빼기(면불어요)",
+8000,
+"스파게티라면2봉지+계란2알"
+],
+[
+"비빔면 곱배기(면불어요)",
+8000,
+"비빔면 2봉지+계란후라이2알"
+],
+[
+"짜계치(면 불어요)",
+5000,
+""
+],
+[
+"불계치(면 불어요)",
+5000,
+""
+],
+[
+"간계치(면 불어요)",
+5000,
+""
+],
+[
+"비빔면곱빼기(면 불어요)",
+8000,
+"비빔면2봉지+계란2알"
+],
+[
+"핵불닭볶음면(면불어요)",
+5500,
+"핵불닭볶음면"
+],
+[
+"사천짜파계치(면불어요)",
+6500,
+""
+],
+[
+"사천짜계치(면불어요)",
+6500,
+""
+],
+[
+"짜계치곱빼기(면불어요)",
+9500,
+""
+]
+]
+},
+{
+"c": "저녁·토일 특식",
+"i": [
+[
+"기본라면+밥(면 불어요)",
+5500,
+""
+],
+[
+"치즈라면+공기밥(면 불어요)",
+6000,
+""
+],
+[
+"만두라면+공기밥(면 불어요)",
+6000,
+""
+]
+]
+},
+{
+"c": "죽",
+"i": [
+[
+"소고기죽",
+8200,
+""
+],
+[
+"녹두닭죽",
+8200,
+""
+],
+[
+"누룽지닭백숙죽",
+8200,
+""
+],
+[
+"버섯야채죽",
+8200,
+""
+],
+[
+"전복죽",
+8200,
+""
+]
+]
+},
+{
+"c": "음료",
+"i": [
+[
+"코카콜라(뚱캔)",
+2000,
+""
+],
+[
+"코카콜라제로(뚱캔)",
+2000,
+""
+],
+[
+"스프라이트(뚱캔)",
+2000,
+""
+],
+[
+"팔도비빔면(1봉지)",
+1800,
+""
+]
+]
+}
+];
+const ALL = MENU.flatMap(c => c.i.map(([name, price]) => ({ name, price })));
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app), db = getFirestore(app);
 const $ = id => document.getElementById(id);
 const won = n => (n || 0).toLocaleString("ko-KR") + "원";
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const digits = s => String(s || "").replace(/\D/g, "");
 const fmtPhone = p => p && p.length === 11 ? `${p.slice(0,3)}-${p.slice(3,7)}-${p.slice(7)}` : (p || "");
 const TYPE = { delivery: "배달", pickup: "포장", table: "테이블" };
 const ST = { new: "새 주문", accepted: "조리 중", ready: "준비 완료", out: "배달 중", done: "완료", canceled: "취소" };
@@ -131,10 +1189,8 @@ onAuthStateChanged(auth, user => {
   if (unsub) { unsub(); unsub = null; }
   if (user) listen();
 });
-
 function listen() {
-  // 오늘(한국시간 0시) 이후 주문
-  const now = new Date(), kst = new Date(now.getTime() + 9 * 3600e3);
+  const kst = new Date(Date.now() + 9 * 3600e3);
   const start = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()) - 9 * 3600e3);
   const q = query(collection(db, "onlineOrders"), where("createdAt", ">=", Timestamp.fromDate(start)), orderBy("createdAt", "desc"));
   seen = null;
@@ -163,7 +1219,6 @@ function alarm() {
   flash = setInterval(() => { document.title = i++ % 2 ? "🔔 새 주문!" : "배달·포장 주문 접수"; if (i > 20) { clearInterval(flash); document.title = "배달·포장 주문 접수"; } }, 700);
 }
 
-// 탭
 $("tabs").onclick = e => {
   const b = e.target.closest("button"); if (!b) return;
   filter = b.dataset.f;
@@ -176,8 +1231,7 @@ function payText(o) {
   const p = o.payment || {};
   if (p.method === "card") return "💳 카드 (현장결제)";
   let t = "💵 현금 (현장결제)";
-  if (p.receipt) t += ` · 현금영수증 ${p.receiptType === "business" ? "사업자" : "개인"} ${esc(p.receiptType === "business" ? p.receiptNo : fmtPhone(p.receiptNo))}`;
-  else t += " · 현금영수증 필요 없음";
+  t += p.receipt ? ` · 현금영수증 ${p.receiptType === "business" ? "사업자" : "개인"} ${esc(p.receiptType === "business" ? p.receiptNo : fmtPhone(p.receiptNo))}` : " · 현금영수증 필요 없음";
   return t;
 }
 function nextAction(o) {
@@ -191,8 +1245,9 @@ function card(o) {
   const t = o.createdAt?.toDate ? o.createdAt.toDate() : new Date();
   const time = t.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" });
   const c = o.customer || {}, act = nextAction(o);
+  const closed = ["done", "canceled"].includes(o.status);
   return `<div class="card ${o.status === "new" ? "new" : ""}">
-    <div class="head"><span class="code">${esc(o.code)}</span><span class="tag t-${o.type}">${TYPE[o.type] || ""}${o.type === "table" ? " " + esc(o.table) + "번" : ""}</span><span class="st">${ST[o.status] || ""}</span><span class="time">${time}</span></div>
+    <div class="head"><span class="code">${esc(o.code)}</span><span class="tag t-${o.type}">${TYPE[o.type] || ""}${o.type === "table" ? " " + esc(o.table) + "번" : ""}</span><span class="st">${ST[o.status] || ""}</span>${o.editedAt ? `<span class="edited">수정됨</span>` : ""}<span class="time">${time}</span></div>
     <ul class="items">${(o.items || []).map(i => `<li><span>${esc(i.name)}</span><b>× ${i.qty}</b></li>`).join("")}</ul>
     <div class="total">${won(o.total)}</div>
     ${o.type !== "table" ? `
@@ -201,22 +1256,23 @@ function card(o) {
       ${o.type === "delivery" ? `<div class="line"><span>주소</span><b style="text-align:right">${esc(c.address)}</b></div>` : ""}` : ""}
     <div class="pay">${payText(o)}</div>
     ${o.memo ? `<div class="memo">요청: ${esc(o.memo)}</div>` : ""}
-    ${act || o.status === "new" || o.status === "accepted" ? `<div class="acts">
+    <div class="acts">
       ${act ? `<button class="go" data-id="${o.id}" data-to="${act[0]}">${act[1]}</button>` : ""}
-      ${["new", "accepted"].includes(o.status) ? `<button class="cancel" data-id="${o.id}" data-to="canceled">취소</button>` : ""}
-    </div>` : ""}
+      ${!closed ? `<button class="sub" data-edit="${o.id}">수정</button>` : ""}
+      ${["new", "accepted"].includes(o.status) ? `<button class="warn" data-id="${o.id}" data-to="canceled">취소</button>` : ""}
+      ${closed ? `<button class="sub" data-id="${o.id}" data-to="accepted">되돌리기</button><button class="warn" data-delete="${o.id}">삭제</button>` : ""}
+    </div>
   </div>`;
 }
 function render() {
   const list = orders.filter(o => filter === "all" || o.type === filter);
-  const groups = { n: list.filter(o => o.status === "new"), w: list.filter(o => ["accepted", "ready", "out"].includes(o.status)), d: list.filter(o => ["done", "canceled"].includes(o.status)) };
-  $("newTitle").textContent = `새 주문 (${groups.n.length})`;
-  $("workTitle").textContent = `진행 중 (${groups.w.length})`;
-  $("doneTitle").textContent = `완료·취소 (${groups.d.length})`;
-  $("newList").innerHTML = groups.n.map(card).join("") || `<p class="empty">새 주문이 없어요.</p>`;
-  $("workList").innerHTML = groups.w.map(card).join("") || `<p class="empty">진행 중인 주문이 없어요.</p>`;
-  $("doneList").innerHTML = groups.d.map(card).join("") || `<p class="empty">아직 없어요.</p>`;
-  // 오늘 합계 (취소 제외)
+  const g = { n: list.filter(o => o.status === "new"), w: list.filter(o => ["accepted", "ready", "out"].includes(o.status)), d: list.filter(o => ["done", "canceled"].includes(o.status)) };
+  $("newTitle").textContent = `새 주문 (${g.n.length})`;
+  $("workTitle").textContent = `진행 중 (${g.w.length})`;
+  $("doneTitle").textContent = `완료·취소 (${g.d.length})`;
+  $("newList").innerHTML = g.n.map(card).join("") || `<p class="empty">새 주문이 없어요.</p>`;
+  $("workList").innerHTML = g.w.map(card).join("") || `<p class="empty">진행 중인 주문이 없어요.</p>`;
+  $("doneList").innerHTML = g.d.map(card).join("") || `<p class="empty">아직 없어요.</p>`;
   const live = orders.filter(o => o.status !== "canceled" && o.type !== "table");
   const sumBy = f => live.filter(f).reduce((s, o) => s + (o.total || 0), 0);
   $("sum").innerHTML = `
@@ -225,13 +1281,112 @@ function render() {
     <div><small>카드</small><b>${won(sumBy(o => o.payment?.method === "card"))}</b></div>
     <div><small>현금 (영수증 ${live.filter(o => o.payment?.receipt).length}건)</small><b>${won(sumBy(o => o.payment?.method === "cash"))}</b></div>`;
 }
+
+// 버튼 처리: 상태 변경, 취소, 삭제, 수정
+const confirmTap = (b, label) => {
+  if (b.classList.contains("sure")) return true;
+  b.classList.add("sure"); const old = b.textContent; b.textContent = label;
+  setTimeout(() => { b.classList.remove("sure"); b.textContent = old; }, 3000);
+  return false;
+};
 document.addEventListener("click", async e => {
+  const ed = e.target.closest("[data-edit]");
+  if (ed) { openEdit(ed.dataset.edit); return; }
+  const del = e.target.closest("[data-delete]");
+  if (del) {
+    if (!confirmTap(del, "정말 삭제?")) return;
+    del.disabled = true;
+    try { await deleteDoc(doc(db, "onlineOrders", del.dataset.delete)); } catch (err) { console.error(err); del.disabled = false; del.textContent = "다시 눌러주세요"; }
+    return;
+  }
   const b = e.target.closest("button[data-to]"); if (!b) return;
-  if (b.dataset.to === "canceled" && !b.dataset.sure) { b.dataset.sure = "1"; b.textContent = "정말 취소?"; setTimeout(() => { delete b.dataset.sure; b.textContent = "취소"; }, 3000); return; }
+  if (b.dataset.to === "canceled" && !confirmTap(b, "정말 취소?")) return;
   b.disabled = true;
   try { await updateDoc(doc(db, "onlineOrders", b.dataset.id), { status: b.dataset.to }); }
   catch (err) { console.error(err); b.disabled = false; b.textContent = "다시 눌러주세요"; }
 });
+
+// ===== 주문 수정 =====
+let edit = null; // { id, type, items:[{name,price,qty}] }
+const radio = (name, v) => { const r = document.querySelector(`input[name=${name}][value="${v}"]`); if (r) r.checked = true; };
+const val = name => document.querySelector(`input[name=${name}]:checked`)?.value;
+function openEdit(id) {
+  const o = orders.find(x => x.id === id); if (!o) return;
+  edit = { id, type: o.type, items: (o.items || []).map(i => ({ ...i, price: Number(i.price ?? ALL.find(m => m.name === i.name)?.price) || 0 })) };
+  $("eTitle").textContent = `${o.code} 주문 수정`;
+  const c = o.customer || {}, p = o.payment || {};
+  radio("eHow", o.type === "delivery" ? "delivery" : "pickup");
+  $("eName").value = c.name || ""; $("ePhone").value = c.phone || ""; $("eAddr").value = c.address || "";
+  radio("ePay", p.method || "card");
+  radio("eRc", p.receipt ? (p.receiptType || "personal") : "no");
+  $("eRcNo").value = p.receiptNo || "";
+  $("eMemo").value = o.memo || "";
+  $("eFind").value = ""; $("eFound").innerHTML = ""; $("eErr").textContent = "";
+  document.querySelectorAll("#modal .box")[1].classList.toggle("hide", o.type === "table");
+  document.querySelectorAll("#modal .box")[2].classList.toggle("hide", o.type === "table");
+  syncEdit(); drawItems();
+  $("modal").classList.add("on"); $("modal").querySelector(".sheet").scrollTop = 0; document.body.style.overflow = "hidden";
+}
+function closeEdit() { $("modal").classList.remove("on"); document.body.style.overflow = ""; edit = null; }
+$("eClose").onclick = closeEdit;
+$("modal").addEventListener("click", e => { if (e.target === $("modal")) closeEdit(); });
+const eTotal = () => edit.items.reduce((s, i) => s + i.price * i.qty, 0);
+function drawItems() {
+  $("eItems").innerHTML = edit.items.map((i, k) => `<div class="erow"><span class="nm">${esc(i.name)}<small>${won(i.price)}</small></span>
+    <div class="step"><button data-eq="${k}" data-d="-1" aria-label="빼기">−</button><b>${i.qty}</b><button data-eq="${k}" data-d="1" aria-label="더하기">+</button></div>
+    <button class="del" data-erm="${k}">삭제</button></div>`).join("") || `<p class="empty" style="padding:6px 0">메뉴가 없어요. 아래에서 추가하세요.</p>`;
+  $("eTotal").textContent = won(eTotal());
+}
+$("eItems").addEventListener("click", e => {
+  const q = e.target.closest("[data-eq]"), rm = e.target.closest("[data-erm]");
+  if (q) { const it = edit.items[+q.dataset.eq]; it.qty = Math.max(1, Math.min(30, it.qty + +q.dataset.d)); drawItems(); }
+  if (rm) { edit.items.splice(+rm.dataset.erm, 1); drawItems(); }
+});
+$("eFind").addEventListener("input", () => {
+  const w = $("eFind").value.replace(/\s/g, "");
+  const hits = w ? ALL.filter(m => m.name.replace(/\s/g, "").includes(w)).slice(0, 8) : [];
+  $("eFound").innerHTML = hits.map((m, k) => `<button data-add="${ALL.indexOf(m)}"><span>+ ${esc(m.name)}</span><b>${won(m.price)}</b></button>`).join("");
+});
+$("eFound").addEventListener("click", e => {
+  const b = e.target.closest("[data-add]"); if (!b) return;
+  const m = ALL[+b.dataset.add];
+  const ex = edit.items.find(i => i.name === m.name && i.price === m.price);
+  if (ex) ex.qty = Math.min(30, ex.qty + 1); else edit.items.push({ name: m.name, price: m.price, qty: 1 });
+  $("eFind").value = ""; $("eFound").innerHTML = ""; drawItems();
+});
+function syncEdit() {
+  $("eAddrF").classList.toggle("hide", val("eHow") !== "delivery");
+  $("eRcBox").classList.toggle("hide", val("ePay") !== "cash");
+  const rc = val("eRc");
+  $("eRcF").classList.toggle("hide", rc === "no");
+  $("eRcL").textContent = rc === "business" ? "사업자등록번호 (10자리)" : "휴대폰 번호";
+}
+document.querySelectorAll("#modal input[type=radio]").forEach(r => r.addEventListener("change", syncEdit));
+$("eSave").onclick = async () => {
+  if (!edit) return;
+  $("eErr").textContent = "";
+  if (!edit.items.length) { $("eErr").textContent = "메뉴가 하나 이상 있어야 해요. 주문을 없애려면 취소를 누르세요."; return; }
+  const upd = { items: edit.items, total: eTotal(), memo: $("eMemo").value.trim().slice(0, 300), editedAt: serverTimestamp() };
+  if (edit.type !== "table") {
+    const type = val("eHow"), phone = digits($("ePhone").value), address = $("eAddr").value.trim();
+    if (phone.length < 10 || phone.length > 11) { $("eErr").textContent = "전화번호를 확인해 주세요."; return; }
+    if (type === "delivery" && address.length < 5) { $("eErr").textContent = "배달 주소를 입력해 주세요."; return; }
+    upd.type = type;
+    upd.customer = { name: $("eName").value.trim().slice(0, 30), phone, address: type === "delivery" ? address.slice(0, 150) : "" };
+    const pay = { method: val("ePay"), receipt: false };
+    const rc = val("eRc");
+    if (pay.method === "cash" && rc !== "no") {
+      const no = digits($("eRcNo").value);
+      if (rc === "business" ? no.length !== 10 : (no.length < 10 || no.length > 11)) { $("eErr").textContent = rc === "business" ? "사업자등록번호 10자리를 확인해 주세요." : "현금영수증 휴대폰 번호를 확인해 주세요."; return; }
+      Object.assign(pay, { receipt: true, receiptType: rc, receiptNo: no });
+    }
+    upd.payment = pay;
+  }
+  $("eSave").disabled = true; $("eSave").textContent = "저장 중…";
+  try { await updateDoc(doc(db, "onlineOrders", edit.id), upd); closeEdit(); }
+  catch (err) { console.error(err); $("eErr").textContent = "저장하지 못했어요. 인터넷 연결을 확인하고 다시 눌러주세요."; }
+  finally { $("eSave").disabled = false; $("eSave").textContent = "수정 저장"; }
+};
 </script>
 </body>
 </html>
