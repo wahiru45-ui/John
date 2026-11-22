@@ -139,7 +139,7 @@ body.o .horder{padding:3px 0}
 .rpg button.on{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
 .rpf{display:flex;gap:8px}.rpf button{flex:1}.rpf button.ok{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
 .rv{font-weight:800;background:var(--text)!important;color:var(--bg);border-radius:6px;padding:2px 8px;display:inline-block;font-size:calc(clamp(16px,2.8vmin,32px)*var(--fs,1))!important}
-.note.rv{margin-bottom:8px}
+.rv{font-style:normal;margin-left:4px;vertical-align:middle;white-space:nowrap}.rvl{display:block;margin:2px 0 4px;text-align:center;font-size:calc(clamp(15px,2.4vmin,28px)*var(--fs,1))!important}
 .acts{display:flex;gap:8px}
 .acts button{flex:1;min-height:68px;border:0;border-radius:8px;font:inherit;font-weight:800;font-size:20px;cursor:pointer;background:var(--accent);color:var(--accent-text)}
 .acts button.clearbig{flex:0 0 36%;background:var(--text);color:var(--bg)}
@@ -176,7 +176,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 789</span><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 791</span><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -411,9 +411,9 @@ function renderBoard(){
     keys.sort(function(a,b){return a[0]===b[0]?0:a[0]==="n"?-1:1});
     var mins=pend.length?Math.floor((Date.now()-old)/60000):0;
     var body=st==="blank"?'<div class="cn">빈 테이블</div>':st==="eat"?'<div class="cn">서빙 완료</div>':
-      '<ul>'+keys.map(function(k){var l=lines[k];return '<li class="'+(l.s==="new"?"n":"")+'"><span>'+l.n+'</span><span class="q">× '+l.q+'</span></li>'}).join("")+'</ul>'+(rv?'<div class="mm rv">🕒 '+rv+' 예약</div>':'')+(memos.length?'<div class="mm">📝 '+esc(memos.join(" / "))+'</div>':'');
+      '<ul>'+keys.map(function(k){var l=lines[k];return '<li class="'+(l.s==="new"?"n":"")+'"><span>'+l.n+'</span><span class="q">× '+l.q+'</span></li>'}).join("")+'</ul>'+(memos.length?'<div class="mm">📝 '+esc(memos.join(" / "))+'</div>':'');
     var btn=pend.length?'<button class="act finish" data-t="'+t+'" data-a="done">완료</button>':'';
-    h+='<div class="cell '+st+'"><div class="ch"><b>'+t+'번</b><span>'+(pend.length?(mins<1?"방금":mins+"분")+" · "+qn+"개":"")+'</span></div>'+body+btn+'</div>';
+    h+='<div class="cell '+st+'"><div class="ch"><b>'+t+'번</b><span>'+(pend.length?(mins<1?"방금":mins+"분")+" · "+qn+"개":"")+'</span></div>'+(rv?'<div class="rv rvl">🕒 '+rv+' 예약</div>':'')+body+btn+'</div>';
   }
   $("tickets").innerHTML=h;
 }
@@ -432,9 +432,9 @@ function renderKitchen(){
   $("tickets").innerHTML=list.map(function(o){
     var mins=Math.floor((Date.now()-o.time)/60000);
     var btn=o.status!=="done"?'<button class="act finish" data-id="'+o.id+'">완료</button>':'';
-    return '<div class="ticket '+o.status+'"><div class="thead"><b>'+o.table+'번 테이블<span class="state">'+LABEL[o.status]+'</span></b><span>'+(mins<1?"방금":mins+"분 전")+'</span></div><ul>'+
+    return '<div class="ticket '+o.status+'"><div class="thead"><b>'+o.table+'번 테이블'+(o.resv?' <i class="rv">🕒 '+o.resv+' 예약</i>':'')+'<span class="state">'+LABEL[o.status]+'</span></b><span>'+(mins<1?"방금":mins+"분 전")+'</span></div><ul>'+
       o.items.map(function(i){return '<li><span>'+i.name+'</span><b>× '+i.qty+'</b></li>'}).join("")+'</ul>'+
-      (o.resv?'<div class="note rv">🕒 '+o.resv+' 예약</div>':'')+(o.memo?'<div class="note">📝 '+esc(o.memo)+'</div>':'')+btn+'</div>';
+      (o.memo?'<div class="note">📝 '+esc(o.memo)+'</div>':'')+btn+'</div>';
   }).join("");
 }
 $("tickets").addEventListener("click",function(e){
