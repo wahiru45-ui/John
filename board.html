@@ -50,6 +50,18 @@ main{padding:16px}
 .tile.new{border-color:var(--new)}.tile.new span{color:var(--text)}
 .tile.cook{border-color:var(--cook)}.tile.cook span{color:var(--cook)}
 .tile.eat{border-color:var(--accent)}.tile.eat span{color:var(--accent)}
+#printarea{display:none}
+@media print{
+  @page{margin:0;size:80mm auto}
+  body>*:not(#printarea){display:none!important}
+  #printarea{display:block!important;width:72mm;margin:0 auto;color:#000;background:#fff;font-family:sans-serif}
+  .pj{padding:3mm 0;page-break-after:always}
+  .pj .pt{font-size:34px;font-weight:900;line-height:1.1}
+  .pj .pm{font-size:15px;margin:2px 0 6px}
+  .pj .pr{font-size:24px;font-weight:900;border:2px solid #000;padding:2px 6px;display:inline-block;margin-bottom:6px}
+  .pj .pi{font-size:26px;font-weight:800;line-height:1.25;display:flex;justify-content:space-between;border-bottom:1px dashed #000;padding:3px 0}
+  .pj .pn{font-size:20px;font-weight:700;margin-top:6px}
+}
 .tile .tm{font-style:normal;font-weight:800;font-size:clamp(13px,2.2vmin,24px);line-height:1.15;text-align:center;padding:0 3px;max-width:100%;display:block;overflow:hidden;color:var(--text)}
 .tile.has b{font-size:28px!important}.tile .tm div{word-break:keep-all;margin-top:1px}
 .tile .sum{font-size:14px}.tile.new .sum,.tile.cook .sum,.tile.eat .sum{color:var(--text)}
@@ -186,7 +198,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 804</span><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 806</span><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -215,7 +227,7 @@ body.o #history{flex:1;max-height:none}
 <main id="kitchen" class="hide">
   <div class="kbar">
     <div class="kl"><button class="back" id="fsm" aria-label="글자 작게">A−</button><span id="fsv">글자크기</span><button class="back" id="fsp" aria-label="글자 크게">A+</button></div>
-    <div class="kl"><button class="back" id="snd">🔔 알림음 켜짐</button><button class="back" id="kv">카드로 보기</button></div>
+    <div class="kl"><button class="back" id="prt">🖨 자동출력 꺼짐</button><button class="back" id="prtest">시험출력</button><button class="back" id="snd">🔔 알림음 켜짐</button><button class="back" id="kv">카드로 보기</button></div>
   </div>
   <div id="tickets"></div>
 </main>
@@ -314,6 +326,22 @@ $("fsm").onclick=function(){setFs(kfs-.1)};
 $("fsp").onclick=function(){setFs(kfs+.1)};
 $("snd").onclick=function(){setSound(!soundOn);if(soundOn)beep()};
 setFs(kfs);setSound(soundOn);
+var prtOn=false;try{prtOn=localStorage.getItem("kprt")==="1"}catch(err){}
+function setPrt(on){prtOn=on;try{localStorage.setItem("kprt",on?"1":"0")}catch(err){}$("prt").textContent=on?"🖨 자동출력 켜짐":"🖨 자동출력 꺼짐"}
+function printOrders(list){
+  if(!list.length)return;
+  $("printarea").innerHTML=list.map(function(o){
+    var tm=new Date(o.time).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
+    return '<div class="pj"><div class="pt">'+o.table+'번 테이블</div><div class="pm">'+tm+' 주문</div>'+
+      (o.resv?'<div class="pr">예약 '+o.resv+'</div>':'')+
+      o.items.map(function(i){return '<div class="pi"><span>'+esc(i.name)+'</span><span>× '+i.qty+'</span></div>'}).join("")+
+      (o.memo?'<div class="pn">요청: '+esc(o.memo)+'</div>':'')+'</div>';
+  }).join("");
+  setTimeout(function(){try{window.print()}catch(err){}},150);
+}
+$("prt").onclick=function(){setPrt(!prtOn)};
+$("prtest").onclick=function(){printOrders([{table:"5",time:Date.now(),resv:"18:30",memo:"공기밥 빼주세요",items:[{name:"백반",qty:2},{name:"고등어구이 백반",qty:1}]}])};
+setPrt(prtOn);
 function wake(){
   try{if(wl||!navigator.wakeLock||document.hidden||$("kitchen").classList.contains("hide"))return;
     navigator.wakeLock.request("screen").then(function(l){wl=l;l.addEventListener("release",function(){wl=null})}).catch(function(){})}catch(err){}
@@ -488,15 +516,15 @@ function start(){
   $("login").classList.add("hide");$("app").classList.remove("hide");
   first=true;route();renderMenu();renderKitchen();net("off");
   unsub=fs.collection("orders").onSnapshot(function(snap){
-    var freshN=0;
-    if(!first){snap.docChanges().forEach(function(c){if(c.type==="added"&&!snap.metadata.hasPendingWrites&&!c.doc.data().closed)freshN++})}
+    var freshN=0,freshL=[];
+    if(!first){snap.docChanges().forEach(function(c){if(c.type==="added"&&!snap.metadata.hasPendingWrites&&!c.doc.data().closed){freshN++;var fv=c.doc.data();fv.id=c.doc.id;freshL.push(fv)}})}
     first=false;
     orders=snap.docs.map(function(x){var v=x.data();v.id=x.id;return v}).sort(function(a,b){return a.time-b.time});
     if(!pruned&&!snap.metadata.fromCache){pruned=true;orders.forEach(function(o){if(o.closed&&Date.now()-o.time>172800000)drop(o)})}
     net(snap.metadata.fromCache?"off":"ok");
     renderKitchen();
     if(cur&&!$("orderview").classList.contains("hide"))renderHistory();
-    if(freshN&&!$("kitchen").classList.contains("hide"))beep();
+    if(freshN&&!$("kitchen").classList.contains("hide")){beep();if(prtOn)printOrders(freshL)}
   },function(){net("err")});
 }
 
@@ -511,5 +539,6 @@ if(!FIREBASE_CONFIG.apiKey){
   });
 }
 </script>
+<div id="printarea"></div>
 </body>
 </html>
