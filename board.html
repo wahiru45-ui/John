@@ -198,7 +198,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 806</span><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 807</span><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -227,7 +227,7 @@ body.o #history{flex:1;max-height:none}
 <main id="kitchen" class="hide">
   <div class="kbar">
     <div class="kl"><button class="back" id="fsm" aria-label="글자 작게">A−</button><span id="fsv">글자크기</span><button class="back" id="fsp" aria-label="글자 크게">A+</button></div>
-    <div class="kl"><button class="back" id="prt">🖨 자동출력 꺼짐</button><button class="back" id="prtest">시험출력</button><button class="back" id="snd">🔔 알림음 켜짐</button><button class="back" id="kv">카드로 보기</button></div>
+    <div class="kl"><button class="back" id="prt">🖨 자동출력 꺼짐</button><button class="back" id="com">🔌 COM 연결</button><button class="back" id="prtest">시험출력</button><button class="back" id="snd">🔔 알림음 켜짐</button><button class="back" id="kv">카드로 보기</button></div>
   </div>
   <div id="tickets"></div>
 </main>
@@ -328,8 +328,40 @@ $("snd").onclick=function(){setSound(!soundOn);if(soundOn)beep()};
 setFs(kfs);setSound(soundOn);
 var prtOn=false;try{prtOn=localStorage.getItem("kprt")==="1"}catch(err){}
 function setPrt(on){prtOn=on;try{localStorage.setItem("kprt",on?"1":"0")}catch(err){}$("prt").textContent=on?"🖨 자동출력 켜짐":"🖨 자동출력 꺼짐"}
+var sport=null,cpMap=null;
+function kmap(){
+  if(cpMap)return cpMap;cpMap={};var d=new TextDecoder("euc-kr");
+  for(var a=0xA1;a<=0xC8;a++)for(var b=0xA1;b<=0xFE;b++){var ch=d.decode(new Uint8Array([a,b]));if(ch.length===1&&ch!=="\ufffd"&&!cpMap[ch])cpMap[ch]=[a,b]}
+  return cpMap;
+}
+function enc(str){var m=kmap(),o=[];for(var i=0;i<str.length;i++){var ch=str[i],c=str.charCodeAt(i);if(c<128)o.push(c);else if(m[ch])o.push(m[ch][0],m[ch][1]);else o.push(63)}return o}
+function escJob(list){
+  var b=[0x1B,0x40,0x1C,0x26,0x1C,0x43,0x01],big=[0x1D,0x21,0x11],nor=[0x1D,0x21,0x00];
+  list.forEach(function(o){
+    var tm=new Date(o.time).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
+    b=b.concat(big,enc(o.table+"번 테이블\n"),nor,enc(tm+" 주문\n"));
+    if(o.resv)b=b.concat(big,enc("예약 "+o.resv+"\n"),nor);
+    b=b.concat(enc("------------------------\n"));
+    o.items.forEach(function(i){b=b.concat(big,enc(i.name+" x"+i.qty+"\n"),nor)});
+    if(o.memo)b=b.concat(enc("------------------------\n"),big,enc("요청: "+o.memo+"\n"),nor);
+    b=b.concat(enc("\n\n\n\n"),[0x1D,0x56,0x42,0x00]);
+  });
+  return new Uint8Array(b);
+}
+function comUi(){$("com").textContent=sport?"🔌 COM 연결됨":"🔌 COM 연결"}
+async function comOpen(p){try{await p.open({baudRate:9600})}catch(err){if(!p.writable)throw err}sport=p;comUi()}
+async function comWrite(bytes){var w=sport.writable.getWriter();try{await w.write(bytes)}finally{w.releaseLock()}}
+$("com").onclick=function(){
+  if(!navigator.serial){alert("이 브라우저는 COM 연결을 지원하지 않아요. 포스기의 크롬에서 열어주세요.");return}
+  navigator.serial.requestPort().then(comOpen).catch(function(){})
+};
+try{if(navigator.serial)navigator.serial.getPorts().then(function(ps){if(ps[0])comOpen(ps[0]).catch(function(){})})}catch(err){}
 function printOrders(list){
   if(!list.length)return;
+  if(sport&&sport.writable){comWrite(escJob(list)).catch(function(){sport=null;comUi();printHtml(list)});return}
+  printHtml(list);
+}
+function printHtml(list){
   $("printarea").innerHTML=list.map(function(o){
     var tm=new Date(o.time).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
     return '<div class="pj"><div class="pt">'+o.table+'번 테이블</div><div class="pm">'+tm+' 주문</div>'+
