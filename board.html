@@ -198,7 +198,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 807</span><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 808</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -327,7 +327,8 @@ $("fsp").onclick=function(){setFs(kfs+.1)};
 $("snd").onclick=function(){setSound(!soundOn);if(soundOn)beep()};
 setFs(kfs);setSound(soundOn);
 var prtOn=false;try{prtOn=localStorage.getItem("kprt")==="1"}catch(err){}
-function setPrt(on){prtOn=on;try{localStorage.setItem("kprt",on?"1":"0")}catch(err){}$("prt").textContent=on?"🖨 자동출력 켜짐":"🖨 자동출력 꺼짐"}
+function setPrt(on){prtOn=on;try{localStorage.setItem("kprt",on?"1":"0")}catch(err){}$("prt").textContent=on?"🖨 자동출력 켜짐":"🖨 자동출력 꺼짐";$("prt2").textContent=on?"🖨 출력 켜짐":"🖨 출력 꺼짐";$("prt2").style.background=on?"var(--accent)":"var(--card)";$("prt2").style.color=on?"var(--accent-text)":"var(--text)"}
+$("prt2").onclick=function(){setPrt(!prtOn)};
 var sport=null,cpMap=null;
 function kmap(){
   if(cpMap)return cpMap;cpMap={};var d=new TextDecoder("euc-kr");
@@ -457,6 +458,7 @@ function doOrder(){
   if(!items.length)return;
   var no={id:newId(),table:cur,items:items,time:Date.now(),status:"new",memo:$("memo").value.trim(),resv:rtv,closed:false};
   orders.push(no);save(no);
+  if(prtOn)printOrders([no]);
   var tn=cur;
   cart={};armed=false;$("memo").value="";rtv="";renderMenu();renderHistory();renderGrid();renderKitchen();ping();
   $("toast").innerHTML='<div class="toast">'+tn+'번 테이블 '+(no.resv?no.resv+' 예약 ':'')+'주문이 주방에 전달됐어요.</div>';
@@ -556,7 +558,8 @@ function start(){
     net(snap.metadata.fromCache?"off":"ok");
     renderKitchen();
     if(cur&&!$("orderview").classList.contains("hide"))renderHistory();
-    if(freshN&&!$("kitchen").classList.contains("hide")){beep();if(prtOn)printOrders(freshL)}
+    if(freshN&&!$("kitchen").classList.contains("hide"))beep();
+    if(freshN&&prtOn)printOrders(freshL);
   },function(){net("err")});
 }
 
