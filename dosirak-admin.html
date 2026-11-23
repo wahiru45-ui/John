@@ -290,6 +290,7 @@ function render() {
             <span>${s.createdAt?.toDate ? s.createdAt.toDate().toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) + " 신청" : ""}</span>
             <span class="badge ${s.status}">${{ 신청: "확인 대기", 진행중: "확인됨", 종료: "취소/종료" }[s.status] || s.status}</span>
           </div>
+          ${s.editedAt && s.status === "신청" ? `<div class="row" style="color:#d9532b;font-weight:700">✏️ 손님이 개수를 수정했어요 → 다시 확인해 주세요</div>` : ""}
           ${s.memo ? `<div class="row">📝 ${esc(s.memo)}</div>` : ""}
           ${s.orders.map(o => `<div class="od ${o.date < TODAY ? "past" : ""}"><span>${label(o.date)} ${o.items.map(i => `${esc(i.name)} ${i.qty}`).join(", ")}</span><b>${won(o.amount)}</b></div>`).join("")}
           <div class="od" style="font-weight:700;border-top:1px solid #eee;margin-top:4px;padding-top:6px"><span>${s.orders.length}일</span><b>${won(s.orders.reduce((a, o) => a + o.amount, 0))}</b></div>

@@ -101,9 +101,9 @@
 </div>
 
 <div id="done" class="done" style="display:none">
-  <h2>신청이 접수됐어요 ✅</h2>
+  <h2>신청이 저장됐어요 ✅</h2>
   <p>가게에서 확인 후 연락드릴게요.</p>
-  <button id="again">날짜 더 추가하기</button>
+  <button id="again">다시 보기 / 수정하기</button>
 </div>
 
 <div class="bar" id="bar">
@@ -122,7 +122,7 @@ const firebaseConfig = {
 };
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, addDoc, serverTimestamp, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const db = getFirestore(initializeApp(firebaseConfig));
 
 // ===== 설정 =====
@@ -145,6 +145,7 @@ const LS = "dosirak_me";
 let me = {};
 try { me = JSON.parse(localStorage.getItem(LS) || "{}"); } catch {}
 me.booked = me.booked || [];
+me.subs = me.subs || [];   // 이 휴대폰에서 신청한 신청서 번호들
 
 // 내일이 들어있는 주(월~일)부터 보여줌. 날짜는 열 때마다 자동으로 바뀜
 const tomorrow = new Date(); tomorrow.setHours(0, 0, 0, 0); tomorrow.setDate(tomorrow.getDate() + 1);
@@ -168,6 +169,12 @@ buildWeek();
 const canPick = s => s >= FIRST && !CLOSED.includes(new Date(s + "T00:00").getDay());
 
 const cart = {};   // { "2026-11-24": {heat:1, warm:0, salad:2} }
+let loaded = [];   // 이 휴대폰에서 예전에 신청한 내역 (수정 가능)
+const owner = {};  // 날짜 → 그 날짜가 들어있는 신청서 번호
+let orig = "{}";   // 불러온 직후 상태 (바뀐 게 있는지 비교용)
+const nameToId = Object.fromEntries(MENUS.map(m => [m.name, m.id]));
+const snapCart = () => JSON.stringify(Object.fromEntries(ALL.filter(canPick).map(d => [d, MENUS.map(m => (cart[d] && cart[d][m.id]) || 0)]).filter(([, v]) => v.some(x => x))));
+const isChanged = () => snapCart() !== orig;
 let active = null;
 let lastPicked = null;
 
@@ -182,12 +189,12 @@ function render() {
   document.getElementById("dates").innerHTML = DATES.map(s => {
     const d = new Date(s + "T00:00");
     const n = dayCount(s);
-    const done = me.booked.includes(s);
+    const done = me.booked.includes(s) && !owner[s];
     const cls = ["date", n ? "has" : "", s === active ? "on" : "", done && !n ? "done" : ""].join(" ");
     return `<button class="${cls}" data-date="${s}" ${canPick(s) ? "" : "disabled"}>
       <div class="d">${d.getMonth() + 1}/${d.getDate()}</div>
       <div class="w">${WD[d.getDay()]}</div>
-      <div class="c">${n ? n + "개" : done ? "신청됨" : ""}</div>
+      <div class="c">${n ? n + "개" + (owner[s] ? " ✓" : "") : done ? "신청됨" : ""}</div>
     </button>`;
   }).join("");
 
@@ -196,9 +203,10 @@ function render() {
     panel.innerHTML = `<p class="sub" style="margin:0">↑ 위에서 날짜를 눌러 주세요</p>`;
   } else {
     const c = cart[active] || {};
-    const done = me.booked.includes(active);
+    const done = me.booked.includes(active) && !owner[active];
     panel.innerHTML = `
       <div class="ptitle">${label(active)} 도시락</div>
+      ${owner[active] ? `<p class="sub" style="margin:0 0 4px">✓ 이미 신청한 날이에요. 개수를 바꾸고 아래 버튼을 누르면 수정돼요. 0개로 만들면 이 날은 취소돼요.</p>` : ""}
       ${done ? `<p class="sub" style="margin:0 0 4px">이 날짜는 이미 신청하셨어요. 더 고르면 추가로 신청돼요.</p>` : ""}
       ${MENUS.map(m => `
         <div class="menu">
@@ -226,8 +234,12 @@ function render() {
   const boxes = ps.reduce((a, s) => a + dayCount(s), 0);
   document.getElementById("sumText").innerHTML = ps.length
     ? `${ps.length}일 · 도시락 ${boxes}개 = <b>${won(total)}</b>`
-    : "날짜와 도시락을 골라주세요";
-  document.getElementById("submit").disabled = !ps.length;
+    : (loaded.length ? "모든 날을 취소하려면 아래 버튼을 눌러 주세요" : "날짜와 도시락을 골라주세요");
+  const btn = document.getElementById("submit");
+  if (btn.dataset.busy) return;
+  btn.disabled = !isChanged();
+  btn.textContent = loaded.length ? "신청 / 수정하기" : "신청하기";
+  if (loaded.length && ps.length && !isChanged()) document.getElementById("sumText").innerHTML += `<br><span style="font-size:12px">개수를 바꾸거나 날짜를 추가하면 버튼이 켜져요</span>`;
 }
 
 document.addEventListener("click", e => {
@@ -261,38 +273,92 @@ if (me.phone) {
   document.getElementById("infoForm").style.display = "none";
 }
 
+// 예전에 신청한 내역 불러오기 → 개수 수정 가능
+async function loadMine() {
+  const keep = [];
+  for (const id of me.subs) {
+    try {
+      const snap = await getDoc(doc(db, "subscriptions", id));
+      if (!snap.exists()) continue;
+      const d = snap.data();
+      if (d.status === "종료") continue;
+      keep.push(id);
+      loaded.push({ id, ...d });
+      (d.orders || []).forEach(o => {
+        if (!ALL.includes(o.date) || !canPick(o.date)) return;
+        owner[o.date] = owner[o.date] || id;
+        cart[o.date] = cart[o.date] || {};
+        o.items.forEach(i => { const k = nameToId[i.name]; if (k) cart[o.date][k] = (cart[o.date][k] || 0) + i.qty; });
+      });
+    } catch (e) { keep.push(id); }
+  }
+  me.subs = keep;
+  orig = snapCart();
+  if (loaded.length) {
+    const w = document.getElementById("welcome");
+    w.textContent = `${me.name || ""}님, 신청하신 내역을 불러왔어요. 개수를 바꾸거나 날짜를 추가할 수 있어요.`;
+  }
+  render();
+}
+
 document.getElementById("submit").addEventListener("click", async () => {
   const v = id => document.getElementById(id).value.trim();
   if (!v("name") || !v("phone") || !v("addr")) { alert("연락처, 이름, 주소를 입력해 주세요."); return; }
   const btn = document.getElementById("submit");
-  btn.disabled = true; btn.textContent = "보내는 중...";
-  const ps = pickedDates();
-  const orders = ps.map(s => ({
-    date: s,
-    items: MENUS.filter(m => cart[s][m.id]).map(m => ({ name: m.name, price: m.price, qty: cart[s][m.id] })),
-    amount: dayMoney(s)
-  }));
+  btn.disabled = true; btn.textContent = "보내는 중..."; btn.dataset.busy = "1";
+  const mk = d => ({
+    date: d,
+    items: MENUS.filter(m => cart[d] && cart[d][m.id]).map(m => ({ name: m.name, price: m.price, qty: cart[d][m.id] })),
+    amount: dayMoney(d)
+  });
+  const editable = d => ALL.includes(d) && canPick(d);
+  const used = new Set();
+  const info = { name: v("name"), addr: v("addr"), memo: v("memo") };
   try {
-    await addDoc(collection(db, "subscriptions"), {
-      orders,
-      name: v("name"), phone: v("phone"), addr: v("addr"), memo: v("memo"),
-      total: orders.reduce((a, o) => a + o.amount, 0),
-      status: "신청", createdAt: serverTimestamp()
-    });
-    me = { phone: v("phone"), name: v("name"), addr: v("addr"), memo: v("memo"),
-           booked: [...new Set([...me.booked, ...ps])].filter(s => s >= ymd(new Date())) };
+    // 1) 예전 신청서 수정
+    for (const L of loaded) {
+      const before = L.orders || [];
+      const keepOld = before.filter(o => !editable(o.date));
+      const mine = [...new Set(before.filter(o => editable(o.date)).map(o => o.date))]
+        .filter(d => owner[d] === L.id && !used.has(d));
+      mine.forEach(d => used.add(d));
+      const orders = [...keepOld, ...mine.filter(d => dayCount(d)).map(mk)].sort((a, b) => a.date < b.date ? -1 : 1);
+      if (JSON.stringify(orders) === JSON.stringify(before)) continue;
+      await updateDoc(doc(db, "subscriptions", L.id), {
+        ...info, orders,
+        total: orders.reduce((a, o) => a + o.amount, 0),
+        status: orders.length ? "신청" : "종료",
+        editedAt: serverTimestamp()
+      });
+      if (!orders.length) me.subs = me.subs.filter(x => x !== L.id);
+    }
+    // 2) 새로 고른 날짜는 새 신청서로
+    const fresh = pickedDates().filter(d => !used.has(d) && !owner[d]);
+    if (fresh.length) {
+      const orders = fresh.map(mk);
+      const ref = await addDoc(collection(db, "subscriptions"), {
+        orders, phone: v("phone"), ...info,
+        total: orders.reduce((a, o) => a + o.amount, 0),
+        status: "신청", createdAt: serverTimestamp()
+      });
+      me.subs.push(ref.id);
+    }
+    me = { ...me, phone: v("phone"), ...info,
+           booked: [...new Set([...me.booked, ...pickedDates()])].filter(d => d >= ymd(new Date())) };
     try { localStorage.setItem(LS, JSON.stringify(me)); } catch {}
     document.getElementById("form").style.display = "none";
     document.getElementById("bar").style.display = "none";
     document.getElementById("done").style.display = "block";
   } catch (err) {
-    alert("신청에 실패했어요. 잠시 후 다시 시도해 주세요.");
-    btn.disabled = false; btn.textContent = "신청하기";
+    alert("저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    delete btn.dataset.busy;
+    render();
   }
 });
 document.getElementById("again").onclick = () => location.reload();
 
 render();
+if (me.subs.length) loadMine();
 </script>
 </body>
 </html>
