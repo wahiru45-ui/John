@@ -189,7 +189,7 @@ function render() {
   document.getElementById("dates").innerHTML = DATES.map(s => {
     const d = new Date(s + "T00:00");
     const n = dayCount(s);
-    const done = me.booked.includes(s) && !owner[s];
+    const done = false;
     const cls = ["date", n ? "has" : "", s === active ? "on" : "", done && !n ? "done" : ""].join(" ");
     return `<button class="${cls}" data-date="${s}" ${canPick(s) ? "" : "disabled"}>
       <div class="d">${d.getMonth() + 1}/${d.getDate()}</div>
@@ -203,7 +203,7 @@ function render() {
     panel.innerHTML = `<p class="sub" style="margin:0">↑ 위에서 날짜를 눌러 주세요</p>`;
   } else {
     const c = cart[active] || {};
-    const done = me.booked.includes(active) && !owner[active];
+    const done = false;
     panel.innerHTML = `
       <div class="ptitle">${label(active)} 도시락</div>
       ${owner[active] ? `<p class="sub" style="margin:0 0 4px">✓ 이미 신청한 날이에요. 개수를 바꾸고 아래 버튼을 누르면 수정돼요. 0개로 만들면 이 날은 취소돼요.</p>` : ""}
