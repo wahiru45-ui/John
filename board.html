@@ -50,6 +50,7 @@ main{padding:16px}
 .tile.new{border-color:var(--new)}.tile.new span{color:var(--text)}
 .tile.cook{border-color:var(--cook)}.tile.cook span{color:var(--cook)}
 .tile.eat{border-color:var(--accent)}.tile.eat span{color:var(--accent)}
+.tile .tm{font-style:normal;font-weight:700;font-size:12px;line-height:1.2;text-align:center;padding:0 4px;max-width:100%;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;color:var(--text)}
 .tile .sum{font-size:14px}.tile.new .sum,.tile.cook .sum,.tile.eat .sum{color:var(--text)}
 .back{border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer}
 .hist{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
@@ -184,7 +185,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 800</span><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 801</span><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -323,7 +324,9 @@ function renderGrid(){
   for(var i=1;i<=16;i++){
     var mine=tableOrders(i);
     var st=!mine.length?"":mine.some(function(o){return o.status==="new"})?"new":mine.some(function(o){return o.status==="cook"})?"cook":"eat";
-    h+='<button class="tile '+st+'" data-t="'+i+'"><b>'+i+'</b><span>'+nm[st]+'</span>'+'</button>';
+    var agg={},ks=[];mine.forEach(function(o){o.items.forEach(function(it){if(!agg[it.name]){agg[it.name]=0;ks.push(it.name)}agg[it.name]+=it.qty})});
+    var sm=ks.map(function(k){return k+' ×'+agg[k]}).join(", ");
+    h+='<button class="tile '+st+'" data-t="'+i+'"><b>'+i+'</b><span>'+nm[st]+'</span>'+(sm?'<em class="tm">'+esc(sm)+'</em>':'')+'</button>';
   }
   $("grid").innerHTML=h;
 }
@@ -394,7 +397,7 @@ function doOrder(){
   var no={id:newId(),table:cur,items:items,time:Date.now(),status:"new",memo:$("memo").value.trim(),resv:rtv,closed:false};
   orders.push(no);save(no);
   var tn=cur;
-  rtv="";renderKitchen();ping();openGrid();
+  cart={};armed=false;$("memo").value="";rtv="";renderMenu();renderHistory();renderGrid();renderKitchen();ping();
   $("toast").innerHTML='<div class="toast">'+tn+'번 테이블 '+(no.resv?no.resv+' 예약 ':'')+'주문이 주방에 전달됐어요.</div>';
   setTimeout(function(){$("toast").innerHTML=""},4000);
 }
