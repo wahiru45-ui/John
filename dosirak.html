@@ -411,6 +411,7 @@ document.getElementById("submit").addEventListener("click", async () => {
         status: "신청", createdAt: serverTimestamp()
       });
       me.subs.push(ref.id);
+      listen(ref.id);
     }
     me = { ...me, phone: v("phone"), ...info,
            booked: [...new Set([...me.booked, ...pickedDates()])].filter(d => d >= ymd(new Date())) };
