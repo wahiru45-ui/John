@@ -120,7 +120,7 @@
 <div id="done" class="done" style="display:none">
   <h2>신청이 저장됐어요 ✅</h2>
   <p>가게에서 확인 후 연락드릴게요.</p>
-  <button id="again">다시 보기 / 수정하기</button>
+  <p class="hint" style="margin-top:14px">잠시 후 처음 화면으로 돌아가요…</p>
 </div>
 
 <div class="bar" id="bar">
@@ -419,13 +419,14 @@ document.getElementById("submit").addEventListener("click", async () => {
     document.getElementById("form").style.display = "none";
     document.getElementById("bar").style.display = "none";
     document.getElementById("done").style.display = "block";
+    window.scrollTo(0, 0);
+    setTimeout(() => location.reload(), 1800);
   } catch (err) {
     alert("저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
     delete btn.dataset.busy;
     render();
   }
 });
-document.getElementById("again").onclick = () => location.reload();
 
 render();
 if (me.subs.length) loadMine();
