@@ -27,6 +27,8 @@
   .dv:last-child { border-bottom: none; }
   .dv .dn { font-weight: 700; }
   .dv .da { color: #666; }
+  .dlv { margin-top: 6px; width: 100%; padding: 10px; border-radius: 10px; border: none; background: #2a8a4a; color: #fff; font-size: 15px; font-weight: 700; }
+  .dlv.done { background: #fff; color: #2a8a4a; border: 1px solid #2a8a4a; font-weight: 600; }
   .pend { color: #d9532b; font-size: 13px; margin-top: 6px; }
   .tabs { display: flex; gap: 8px; padding: 0 12px 12px; overflow-x: auto; }
   .tab { padding: 8px 14px; border-radius: 18px; border: 1px solid #ccc; background: #fff; white-space: nowrap; font-size: 15px; }
@@ -130,6 +132,8 @@ const MENUS = [
   { name: "보온도시락",   price: 6600 },
   { name: "샐러드도시락", price: 6600 },
 ];
+// 배달 완료 문자 내용 ({이름} 자리에 손님 이름이 들어가요)
+const ARRIVE_MSG = "{이름}님, 주문하신 도시락이 도착했어요 🍱 맛있게 드세요!";
 const TABS = ["전체", "신청", "진행중", "종료"];
 let editing = null;   // 수정 중인 신청 id
 let draft = null;     // 수정 중인 내용
@@ -202,7 +206,11 @@ function daySummary() {
   const r = countUp(rows.map(x => x.o));
   const who = rows.map(({ s, o }) => `
     <div class="dv"><span class="dn">${esc(s.name)}</span> · ${o.items.map(i => `${esc(i.name)} ${i.qty}`).join(", ")}
-    <div class="da">📍 ${esc(s.addr)}${s.memo ? ` · 📝 ${esc(s.memo)}` : ""}</div></div>`).join("");
+    <div class="da">📍 ${esc(s.addr)}${s.memo ? ` · 📝 ${esc(s.memo)}` : ""}</div>
+    ${o.delivered
+      ? `<button class="dlv done" data-arrive="${s.id}" data-date="${o.date}">✅ 배달 완료됨 · 문자 다시 보내기</button>`
+      : `<button class="dlv" data-arrive="${s.id}" data-date="${o.date}">🚚 배달 완료 · 손님에게 문자</button>`}
+    </div>`).join("");
   return `<div class="stitle">📦 ${label(day)}${day === TODAY ? " 오늘" : ""} 배달 · ${rows.length}곳</div>
     ${lines(r)}
     ${who ? `<div class="deliv">${who}</div>` : ""}
@@ -370,6 +378,17 @@ document.addEventListener("click", async e => {
   const t = e.target.closest("button");
   if (!t) return;
   if (t.dataset.tab) { tab = t.dataset.tab; render(); }
+  if (t.dataset.arrive) {
+    const s = subs.find(x => x.id === t.dataset.arrive);
+    if (!s) return;
+    const msg = ARRIVE_MSG.replace("{이름}", s.name || "고객");
+    // 문자 앱을 먼저 열고 (버튼 누른 순간에 열어야 막히지 않아요)
+    location.href = `sms:${(s.phone || "").replace(/[^0-9]/g, "")}?body=${encodeURIComponent(msg)}`;
+    // 배달 완료 표시 저장
+    const orders = s.orders.map(o => o.date === t.dataset.date ? { ...o, delivered: true } : o);
+    try { await updateDoc(doc(db, "subscriptions", s.id), { orders }); }
+    catch (err) { alert("완료 표시 저장 실패: " + err.message); }
+  }
   if (t.dataset.st) {
     await updateDoc(doc(db, "subscriptions", t.dataset.id), { status: t.dataset.st });
   }
