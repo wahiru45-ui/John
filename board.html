@@ -136,9 +136,13 @@ body.o #orderview{flex:1;min-height:0;display:flex;flex-direction:column}
 .ohead{flex:none;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
 .ohead h1{font-size:22px;margin:0}
 .obody{flex:1;min-height:0;display:grid;gap:8px;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
-body.o #menu{display:grid;gap:8px;min-height:0;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(7,minmax(0,1fr))}
-@media (min-width:600px){body.o #menu{grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(6,minmax(0,1fr))}}
+body.o #menu{display:grid;gap:8px;min-height:0;grid-template-columns:repeat(3,1fr);grid-template-rows:none;grid-auto-rows:minmax(0,1fr)}
+@media (min-width:600px){body.o #menu{grid-template-columns:repeat(5,1fr)}
+.mt.act.go,.mt.act.cl{grid-column:span 2}}
+@media (min-width:600px){.mt.gs{grid-column-start:1}}
 .mt{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:0;overflow:hidden;background:var(--card);border:2px solid var(--line);border-radius:12px;padding:4px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.mt[data-c]{box-shadow:inset 0 6px 0 var(--cc,var(--line))}
+.mt[data-c="백반"]{--cc:#b45309}.mt[data-c="고기·국"]{--cc:#b91c1c}.mt[data-c="탕·조림"]{--cc:#c2410c}.mt[data-c="사이드"]{--cc:#4d7c0f}.mt[data-c="주류"]{--cc:#1d4ed8}.mt[data-c="음료"]{--cc:#0e7490}
 .mt.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--card))}
 .mt .me{font-size:clamp(22px,5vmin,44px);line-height:1}
 .mt .mn{font-weight:800;font-size:clamp(14px,2.6vmin,26px);line-height:1.2}
@@ -169,7 +173,7 @@ body.o .horder{padding:3px 0}
 .acts button:disabled{background:var(--line);color:var(--muted);cursor:default}
 @media (min-width:900px) and (orientation:landscape){
 .obody{grid-template-columns:minmax(0,1fr) 360px;grid-template-rows:minmax(0,1fr)}
-body.o #menu{grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(3,minmax(0,1fr))}
+body.o #menu{grid-template-columns:repeat(5,1fr)}
 body.o #history{flex:1;max-height:none}
 .acts{flex-direction:column}
 .acts button{flex:none;min-height:88px;font-size:24px}
@@ -199,7 +203,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 810</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 811</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -214,7 +218,6 @@ body.o #history{flex:1;max-height:none}
       <div id="menu"></div>
       <aside class="side">
         <div id="history"></div>
-        <input id="memo" class="memo" maxlength="60" placeholder="요청사항 (예: 공기밥 빼주세요)">
       </aside>
     </div>
   </div>
@@ -286,11 +289,12 @@ function renderMenu(){
   MENU.forEach(function(m){var q=cart[m.id]||0;n+=q;sum+=q*m.price});
   var has=cur&&tableOrders(cur).length>0;
   var acts='<div class="mt act go'+(n?'':' off')+'" role="button" data-act="order"><div class="mn">주문하기</div><div class="mp">'+(n?n+'개 · '+won(sum):'메뉴를 골라주세요')+(rtv&&n?' · '+rtv+' 예약':'')+'</div></div>'+
-    '<div class="mt act'+(has?'':' off')+'" role="button" data-act="clear"><div class="mn">테이블 비우기</div><div class="mp">계산 완료</div></div>'+
+    '<div class="mt act cl'+(has?'':' off')+'" role="button" data-act="clear"><div class="mn">테이블 비우기</div><div class="mp">계산 완료</div></div>'+
     '<div class="mt act'+(rtv?' on':'')+'" role="button" data-act="resv"><div class="mn">'+(rtv?'🕒 '+rtv:'예약')+'</div><div class="mp">'+(rtv?'예약 변경':'시간 선택')+'</div></div>';
+  var grp={"사이드":"s","주류":"s","음료":"s"},prev="";
   $("menu").innerHTML=acts+MENU.map(function(m){
-    var q=cart[m.id]||0;
-    return '<div class="mt'+(q?' on':'')+'" role="button" tabindex="0" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 담기"><div class="me">'+m.e+'</div><div class="mn">'+m.name+'</div><div class="mp">'+won(m.price)+'</div>'+
+    var q=cart[m.id]||0,g=grp[m.c]||m.c,gs=(g!==prev);prev=g;
+    return '<div data-c="'+m.c+'" class="mt'+(gs?' gs':'')+(q?' on':'')+'" role="button" tabindex="0" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 담기"><div class="me">'+m.e+'</div><div class="mn">'+m.name+'</div><div class="mp">'+won(m.price)+'</div>'+
     (q?'<div class="mq">'+q+'</div><div class="mx" role="button" data-d="-1" data-id="'+m.id+'" aria-label="'+m.name+' 빼기">−</div>':'')+'</div>';
   }).join("");
 }
@@ -410,12 +414,12 @@ function renderGrid(){
   $("grid").innerHTML=h;
 }
 function openGrid(){
-  cart={};armed=false;$("memo").value="";renderMenu();
+  cart={};armed=false;renderMenu();
   $("orderview").classList.add("hide");$("gridview").classList.remove("hide");syncBody();
 }
 $("grid").addEventListener("click",function(e){
   var t=e.target.closest("button");if(!t)return;
-  cur=t.dataset.t;cart={};rtv="";armed=false;$("memo").value="";renderMenu();renderHistory();
+  cur=t.dataset.t;cart={};rtv="";armed=false;renderMenu();renderHistory();
   $("otitle").textContent=cur+"번 테이블";$("toast").innerHTML="";
   $("gridview").classList.add("hide");$("orderview").classList.remove("hide");syncBody();
   window.scrollTo(0,0);
@@ -473,11 +477,11 @@ $("rp").addEventListener("click",function(e){
 function doOrder(){
   var items=MENU.filter(function(m){return cart[m.id]}).map(function(m){return{name:m.name,qty:cart[m.id],price:m.price}});
   if(!items.length)return;
-  var no={id:newId(),table:cur,items:items,time:Date.now(),status:"new",memo:$("memo").value.trim(),resv:rtv,closed:false};
+  var no={id:newId(),table:cur,items:items,time:Date.now(),status:"new",memo:"",resv:rtv,closed:false};
   orders.push(no);save(no);
   if(prtOn)printOrders([no]);
   var tn=cur;
-  cart={};armed=false;$("memo").value="";rtv="";renderMenu();renderHistory();renderGrid();renderKitchen();ping();
+  cart={};armed=false;rtv="";renderMenu();renderHistory();renderGrid();renderKitchen();ping();
   $("toast").innerHTML='<div class="toast">'+tn+'번 테이블 '+(no.resv?no.resv+' 예약 ':'')+'주문이 주방에 전달됐어요.</div>';
   setTimeout(function(){$("toast").innerHTML=""},4000);
 }
