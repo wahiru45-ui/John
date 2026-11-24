@@ -63,6 +63,7 @@ main{padding:16px}
   .pj .pn{font-size:20px;font-weight:700;margin-top:6px}
 }
 .tile .tm{font-style:normal;font-weight:800;font-size:clamp(13px,2.2vmin,24px);line-height:1.15;text-align:center;padding:0 3px;max-width:100%;display:block;overflow:hidden;color:var(--text)}
+.htot{font-weight:900;font-size:22px;text-align:right;padding:8px 4px 2px;border-top:2px solid var(--text);margin-top:6px}
 .tile.has b{font-size:28px!important}.tile .tm div{word-break:keep-all;margin-top:1px}
 .tile .sum{font-size:14px}.tile.new .sum,.tile.cook .sum,.tile.eat .sum{color:var(--text)}
 .back{border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer}
@@ -135,8 +136,8 @@ body.o #orderview{flex:1;min-height:0;display:flex;flex-direction:column}
 .ohead{flex:none;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
 .ohead h1{font-size:22px;margin:0}
 .obody{flex:1;min-height:0;display:grid;gap:8px;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
-body.o #menu{display:grid;gap:8px;min-height:0;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(6,minmax(0,1fr))}
-@media (min-width:600px){body.o #menu{grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,minmax(0,1fr))}}
+body.o #menu{display:grid;gap:8px;min-height:0;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(7,minmax(0,1fr))}
+@media (min-width:600px){body.o #menu{grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(6,minmax(0,1fr))}}
 .mt{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:0;overflow:hidden;background:var(--card);border:2px solid var(--line);border-radius:12px;padding:4px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .mt.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--card))}
 .mt .me{font-size:clamp(22px,5vmin,44px);line-height:1}
@@ -168,7 +169,7 @@ body.o .horder{padding:3px 0}
 .acts button:disabled{background:var(--line);color:var(--muted);cursor:default}
 @media (min-width:900px) and (orientation:landscape){
 .obody{grid-template-columns:minmax(0,1fr) 360px;grid-template-rows:minmax(0,1fr)}
-body.o #menu{grid-template-columns:repeat(6,1fr);grid-template-rows:repeat(3,minmax(0,1fr))}
+body.o #menu{grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(3,minmax(0,1fr))}
 body.o #history{flex:1;max-height:none}
 .acts{flex-direction:column}
 .acts button{flex:none;min-height:88px;font-size:24px}
@@ -198,7 +199,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 809</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 810</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -261,7 +262,12 @@ var MENU=[
   {id:10,c:"탕·조림",name:"닭볶음탕",price:30000,e:"🍗"},
   {id:11,c:"탕·조림",name:"갈치조림(1인분)",price:40000,e:"🥘"},
   {id:12,c:"탕·조림",name:"고등어조림(1인분)",price:30000,e:"🥘"},
-  {id:13,c:"탕·조림",name:"고등어김치조림(1인분)",price:30000,e:"🥘"}
+  {id:13,c:"탕·조림",name:"고등어김치조림(1인분)",price:30000,e:"🥘"},
+  {id:14,c:"사이드",name:"공기밥",price:1000,e:"🍚"},
+  {id:15,c:"사이드",name:"볶음밥",price:2000,e:"🍳"},
+  {id:16,c:"주류",name:"소주",price:4000,e:"🍶"},
+  {id:17,c:"주류",name:"맥주",price:4000,e:"🍺"},
+  {id:18,c:"음료",name:"음료수",price:2000,e:"🥤"}
 ];
 var LABEL={new:"접수",cook:"조리중",done:"완료"};
 var cart={},orders=[],audio=null,fs=null,auth=null,unsub=null,first=true,pruned=false,cur=null,armed=false;
@@ -279,12 +285,12 @@ function renderMenu(){
   var n=0,sum=0;
   MENU.forEach(function(m){var q=cart[m.id]||0;n+=q;sum+=q*m.price});
   var has=cur&&tableOrders(cur).length>0;
-  var acts='<div class="mt act go'+(n?'':' off')+'" role="button" data-act="order"><div class="mn">주문하기</div><div class="mp">'+(n?n+'개':'메뉴를 골라주세요')+(rtv&&n?' · '+rtv+' 예약':'')+'</div></div>'+
+  var acts='<div class="mt act go'+(n?'':' off')+'" role="button" data-act="order"><div class="mn">주문하기</div><div class="mp">'+(n?n+'개 · '+won(sum):'메뉴를 골라주세요')+(rtv&&n?' · '+rtv+' 예약':'')+'</div></div>'+
     '<div class="mt act'+(has?'':' off')+'" role="button" data-act="clear"><div class="mn">테이블 비우기</div><div class="mp">계산 완료</div></div>'+
     '<div class="mt act'+(rtv?' on':'')+'" role="button" data-act="resv"><div class="mn">'+(rtv?'🕒 '+rtv:'예약')+'</div><div class="mp">'+(rtv?'예약 변경':'시간 선택')+'</div></div>';
   $("menu").innerHTML=acts+MENU.map(function(m){
     var q=cart[m.id]||0;
-    return '<div class="mt'+(q?' on':'')+'" role="button" tabindex="0" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 담기"><div class="me">'+m.e+'</div><div class="mn">'+m.name+'</div>'+
+    return '<div class="mt'+(q?' on':'')+'" role="button" tabindex="0" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 담기"><div class="me">'+m.e+'</div><div class="mn">'+m.name+'</div><div class="mp">'+won(m.price)+'</div>'+
     (q?'<div class="mq">'+q+'</div><div class="mx" role="button" data-d="-1" data-id="'+m.id+'" aria-label="'+m.name+' 빼기">−</div>':'')+'</div>';
   }).join("");
 }
@@ -431,11 +437,11 @@ function renderHistory(){
     var tm=new Date(o.time).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
     h+='<div class="horder"><div class="hmeta">'+tm+' · '+LABEL[o.status]+(o.resv?' · 🕒 '+o.resv+' 예약':'')+(o.memo?' · 📝 '+esc(o.memo):'')+'</div>';
     o.items.forEach(function(it,idx){
-      h+='<div class="hrow"><span>'+it.name+' × '+it.qty+'</span><span></span><button class="mini" data-o="'+o.id+'" data-i="'+idx+'" aria-label="'+it.name+' 하나 빼기">−</button></div>';
+      h+='<div class="hrow"><span>'+it.name+' × '+it.qty+'</span><span>'+won(it.price*it.qty)+'</span><button class="mini" data-o="'+o.id+'" data-i="'+idx+'" aria-label="'+it.name+' 하나 빼기">−</button></div>';
     });
     h+='</div>';
   });
-  h+='</div>';
+  h+='<div class="htot">합계 '+won(total(cur))+'</div></div>';
   $("history").innerHTML=h;
 }
 $("history").addEventListener("click",function(e){
