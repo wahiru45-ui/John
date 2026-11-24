@@ -38,6 +38,17 @@
   .amsg { font-size: 18px; font-weight: 700; margin: 10px 0 20px; line-height: 1.5; white-space: pre-line; }
   .abox button { width: 100%; padding: 14px; border: none; border-radius: 12px; background: #d9532b; color: #fff; font-size: 16px; font-weight: 700; }
   @keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .my { border: 1px solid #eee; border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+  .my .mh { display: flex; justify-content: space-between; align-items: center; }
+  .my .md { font-weight: 700; font-size: 16px; }
+  .my .mi { font-size: 14px; color: #555; margin: 4px 0; }
+  .my .mb { display: flex; gap: 8px; margin-top: 6px; }
+  .my .mb button { flex: 1; padding: 9px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-size: 14px; }
+  .my .mb .cx { color: #c33; border-color: #e0a0a0; }
+  .tag { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 10px; color: #fff; }
+  .tag.wait { background: #e0a100; } .tag.ok { background: #2a8a4a; } .tag.done { background: #888; }
+  .mysum { display: flex; justify-content: space-between; font-weight: 700; padding: 8px 2px 0; border-top: 1px solid #eee; margin-top: 4px; }
+  details.mypast summary { font-size: 13px; color: #999; padding: 6px 0; cursor: pointer; }
   .panel { margin-top: 14px; border-top: 1px dashed #ddd; padding-top: 12px; }
   .ptitle { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
   .menu { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
@@ -75,7 +86,12 @@
   </header>
   <div class="welcome" id="welcome" style="display:none"></div>
 
-  <section>
+  <section id="myBox" style="display:none">
+    <h2>📋 내 신청 내역</h2>
+    <div id="myList"></div>
+  </section>
+
+  <section id="pickSec">
     <h2>1. 날짜 고르기</h2>
     <p class="sub">날짜를 누르면 아래에서 그날 도시락을 고를 수 있어요</p>
     <div class="weeknav">
@@ -188,6 +204,7 @@ const canPick = s => s >= FIRST && !CLOSED.includes(new Date(s + "T00:00").getDa
 
 const cart = {};   // { "2026-11-24": {heat:1, warm:0, salad:2} }
 let loaded = [];   // 이 휴대폰에서 예전에 신청한 내역 (수정 가능)
+const live = {};   // 신청서 번호 → 최신 내용 (실시간)
 const owner = {};
 const pendingDate = {}; // 아직 가게에서 확인 안 한 날짜  // 날짜 → 그 날짜가 들어있는 신청서 번호
 let orig = "{}";   // 불러온 직후 상태 (바뀐 게 있는지 비교용)
@@ -201,7 +218,36 @@ const dayCount = s => cart[s] ? MENUS.reduce((a, m) => a + (cart[s][m.id] || 0),
 const dayMoney = s => cart[s] ? MENUS.reduce((a, m) => a + m.price * (cart[s][m.id] || 0), 0) : 0;
 const pickedDates = () => ALL.filter(s => dayCount(s) > 0);
 
+function renderMine() {
+  const rows = [];
+  Object.entries(live).forEach(([id, d]) => {
+    if (d.status === "종료") return;
+    (d.orders || []).forEach(o => rows.push({ id, o, st: d.status }));
+  });
+  const box = document.getElementById("myBox");
+  box.style.display = rows.length ? "block" : "none";
+  if (!rows.length) return;
+  rows.sort((a, b) => a.o.date < b.o.date ? -1 : 1);
+  const today = ymd(new Date());
+  const up = rows.filter(r => r.o.date >= today), past = rows.filter(r => r.o.date < today).reverse();
+  const card = ({ o, st }) => {
+    const tag = o.delivered ? `<span class="tag done">배달 완료</span>` : st === "신청" ? `<span class="tag wait">확인 대기</span>` : `<span class="tag ok">✓ 확인됨</span>`;
+    const can = ALL.includes(o.date) && canPick(o.date) && !o.delivered;
+    return `<div class="my">
+      <div class="mh"><span class="md">${label(o.date)}</span>${tag}</div>
+      <div class="mi">${o.items.map(i => `${i.name} ${i.qty}개`).join(", ")} · <b>${won(o.amount)}</b></div>
+      ${can ? `<div class="mb"><button data-myedit="${o.date}">✏️ 개수 수정</button><button class="cx" data-mycancel="${o.date}">이 날 취소</button></div>`
+            : (o.date >= today && !o.delivered ? `<div class="mi" style="font-size:12px;color:#999">당일·지난 주문은 가게로 연락해 주세요</div>` : "")}
+    </div>`;
+  };
+  document.getElementById("myList").innerHTML =
+    (up.map(card).join("") || `<p class="sub">앞으로 받을 도시락이 없어요</p>`) +
+    (up.length ? `<div class="mysum"><span>앞으로 ${up.length}일</span><span>${won(up.reduce((a, r) => a + r.o.amount, 0))}</span></div>` : "") +
+    (past.length ? `<details class="mypast"><summary>지난 내역 ${past.length}개 보기</summary>${past.map(card).join("")}</details>` : "");
+}
+
 function render() {
+  renderMine();
   document.getElementById("wTitle").textContent = `${label(DATES[0])} ~ ${label(DATES[6])}`;
   document.getElementById("wPrev").disabled = weekIdx === 0;
   document.getElementById("wNext").disabled = weekIdx >= MAX_WEEK;
@@ -267,6 +313,19 @@ document.addEventListener("click", e => {
   const t = e.target.closest("button");
   if (!t) return;
   if (t.dataset.date) { active = t.dataset.date; render(); }
+  if (t.dataset.myedit) {
+    const d = t.dataset.myedit;
+    const w = Math.floor((new Date(d + "T00:00") - baseMon) / (7 * 86400000));
+    if (w !== weekIdx) { weekIdx = w; buildWeek(); }
+    active = d; render();
+    document.getElementById("panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  if (t.dataset.mycancel) {
+    const d = t.dataset.mycancel;
+    if (!confirm(`${label(d)} 주문을 취소할까요?`)) return;
+    delete cart[d]; render();
+    document.getElementById("submit").click();
+  }
   if (t.id === "wPrev" && weekIdx > 0) { weekIdx--; buildWeek(); active = null; render(); }
   if (t.id === "wNext" && weekIdx < MAX_WEEK) { weekIdx++; buildWeek(); active = null; render(); }
   if (t.id === "editInfo") { document.getElementById("infoForm").style.display = "block"; document.getElementById("savedBox").style.display = "none"; }
@@ -327,6 +386,7 @@ function listen(id) {
   onSnapshot(doc(db, "subscriptions", id), snap => {
     if (!snap.exists()) return;
     const d = snap.data();
+    live[id] = d;
     // 확인됨/대기 표시 실시간 반영
     (d.orders || []).forEach(o => { if (owner[o.date] === id) { if (d.status === "신청") pendingDate[o.date] = true; else delete pendingDate[o.date]; } });
     render();
@@ -351,6 +411,7 @@ async function loadMine() {
       if (d.status === "종료") continue;
       keep.push(id);
       loaded.push({ id, ...d });
+      live[id] = d;
       (d.orders || []).forEach(o => {
         if (!ALL.includes(o.date) || !canPick(o.date)) return;
         owner[o.date] = owner[o.date] || id;
@@ -391,15 +452,29 @@ document.getElementById("submit").addEventListener("click", async () => {
       const mine = [...new Set(before.filter(o => editable(o.date)).map(o => o.date))]
         .filter(d => owner[d] === L.id && !used.has(d));
       mine.forEach(d => used.add(d));
-      const orders = [...keepOld, ...mine.filter(d => dayCount(d)).map(mk)].sort((a, b) => a.date < b.date ? -1 : 1);
+      const future = mine.filter(d => dayCount(d)).map(mk);
+      const orders = [...keepOld, ...future].sort((a, b) => a.date < b.date ? -1 : 1);
       if (JSON.stringify(orders) === JSON.stringify(before)) continue;
-      await updateDoc(doc(db, "subscriptions", L.id), {
-        ...info, orders,
-        total: orders.reduce((a, o) => a + o.amount, 0),
-        status: orders.length ? "신청" : "종료",
-        editedAt: serverTimestamp()
-      });
-      if (!orders.length) me.subs = me.subs.filter(x => x !== L.id);
+      const sum = list => list.reduce((a, o) => a + o.amount, 0);
+      if (!keepOld.length) {
+        // 지난 날짜가 없으면 그대로 고치고 다시 확인 대기로
+        await updateDoc(doc(db, "subscriptions", L.id), {
+          ...info, orders, total: sum(orders),
+          status: orders.length ? "신청" : "종료", editedAt: serverTimestamp()
+        });
+        if (!orders.length) me.subs = me.subs.filter(x => x !== L.id);
+      } else {
+        // 지난 날짜(이미 확인·배달된 것)는 그대로 두고, 바뀐 앞날짜만 새 신청으로 다시 확인받기
+        await updateDoc(doc(db, "subscriptions", L.id), { orders: keepOld, total: sum(keepOld), status: L.status });
+        me.subs = me.subs.filter(x => x !== L.id);
+        if (future.length) {
+          const ref = await addDoc(collection(db, "subscriptions"), {
+            orders: future, phone: L.phone || v("phone"), ...info, total: sum(future),
+            status: "신청", editedAt: serverTimestamp(), createdAt: serverTimestamp()
+          });
+          me.subs.push(ref.id);
+        }
+      }
     }
     // 2) 새로 고른 날짜는 새 신청서로
     const fresh = pickedDates().filter(d => !used.has(d) && !owner[d]);
