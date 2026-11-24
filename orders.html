@@ -107,18 +107,12 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
 .hrow select:disabled{opacity:.35}
 .tog{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700}
 .tog input{width:20px;height:20px;accent-color:var(--red)}
-.rgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
-.rex{font-size:13px;color:var(--soft);margin:8px 0 0}
-.rider{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#eef3fb;border-radius:10px;padding:8px 10px;font-size:15px}
-.rider b{color:var(--blue);white-space:nowrap}
-.rider .rb{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-.rider a,.rider button{border:0;background:#fff;color:var(--blue);border-radius:8px;padding:6px 10px;font-weight:700;font-size:14px;text-decoration:none}
 .trow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,.8fr) auto 36px;gap:6px;align-items:center;padding:5px 0;font-size:14px}
 .trow input{width:100%;padding:9px 8px;border:1.5px solid var(--line);border-radius:8px;font-size:16px}
 .tdel{border:0;background:#eee;border-radius:8px;height:36px;color:var(--red);font-weight:700}
 .pause{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .pause input{width:24px;height:24px;accent-color:var(--red)}
-.sum{grid-template-columns:repeat(3,minmax(0,1fr))}
+.sum{grid-template-columns:repeat(5,minmax(0,1fr))}
 @media(max-width:600px){.sum{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
@@ -198,18 +192,6 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
       <label class="field" style="margin:0 0 12px"><span>최소 주문금액 (원, 이 금액보다 적으면 손님이 주문할 수 없어요. 0이면 제한 없음)</span><input id="sMin" type="number" inputmode="numeric" min="0" step="1000"></label>
       <div id="sTiers"></div>
       <button type="button" id="sAddTier" style="margin-top:8px;border:1.5px dashed var(--line);background:#fff;border-radius:10px;padding:10px;width:100%;font-weight:700">+ 할인 구간 추가</button>
-    </div>
-    <div class="box"><h4>배달대행비 (가게 지급 · 손님에게 안 보여요)</h4>
-      <label class="field" style="margin-top:0"><span>가게 주소 (거리 계산 기준)</span><input id="rAddr"></label>
-      <div class="rgrid">
-        <label class="field"><span>기본 요금 (원)</span><input id="rBase" type="number" inputmode="numeric" step="100"></label>
-        <label class="field"><span>추가 요금 시작 (km)</span><input id="rFrom" type="number" inputmode="decimal" step="0.1"></label>
-        <label class="field"><span>시작 거리 요금 (원)</span><input id="rAt" type="number" inputmode="numeric" step="100"></label>
-        <label class="field"><span>이후 100m당 (원)</span><input id="rStep" type="number" inputmode="numeric" step="10"></label>
-      </div>
-      <p class="rex" id="rEx"></p>
-      <label class="field"><span>카카오 지도 JavaScript 키</span><input id="rKey" placeholder="카카오 개발자 사이트에서 복사해 붙여넣기" autocomplete="off"></label>
-      <p class="rex" id="rKeyState"></p>
     </div>
     <p class="err" id="sErr"></p>
     <button class="save" id="sSave">설정 저장</button>
@@ -1254,8 +1236,7 @@ onAuthStateChanged(auth, user => {
   $("app").classList.toggle("hide", !user);
   if (unsub) { unsub(); unsub = null; }
   if (unsubS) { unsubS(); unsubS = null; }
-  if (unsubR) { unsubR(); unsubR = null; } if (unsubD) { unsubD(); unsubD = null; }
-  if (user) { listen(); listenSettings(); listenRider(); }
+  if (user) { listen(); listenSettings(); }
 });
 
 // ===== 영업시간·할인 설정 =====
@@ -1290,9 +1271,6 @@ $("setBtn").onclick = () => {
   $("sPause").checked = !!S.paused;
   drawTiers(tiersOf(S));
   $("sMin").value = S.minOrder ?? 15000;
-  $("rAddr").value = R.addr; $("rBase").value = R.base; $("rFrom").value = R.from; $("rAt").value = R.at; $("rStep").value = R.step; $("rKey").value = R.key;
-  rExample();
-  $("rKeyState").textContent = riderErr === "rules" ? "⚠ Firebase 규칙에 private·delivery를 추가해야 저장돼요." : riderErr === "key" ? "⚠ 키가 맞지 않거나 사이트 도메인이 등록되지 않았어요." : R.key ? "✓ 키가 저장돼 있어요." : "키를 넣어야 손님 주소로 거리를 자동 계산해요.";
   $("sHours").innerHTML = DAYS.map((d, i) => {
     const h = dayHours(i), op = h.open === "00:00" && h.close === "24:00" ? "10:00" : h.open, cl = h.close === "24:00" ? "21:00" : h.close;
     return `<div class="hrow"><b>${d}</b><label class="tog"><input type="checkbox" data-day="${i}" class="sOff" ${h.closed ? "checked" : ""}>휴무</label>
@@ -1301,12 +1279,6 @@ $("setBtn").onclick = () => {
   $("sErr").textContent = "";
   $("setModal").classList.add("on"); document.body.style.overflow = "hidden";
 };
-function rExample() {
-  const b = +$("rBase").value || 0, f = +$("rFrom").value || 0, a = +$("rAt").value || 0, st = +$("rStep").value || 0;
-  const fee = km => km < f ? b : a + Math.floor((km - f) * 10 + 1e-6) * st;
-  $("rEx").textContent = `예) 0.8km ${won(fee(0.8))} · ${f}km ${won(fee(f))} · ${(f + 0.5).toFixed(1)}km ${won(fee(f + 0.5))} · 3.0km ${won(fee(3))}`;
-}
-["rBase", "rFrom", "rAt", "rStep"].forEach(id => $(id).addEventListener("input", rExample));
 $("sHours").addEventListener("change", e => {
   const c = e.target.closest(".sOff"); if (!c) return;
   const i = c.dataset.day; $("sO" + i).disabled = $("sC" + i).disabled = c.checked;
@@ -1330,12 +1302,8 @@ $("sSave").onclick = async () => {
   const tiers = [...document.querySelectorAll("#sTiers .trow")].map(r => ({ min: Math.max(0, parseInt(r.querySelector(".tmin").value, 10) || 0), amount: Math.max(0, parseInt(r.querySelector(".tamt").value, 10) || 0) }))
     .filter(t => t.amount > 0).sort((a, b) => a.min - b.min);
   $("sSave").disabled = true; $("sSave").textContent = "저장 중…";
-  try { await setDoc(doc(db, "settings", "shop"), { hours, paused: $("sPause").checked, minOrder: Math.max(0, parseInt($("sMin").value, 10) || 0), tiers, updatedAt: serverTimestamp() }); }
-  catch (err) { console.error(err); $("sErr").textContent = "저장하지 못했어요. Firebase 규칙에 settings가 추가됐는지 확인해 주세요."; $("sSave").disabled = false; $("sSave").textContent = "설정 저장"; return; }
-  const rr = { addr: $("rAddr").value.trim() || RDEF.addr, base: Math.max(0, +$("rBase").value || 0), from: Math.max(0, +$("rFrom").value || 0), at: Math.max(0, +$("rAt").value || 0), step: Math.max(0, +$("rStep").value || 0), key: $("rKey").value.trim() };
-  const keyChanged = rr.key !== R.key && !!R.key;
-  try { await setDoc(doc(db, "private", "rider"), { ...rr, updatedAt: serverTimestamp() }); closeSet(); if (keyChanged) location.reload(); }
-  catch (err) { console.error(err); $("sErr").textContent = "영업시간은 저장됐어요. 배달대행비 설정은 Firebase 규칙에 private·delivery를 추가해야 저장돼요."; }
+  try { await setDoc(doc(db, "settings", "shop"), { hours, paused: $("sPause").checked, minOrder: Math.max(0, parseInt($("sMin").value, 10) || 0), tiers, updatedAt: serverTimestamp() }); closeSet(); }
+  catch (err) { console.error(err); $("sErr").textContent = "저장하지 못했어요. Firebase 규칙에 settings가 추가됐는지 확인해 주세요."; }
   finally { $("sSave").disabled = false; $("sSave").textContent = "설정 저장"; }
 };
 function listen() {
@@ -1418,82 +1386,6 @@ function nextAction(o) {
   if (o.status === "ready") return o.type === "delivery" ? ["out", "🛵 배달 출발"] : ["done", "완료"];
   return null;
 }
-// ===== 배달대행비: 손님 주소 → 좌표 → 가게와의 직선거리 → 요금 =====
-const RDEF = { addr: "광주 서구 쌍촌동 1325", base: 3600, from: 1.5, at: 3800, step: 100, key: "" };
-let R = RDEF, deliv = {}, unsubR = null, unsubD = null, riderErr = "";
-const todayStr = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
-const riderFee = km => km < R.from ? R.base : R.at + Math.floor((km - R.from) * 10 + 1e-6) * R.step;
-function listenRider() {
-  unsubR = onSnapshot(doc(db, "private", "rider"), s => { R = { ...RDEF, ...(s.exists() ? s.data() : {}) }; riderErr = ""; loadKakao(); render(); queueFees(); },
-    e => { console.error(e); riderErr = "rules"; render(); });
-  unsubD = onSnapshot(query(collection(db, "delivery"), where("day", "==", todayStr())), snap => {
-    deliv = {}; snap.docs.forEach(d => deliv[d.id] = d.data()); render(); queueFees();
-  }, e => console.error(e));
-}
-let kakaoP = null, kakaoKeyUsed = "";
-function loadKakao() {
-  if (!R.key || (kakaoP && kakaoKeyUsed === R.key)) return kakaoP;
-  kakaoKeyUsed = R.key;
-  kakaoP = new Promise((res, rej) => {
-    const sc = document.createElement("script");
-    sc.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(R.key)}&libraries=services&autoload=false`;
-    sc.onload = () => { try { kakao.maps.load(() => res(kakao.maps.services)); } catch (e) { rej(e); } };
-    sc.onerror = () => rej(new Error("kakao"));
-    document.head.appendChild(sc);
-  });
-  kakaoP.catch(() => { riderErr = "key"; render(); });
-  return kakaoP;
-}
-async function geocode(addr) {
-  const sv = await loadKakao(); if (!sv) return null;
-  const g = new sv.Geocoder();
-  let a = addr.replace(/번지/g, " ").replace(/[,()]/g, " ").replace(/\s+/g, " ").trim();
-  if (!/^(광주|전남|전라|서울|경기)/.test(a)) a = "광주 " + a;
-  const toks = a.split(" ");
-  for (let n = toks.length; n >= 3; n--) {
-    const q = toks.slice(0, n).join(" ");
-    const r = await new Promise(res => g.addressSearch(q, (d, st) => res(st === sv.Status.OK ? d[0] : null)));
-    if (r) return { lat: +r.y, lng: +r.x, q, approx: n <= 3 };
-  }
-  const p = new sv.Places();
-  const r = await new Promise(res => p.keywordSearch(a, (d, st) => res(st === sv.Status.OK ? d[0] : null)));
-  return r ? { lat: +r.y, lng: +r.x, q: a, approx: false } : null;
-}
-const distKm = (a, b) => { const R0 = 6371, t = x => x * Math.PI / 180, dLa = t(b.lat - a.lat), dLo = t(b.lng - a.lng);
-  const h = Math.sin(dLa / 2) ** 2 + Math.cos(t(a.lat)) * Math.cos(t(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R0 * Math.asin(Math.sqrt(h)); };
-let shopPos = null, shopAddrUsed = "";
-const busy = new Set();
-async function queueFees() {
-  if (!R.key || riderErr) return;
-  for (const o of orders) {
-    if (o.type !== "delivery" || o.status === "canceled") continue;
-    const addr = o.customer?.address || "", rec = deliv[o.id];
-    if (!addr || busy.has(o.id) || (rec && rec.addr === addr)) continue;
-    busy.add(o.id);
-    try {
-      if (!shopPos || shopAddrUsed !== R.addr) { shopPos = await geocode(R.addr); shopAddrUsed = R.addr; }
-      const p = await geocode(addr);
-      const data = { day: todayStr(), addr, at: serverTimestamp() };
-      if (p && shopPos) Object.assign(data, { km: Math.round(distKm(shopPos, p) * 100) / 100, lat: p.lat, lng: p.lng, approx: p.approx, q: p.q });
-      else data.fail = true;
-      await setDoc(doc(db, "delivery", o.id), data);
-    } catch (e) { console.error(e); }
-    finally { busy.delete(o.id); }
-  }
-}
-function riderLine(o) {
-  if (o.type !== "delivery") return "";
-  const rec = deliv[o.id], addr = o.customer?.address || "";
-  const map = rec?.lat ? `https://map.kakao.com/link/to/${encodeURIComponent(addr)},${rec.lat},${rec.lng}` : `https://map.kakao.com/link/search/${encodeURIComponent(addr)}`;
-  let v;
-  if (riderErr === "rules") v = "규칙 추가 필요";
-  else if (riderErr === "key") v = "카카오 키 확인 필요";
-  else if (rec?.km != null && rec.addr === addr) v = `${won(rec.manual ? rec.fee ?? riderFee(rec.km) : riderFee(rec.km))} · ${rec.manual ? "직접입력 " : "직선 "}${rec.km.toFixed(1)}km${rec.approx ? " (대략)" : ""}`;
-  else if (rec?.fail && rec.addr === addr) v = "주소를 못 찾았어요";
-  else if (!R.key) v = "⚙ 설정에서 카카오 키 입력";
-  else v = "계산 중…";
-  return `<div class="rider"><span>🛵 대행비 <b>${v}</b></span><span class="rb"><a href="${map}" target="_blank" rel="noopener">지도</a><button data-km="${o.id}">거리 입력</button></span></div>`;
-}
 function card(o) {
   const t = o.createdAt?.toDate ? o.createdAt.toDate() : new Date();
   const time = t.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" });
@@ -1509,7 +1401,6 @@ function card(o) {
       <div class="line"><span>전화</span><a href="tel:${esc(c.phone)}">${esc(fmtPhone(c.phone))}</a></div>
       ${o.type === "delivery" ? `<div class="line"><span>주소</span><b style="text-align:right">${esc(c.address)}</b></div>` : ""}` : ""}
     <div class="pay">${payText(o)}</div>
-    ${riderLine(o)}
     ${o.memo ? `<div class="memo">요청: ${esc(o.memo)}</div>` : ""}
     <div class="acts">
       ${act ? `<button class="go" data-id="${o.id}" data-to="${act[0]}">${act[1]}</button>` : ""}
@@ -1537,8 +1428,7 @@ function render() {
     <div><small>합계</small><b>${won(sumBy(() => true))}</b></div>
     <div><small>카드</small><b>${won(sumBy(o => o.payment?.method === "card"))}</b></div>
     <div><small>계좌이체</small><b>${won(sumBy(o => o.payment?.method === "transfer"))}</b></div>
-    <div><small>현금 (영수증 ${live.filter(o => o.payment?.receipt).length}건)</small><b>${won(sumBy(o => o.payment?.method === "cash"))}</b></div>
-    <div><small>배달대행비 (${live.filter(o => o.type === "delivery").length}건)</small><b>${won(live.filter(o => o.type === "delivery").reduce((t, o) => { const r = deliv[o.id]; return t + (r?.km != null ? (r.manual && r.fee != null ? r.fee : riderFee(r.km)) : 0); }, 0))}</b></div>`;
+    <div><small>현금 (영수증 ${live.filter(o => o.payment?.receipt).length}건)</small><b>${won(sumBy(o => o.payment?.method === "cash"))}</b></div>`;
 }
 
 // 버튼 처리: 상태 변경, 취소, 삭제, 수정
@@ -1549,18 +1439,6 @@ const confirmTap = (b, label) => {
   return false;
 };
 document.addEventListener("click", async e => {
-  const kb = e.target.closest("[data-km]");
-  if (kb) {
-    const o = orders.find(x => x.id === kb.dataset.km); if (!o) return;
-    const cur = deliv[o.id]?.km;
-    const ans = prompt("가게에서 손님 집까지 거리(km)를 입력하세요. 예: 2.3", cur != null ? cur.toFixed(1) : "");
-    if (ans == null) return;
-    const km = parseFloat(String(ans).replace(/[^0-9.]/g, ""));
-    if (!(km >= 0 && km < 100)) { alert("숫자로 입력해 주세요. 예: 2.3"); return; }
-    try { await setDoc(doc(db, "delivery", o.id), { day: todayStr(), addr: o.customer?.address || "", km, manual: true, fee: riderFee(km), at: serverTimestamp() }); }
-    catch (err) { console.error(err); alert("저장하지 못했어요. Firebase 규칙을 확인해 주세요."); }
-    return;
-  }
   const pd = e.target.closest("[data-paid]");
   if (pd) {
     if (!confirmTap(pd, "입금 확인했나요?")) return;
