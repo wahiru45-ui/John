@@ -1553,6 +1553,11 @@ const PAYNAME = { card: "카드", transfer: "계좌이체", cash: "현금" };
 // 주문하면 이 폰에 주문번호를 기억해 두고, 가게에서 상태를 바꾸면 바로 알려줘요.
 const OKEY = "mbj-orders";
 const TRACK = { new: "가게에서 주문을 확인하고 있어요", accepted: "주문이 접수됐어요. 맛있게 만들고 있어요", ready: "포장이 준비됐어요. 가게로 와주세요", out: "배달 출발했어요! 곧 도착해요", done: "주문이 완료됐어요. 맛있게 드세요", canceled: "주문이 취소됐어요. 가게로 문의해 주세요" };
+// 배달/포장에 따라 문구를 다르게 보여줘요
+const trackText = (r, st) => r.type === "delivery"
+  ? ({ ready: "음식이 준비됐어요. 곧 배달 출발해요" }[st] || TRACK[st])
+  : ({ out: "포장이 준비됐어요. 가게로 와주세요" }[st] || TRACK[st]);
+const alertKey = (r, st) => st === "canceled" ? "canceled" : r.type === "delivery" ? (st === "out" ? "out" : null) : (st === "ready" || st === "out" ? "ready" : null);
 const loadMine = () => { try { return JSON.parse(localStorage.getItem(OKEY) || "[]").filter(o => Date.now() - o.t < 12 * 3600e3); } catch { return []; } };
 const saveMine = list => { try { localStorage.setItem(OKEY, JSON.stringify(list)); } catch {} };
 const mine = loadMine();
@@ -1585,7 +1590,7 @@ function renderTrack() {
   const act = mine.filter(r => live[r.id] && live[r.id] !== "done" || !live[r.id]);
   $("trackBar").innerHTML = mine.map(r => {
     const st = live[r.id] || "new";
-    return `<div class="trk ${st}"><b>주문 ${esc(r.code)}</b><span>${TRACK[st]}</span></div>`;
+    return `<div class="trk ${st}"><b>주문 ${esc(r.code)} · ${r.type === "delivery" ? "배달" : "포장"}</b><span>${trackText(r, st)}</span></div>`;
   }).join("");
   $("trackBar").classList.toggle("hide", !mine.length);
 }
@@ -1596,16 +1601,18 @@ function track(rec) {
     const st = s.exists() ? (s.data().status || "new") : "canceled";
     const prev = live[rec.id]; live[rec.id] = st;
     if (doneId === rec.id) {
-      $("doneStatus").textContent = TRACK[st];
+      $("doneStatus").textContent = trackText(rec, st);
       $("doneStatus").classList.toggle("ok", ["accepted", "ready", "out", "done"].includes(st));
       if (st === "accepted") setTimeout(() => { if (doneId === rec.id) { backToMenu(); toast(rec.type === "delivery" ? "주문 접수! 배달 출발하면 알려드릴게요" : "주문 접수! 포장 준비되면 알려드릴게요"); } }, 2500);
     }
     // 배달 출발·포장 준비·취소는 한 번만 크게 알려줘요 (화면을 닫았다 다시 열어도)
-    if (ALERT[st] && rec.a !== st) { rec.a = st; saveMine(mine); if (doneId === rec.id) backToMenu(); bigAlert(rec, st); }
+    const ak = alertKey(rec, st);
+    if (ak && rec.a !== ak) { rec.a = ak; saveMine(mine); if (doneId === rec.id) backToMenu(); bigAlert(rec, ak); }
     // 완료된 주문은 잠깐 보여준 뒤 목록에서 빼요
-    if (st === "done" || (st === "canceled" && !prev)) {
+    if (st === "done" || st === "canceled") {
       if (prev && prev !== "done") toast("주문이 완료됐어요. 맛있게 드세요!");
-      setTimeout(() => { const k = mine.indexOf(rec); if (k >= 0) mine.splice(k, 1); saveMine(mine); watchers.get(rec.id)?.(); watchers.delete(rec.id); renderTrack(); }, prev ? 60000 : 0);
+      if (!rec.gone) setTimeout(() => { const k = mine.indexOf(rec); if (k >= 0) mine.splice(k, 1); saveMine(mine); watchers.get(rec.id)?.(); watchers.delete(rec.id); renderTrack(); }, prev ? 60000 : 0);
+      rec.gone = true;
     }
     renderTrack();
   }, () => {}));

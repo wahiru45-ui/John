@@ -1219,7 +1219,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 const digits = s => String(s || "").replace(/\D/g, "");
 const fmtPhone = p => p && p.length === 11 ? `${p.slice(0,3)}-${p.slice(3,7)}-${p.slice(7)}` : (p || "");
 const TYPE = { delivery: "배달", pickup: "포장", table: "테이블" };
-const ST = { new: "새 주문", accepted: "접수됨", ready: "포장 준비됨", out: "배달 중", done: "완료", canceled: "취소" };
+const ST = { new: "새 주문", accepted: "접수됨", ready: "준비됨", out: "배달 중", done: "완료", canceled: "취소" };
 
 // 로그인
 $("loginBtn").onclick = async () => {
@@ -1383,7 +1383,7 @@ function nextAction(o) {
   if (o.status === "new") return ["accepted", "접수하기"];
   if (o.status === "accepted") return o.type === "delivery" ? ["out", "🛵 배달 출발"] : ["ready", "🛍️ 포장 준비 완료"];
   if (o.status === "out") return ["done", "완료"];
-  if (o.status === "ready") return ["done", "완료"];
+  if (o.status === "ready") return o.type === "delivery" ? ["out", "🛵 배달 출발"] : ["done", "완료"];
   return null;
 }
 function card(o) {
