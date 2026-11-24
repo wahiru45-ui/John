@@ -125,6 +125,21 @@ li.in{background:var(--pick)}
 .done .code{font:400 54px "Do Hyeon",sans-serif;color:var(--red);margin:10px 0}
 .badge{display:inline-block;padding:6px 14px;border-radius:999px;background:var(--chip);font-weight:700}
 .badge.ok{background:var(--ok);color:#fff}
+#trackBar{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.trk{display:flex;flex-direction:column;background:var(--card);border:1.5px solid var(--line);border-left:5px solid #c9b8a3;border-radius:12px;padding:9px 12px;font-size:14px}
+.trk b{font-size:13px;color:var(--soft)}
+.trk span{font-weight:700}
+.trk.accepted{border-left-color:#e0a21a}
+.trk.out,.trk.ready{border-left-color:var(--ok);background:#eef8f1}
+.trk.canceled{border-left-color:var(--red);background:#fdecea}
+.alertbox{position:fixed;inset:0;z-index:40;background:rgba(31,26,21,.55);display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s}
+.alertbox.on{opacity:1;visibility:visible;transition:opacity .2s}
+.acard{background:#fff;border-radius:22px;padding:26px 20px 20px;text-align:center;width:100%;max-width:360px;transform:scale(.92);transition:transform .25s}
+.alertbox.on .acard{transform:none}
+.aicon{font-size:56px;line-height:1;animation:hop 1s ease-in-out infinite}
+@keyframes hop{50%{transform:translateY(-6px)}}
+.acard h3{font:400 28px "Do Hyeon",sans-serif;margin:10px 0 6px;color:var(--red)}
+.acard p{margin:0 0 12px;color:var(--soft);font-size:15px}
 .empty{text-align:center;color:var(--soft);padding:30px 0;display:none}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}html{scroll-behavior:auto}}
 </style>
@@ -149,6 +164,7 @@ li.in{background:var(--pick)}
     <div class="ticks" id="dealTicks"></div>
   </div>
 </div>
+<div class="wrap hide" id="trackBar"></div>
 <div class="closed" id="closed"></div>
 <div class="bar"><div class="wrap">
   <input id="q" class="search" type="search" placeholder="메뉴 이름으로 찾기" aria-label="메뉴 검색">
@@ -229,13 +245,19 @@ li.in{background:var(--pick)}
   </div>
 </div>
 
+<!-- 배달 출발 알림 -->
+<div class="alertbox" id="alertBox" role="alertdialog" aria-labelledby="alertTitle">
+  <div class="acard"><div class="aicon" id="alertIcon">🛵</div><h3 id="alertTitle"></h3><p id="alertText"></p><button class="big" id="alertOk" style="margin:6px 0 0">확인</button></div>
+</div>
+
 <!-- 주문 완료 -->
 <div class="panel" id="donePanel">
   <div class="wrap done">
     <p>주문이 들어갔어요</p>
     <div class="code" id="doneCode"></div>
     <p>주문번호</p>
-    <p><span class="badge" id="doneStatus">가게에서 확인 중이에요</span></p>
+    <p><span class="badge" id="doneStatus">가게에서 주문을 확인하고 있어요</span></p>
+    <p style="color:var(--soft);font-size:14px;margin-top:0">가게에서 접수하면 처음 화면으로 돌아가요. 배달 출발하면 이 화면에서 알려드려요.</p>
     <p id="doneInfo" style="color:var(--soft);font-size:15px"></p>
     <div id="doneBank" class="bank hide" style="text-align:left"></div>
     <button class="big" id="again">처음으로</button>
@@ -1525,13 +1547,74 @@ $("submit").onclick = async () => {
   }
 };
 
-const STATUS = { new: "가게에서 확인 중이에요", accepted: "주문이 접수됐어요. 조리 중이에요", ready: "음식이 준비됐어요", out: "배달 출발했어요", done: "완료된 주문이에요", canceled: "주문이 취소됐어요. 가게로 문의해 주세요" };
 const PAYNAME = { card: "카드", transfer: "계좌이체", cash: "현금" };
-let unsub = null;
+
+// ===== 내 주문 상태 따라가기 =====
+// 주문하면 이 폰에 주문번호를 기억해 두고, 가게에서 상태를 바꾸면 바로 알려줘요.
+const OKEY = "mbj-orders";
+const TRACK = { new: "가게에서 주문을 확인하고 있어요", accepted: "주문이 접수됐어요. 맛있게 만들고 있어요", ready: "포장이 준비됐어요. 가게로 와주세요", out: "배달 출발했어요! 곧 도착해요", done: "주문이 완료됐어요. 맛있게 드세요", canceled: "주문이 취소됐어요. 가게로 문의해 주세요" };
+const loadMine = () => { try { return JSON.parse(localStorage.getItem(OKEY) || "[]").filter(o => Date.now() - o.t < 12 * 3600e3); } catch { return []; } };
+const saveMine = list => { try { localStorage.setItem(OKEY, JSON.stringify(list)); } catch {} };
+const mine = loadMine();
+const live = {}; // id -> 현재 상태
+const watchers = new Map();
+let doneId = null, ac2 = null;
+function unlockSound() { try { ac2 = ac2 || new (window.AudioContext || window.webkitAudioContext)(); ac2.resume(); } catch {} }
+document.addEventListener("click", unlockSound, { once: true });
+function chime() {
+  if (!ac2) return;
+  [[0, 784], [0.25, 988], [0.5, 1319]].forEach(([t, f]) => { const o = ac2.createOscillator(), g = ac2.createGain(); o.frequency.value = f; o.connect(g); g.connect(ac2.destination); g.gain.setValueAtTime(0.45, ac2.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, ac2.currentTime + t + 0.5); o.start(ac2.currentTime + t); o.stop(ac2.currentTime + t + 0.5); });
+}
+function say(text) { try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = "ko-KR"; const v = speechSynthesis.getVoices().find(v => /^ko/i.test(v.lang)); if (v) u.voice = v; speechSynthesis.speak(u); } catch {} }
+const ALERT = {
+  out: { icon: "🛵", title: "배달 출발했어요!", text: "맛있게 만든 음식이 출발했어요. 곧 도착해요.", voice: "배달 출발했어요" },
+  ready: { icon: "🛍️", title: "포장이 준비됐어요!", text: "가게로 오셔서 찾아가세요.", voice: "포장 준비됐어요" },
+  canceled: { icon: "⚠️", title: "주문이 취소됐어요", text: `궁금한 점은 가게로 전화해 주세요 (${SHOP.phone}).`, voice: "주문이 취소됐어요" }
+};
+function bigAlert(rec, st) {
+  const a = ALERT[st]; if (!a) return;
+  $("alertIcon").textContent = a.icon; $("alertTitle").textContent = a.title;
+  $("alertText").textContent = `주문번호 ${rec.code} · ${a.text}`;
+  $("alertBox").classList.add("on");
+  chime(); setTimeout(() => say(a.voice), 900);
+  try { navigator.vibrate && navigator.vibrate([400, 150, 400, 150, 400]); } catch {}
+  let i = 0; const f = setInterval(() => { document.title = i++ % 2 ? `${a.icon} ${a.title}` : "맛있는밥집 주문하기"; if (i > 16) { clearInterval(f); document.title = "맛있는밥집 주문하기"; } }, 800);
+}
+$("alertOk").onclick = () => $("alertBox").classList.remove("on");
+function renderTrack() {
+  const act = mine.filter(r => live[r.id] && live[r.id] !== "done" || !live[r.id]);
+  $("trackBar").innerHTML = mine.map(r => {
+    const st = live[r.id] || "new";
+    return `<div class="trk ${st}"><b>주문 ${esc(r.code)}</b><span>${TRACK[st]}</span></div>`;
+  }).join("");
+  $("trackBar").classList.toggle("hide", !mine.length);
+}
+function backToMenu() { $("donePanel").classList.remove("on"); document.body.style.overflow = ""; doneId = null; window.scrollTo({ top: 0, behavior: "smooth" }); }
+function track(rec) {
+  if (watchers.has(rec.id)) return;
+  watchers.set(rec.id, onSnapshot(doc(db, "onlineOrders", rec.id), s => {
+    const st = s.exists() ? (s.data().status || "new") : "canceled";
+    const prev = live[rec.id]; live[rec.id] = st;
+    if (doneId === rec.id) {
+      $("doneStatus").textContent = TRACK[st];
+      $("doneStatus").classList.toggle("ok", ["accepted", "ready", "out", "done"].includes(st));
+      if (st === "accepted") setTimeout(() => { if (doneId === rec.id) { backToMenu(); toast(rec.type === "delivery" ? "주문 접수! 배달 출발하면 알려드릴게요" : "주문 접수! 포장 준비되면 알려드릴게요"); } }, 2500);
+    }
+    // 배달 출발·포장 준비·취소는 한 번만 크게 알려줘요 (화면을 닫았다 다시 열어도)
+    if (ALERT[st] && rec.a !== st) { rec.a = st; saveMine(mine); if (doneId === rec.id) backToMenu(); bigAlert(rec, st); }
+    // 완료된 주문은 잠깐 보여준 뒤 목록에서 빼요
+    if (st === "done" || (st === "canceled" && !prev)) {
+      if (prev && prev !== "done") toast("주문이 완료됐어요. 맛있게 드세요!");
+      setTimeout(() => { const k = mine.indexOf(rec); if (k >= 0) mine.splice(k, 1); saveMine(mine); watchers.get(rec.id)?.(); watchers.delete(rec.id); renderTrack(); }, prev ? 60000 : 0);
+    }
+    renderTrack();
+  }, () => {}));
+}
 function showDone(id, order) {
   const ids = [...cart.keys()];
   closePanel(); cart.clear(); ids.forEach(updateRow); updateBar(); $("memo").value = "";
   $("doneCode").textContent = order.code;
+  $("doneStatus").textContent = TRACK.new; $("doneStatus").classList.remove("ok");
   $("doneInfo").textContent = `${order.type === "delivery" ? "배달" : "포장"} · 결제 금액 ${won(order.total)}${order.discount ? ` (${won(order.discount)} 할인)` : ""} · ${PAYNAME[order.payment.method]}${order.payment.receipt ? " · 현금영수증 신청" : ""}`;
   const db_ = $("doneBank");
   if (order.payment.method === "transfer") {
@@ -1539,15 +1622,13 @@ function showDone(id, order) {
     db_.innerHTML = `<div>아래 계좌로 <b>${won(order.total)}</b>을 보내주세요.</div><div style="margin-top:6px">${SHOP.bank}</div><button type="button" id="copyBank2">계좌번호 복사</button>`;
     $("copyBank2").onclick = async () => { try { await navigator.clipboard.writeText(SHOP.bankNo); $("copyBank2").textContent = "복사됐어요"; } catch { $("copyBank2").textContent = "길게 눌러 복사하세요"; } };
   } else db_.classList.add("hide");
-  openPanel("donePanel");
-  if (unsub) unsub();
-  unsub = onSnapshot(doc(db, "onlineOrders", id), s => {
-    const st = s.exists() ? (s.data().status || "new") : "canceled";
-    $("doneStatus").textContent = STATUS[st] || STATUS.new;
-    $("doneStatus").classList.toggle("ok", ["accepted", "ready", "out", "done"].includes(st));
-  }, () => {});
+  const rec = { id, code: order.code, type: order.type, t: Date.now() };
+  mine.unshift(rec); saveMine(mine);
+  doneId = id; openPanel("donePanel");
+  track(rec); renderTrack();
 }
-$("again").onclick = () => { if (unsub) unsub(); $("donePanel").classList.remove("on"); document.body.style.overflow = ""; window.scrollTo({ top: 0 }); };
+$("again").onclick = backToMenu;
+mine.forEach(track); renderTrack();
 renderList(); applyHours();
 </script>
 </body>

@@ -46,6 +46,7 @@ h2{font:400 22px "Do Hyeon",sans-serif;margin:18px 16px 8px}
 .acts{display:flex;gap:8px;flex-wrap:wrap}
 .acts button{flex:1;border:0;border-radius:12px;padding:12px;font-weight:700;min-height:48px;color:#fff;background:var(--ink)}
 .acts .go{background:var(--red)}
+.acts .sms{flex:0 0 auto;display:flex;align-items:center;border-radius:12px;padding:0 12px;min-height:48px;background:#e8f0fb;color:var(--blue);font-weight:700;text-decoration:none}
 .acts .sub{flex:0 0 auto;background:#eee;color:var(--ink)}
 .acts .warn{flex:0 0 auto;background:#eee;color:var(--red)}
 .acts .warn.sure{background:var(--red);color:#fff}
@@ -1218,7 +1219,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 const digits = s => String(s || "").replace(/\D/g, "");
 const fmtPhone = p => p && p.length === 11 ? `${p.slice(0,3)}-${p.slice(3,7)}-${p.slice(7)}` : (p || "");
 const TYPE = { delivery: "배달", pickup: "포장", table: "테이블" };
-const ST = { new: "새 주문", accepted: "조리 중", ready: "준비 완료", out: "배달 중", done: "완료", canceled: "취소" };
+const ST = { new: "새 주문", accepted: "접수됨", ready: "포장 준비됨", out: "배달 중", done: "완료", canceled: "취소" };
 
 // 로그인
 $("loginBtn").onclick = async () => {
@@ -1380,9 +1381,9 @@ function payText(o) {
 }
 function nextAction(o) {
   if (o.status === "new") return ["accepted", "접수하기"];
-  if (o.status === "accepted") return ["ready", "조리 완료"];
-  if (o.status === "ready") return o.type === "delivery" ? ["out", "배달 출발"] : ["done", o.type === "table" ? "서빙 완료" : "손님 픽업 완료"];
-  if (o.status === "out") return ["done", "배달 완료"];
+  if (o.status === "accepted") return o.type === "delivery" ? ["out", "🛵 배달 출발"] : ["ready", "🛍️ 포장 준비 완료"];
+  if (o.status === "out") return ["done", "완료"];
+  if (o.status === "ready") return ["done", "완료"];
   return null;
 }
 function card(o) {
@@ -1403,6 +1404,7 @@ function card(o) {
     ${o.memo ? `<div class="memo">요청: ${esc(o.memo)}</div>` : ""}
     <div class="acts">
       ${act ? `<button class="go" data-id="${o.id}" data-to="${act[0]}">${act[1]}</button>` : ""}
+      ${["out", "ready"].includes(o.status) && c.phone ? `<a class="sms" href="sms:${esc(c.phone)}?body=${encodeURIComponent(`[맛있는밥집] 주문번호 ${o.code} ${o.status === "out" ? "음식이 배달 출발했어요. 맛있게 드세요!" : "포장이 준비됐어요. 가게로 와주세요."}`)}">📩 문자</a>` : ""}
       ${o.payment?.method === "transfer" && !o.payment?.paid && o.status !== "canceled" ? `<button class="sub" data-paid="${o.id}">입금 확인</button>` : ""}
       ${!closed ? `<button class="sub" data-edit="${o.id}">수정</button>` : ""}
       ${["new", "accepted"].includes(o.status) ? `<button class="warn" data-id="${o.id}" data-to="canceled">취소</button>` : ""}
