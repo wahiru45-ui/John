@@ -69,6 +69,8 @@
   .addday button { padding: 8px 12px; border-radius: 8px; border: 1px solid #ccc; background: #fff; }
   .btns .del { color: #c33; border-color: #e0a0a0; }
   .btns .save { background: #2a8a4a; color: #fff; border-color: #2a8a4a; }
+  .addbtn { width: 100%; padding: 14px; border-radius: 12px; border: none; background: #d9532b; color: #fff; font-size: 16px; font-weight: 700; }
+  .ed select { width: 100%; padding: 9px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; background: #fff; }
   .empty { text-align: center; color: #999; padding: 40px; }
 </style>
 </head>
@@ -98,6 +100,8 @@
     </div>
     <div id="allSum"></div>
   </div>
+  <div style="margin:0 12px 12px"><button id="addNew" class="addbtn">➕ 전화·문자 주문 직접 추가</button></div>
+  <div id="newBox"></div>
   <div class="tabs" id="tabs"></div>
   <div id="list"></div>
 </div>
@@ -113,7 +117,7 @@ const firebaseConfig = {
 };
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const app = initializeApp(firebaseConfig);
@@ -284,6 +288,9 @@ function render() {
   const groups = {};
   shown.forEach(s => { (groups[s.phone] = groups[s.phone] || []).push(s); });
 
+  document.getElementById("newBox").innerHTML = editing === "new" ? `<div style="margin:0 12px 12px">${editView()}</div>` : "";
+  document.getElementById("addNew").style.display = editing === "new" ? "none" : "block";
+
   document.getElementById("list").innerHTML = Object.values(groups).map(g => {
     const f = g[0];
     const sum = g.filter(s => s.status !== "종료").reduce((a, s) => a + s.orders.reduce((b, o) => b + o.amount, 0), 0);
@@ -319,7 +326,10 @@ function editView() {
   const total = days.reduce((a, o) => a + MENUS.reduce((b, m) => b + m.price * (o.q[m.name] || 0), 0), 0);
   return `
   <div class="sub ed">
-    <div class="stitle">✏️ 신청 수정</div>
+    <div class="stitle">${editing === "new" ? "➕ 직접 주문 추가" : "✏️ 신청 수정"}</div>
+    ${editing === "new" && customers().length ? `<label>기존 손님 불러오기</label>
+      <select id="pickCust"><option value="">새 손님 (직접 입력)</option>
+      ${customers().map(c => `<option value="${esc(c.phone)}">${esc(c.name)} · ${esc(c.phone)}</option>`).join("")}</select>` : ""}
     <label>이름</label><input data-f="name" value="${esc(d.name)}">
     <label>연락처</label><input data-f="phone" value="${esc(d.phone)}">
     <label>주소</label><input data-f="addr" value="${esc(d.addr)}">
@@ -343,11 +353,23 @@ function editView() {
   </div>`;
 }
 
+// 전화번호별 손님 목록 (가장 최근 정보)
+function customers() {
+  const m = {};
+  subs.forEach(s => { if (s.phone && !m[s.phone]) m[s.phone] = { name: s.name, phone: s.phone, addr: s.addr, memo: s.memo }; });
+  return Object.values(m);
+}
+function startNew() {
+  draft = { name: "", phone: "", addr: "", memo: "", orders: [] };
+  editing = "new"; render();
+  document.getElementById("newBox").scrollIntoView({ behavior: "smooth" });
+}
+
 function startEdit(id) {
   const s = subs.find(x => x.id === id);
   draft = {
     name: s.name || "", phone: s.phone || "", addr: s.addr || "", memo: s.memo || "",
-    orders: s.orders.map(o => ({ date: o.date, q: Object.fromEntries(o.items.map(i => [i.name, i.qty])) }))
+    orders: s.orders.map(o => ({ date: o.date, delivered: !!o.delivered, q: Object.fromEntries(o.items.map(i => [i.name, i.qty])) }))
   };
   editing = id; render();
 }
@@ -356,11 +378,24 @@ async function saveEdit() {
   const orders = draft.orders
     .map(o => {
       const items = MENUS.filter(m => o.q[m.name] > 0).map(m => ({ name: m.name, price: m.price, qty: o.q[m.name] }));
-      return { date: o.date, items, amount: items.reduce((a, i) => a + i.price * i.qty, 0) };
+      return { date: o.date, items, amount: items.reduce((a, i) => a + i.price * i.qty, 0), ...(o.delivered ? { delivered: true } : {}) };
     })
     .filter(o => o.items.length)
     .sort((a, b) => a.date < b.date ? -1 : 1);
-  if (!orders.length) { alert("도시락이 하나도 없어요. 신청을 지우려면 '삭제'를 눌러 주세요."); return; }
+  if (!orders.length) { alert(editing === "new" ? "날짜를 추가하고 도시락 개수를 골라 주세요." : "도시락이 하나도 없어요. 신청을 지우려면 '삭제'를 눌러 주세요."); return; }
+  if (editing === "new") {
+    if (!draft.name.trim() || !draft.phone.trim()) { alert("이름과 연락처를 입력해 주세요."); return; }
+    try {
+      await addDoc(collection(db, "subscriptions"), {
+        name: draft.name.trim(), phone: draft.phone.trim(), addr: draft.addr.trim(), memo: draft.memo.trim(),
+        orders, total: orders.reduce((a, o) => a + o.amount, 0),
+        status: "진행중", by: "사장님 직접 추가", createdAt: serverTimestamp()
+      });
+      editing = null; draft = null; render();
+      alert("추가했어요 ✅");
+    } catch (err) { alert("저장 실패: " + err.message); }
+    return;
+  }
   try {
     await updateDoc(doc(db, "subscriptions", editing), {
       name: draft.name.trim(), phone: draft.phone.trim(), addr: draft.addr.trim(), memo: draft.memo.trim(),
@@ -370,6 +405,15 @@ async function saveEdit() {
   } catch (err) { alert("저장 실패: " + err.message); }
 }
 
+document.addEventListener("change", e => {
+  if (e.target.id === "pickCust" && draft) {
+    const c = customers().find(x => x.phone === e.target.value);
+    Object.assign(draft, c ? { name: c.name || "", phone: c.phone || "", addr: c.addr || "", memo: c.memo || "" } : { name: "", phone: "", addr: "", memo: "" });
+    render();
+    const sel = document.getElementById("pickCust"); if (sel) sel.value = c ? c.phone : "";
+  }
+});
+
 document.addEventListener("input", e => {
   if (draft && e.target.dataset.f) draft[e.target.dataset.f] = e.target.value;
 });
@@ -378,6 +422,7 @@ document.addEventListener("click", async e => {
   const t = e.target.closest("button");
   if (!t) return;
   if (t.dataset.tab) { tab = t.dataset.tab; render(); }
+  if (t.id === "addNew") { startNew(); return; }
   if (t.dataset.arrive) {
     const s = subs.find(x => x.id === t.dataset.arrive);
     if (!s) return;
