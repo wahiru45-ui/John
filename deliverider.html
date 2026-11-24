@@ -200,7 +200,7 @@ document.addEventListener("click", async e => {
   }
   b.disabled = true;
   const o = orders.find(x => x.id === b.dataset.id);
-  const save = updateDoc(doc(db, "onlineOrders", b.dataset.id), { status: b.dataset.to, [b.dataset.to === "out" ? "outAt" : "doneAt"]: serverTimestamp() });
+  const save = updateDoc(doc(db, "onlineOrders", b.dataset.id), b.dataset.to === "out" ? { status: "out", outAt: serverTimestamp() } : { status: "done", doneAt: serverTimestamp(), doneBy: "rider" });
   if (b.dataset.to === "done" && o?.customer?.phone) location.href = doneSms(o);
   try { await save; }
   catch (err) { console.error(err); b.disabled = false; b.textContent = "다시 눌러주세요"; }

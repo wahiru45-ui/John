@@ -50,6 +50,7 @@ h2{font:400 22px "Do Hyeon",sans-serif;margin:18px 16px 8px}
 .acts .sub{flex:0 0 auto;background:#eee;color:var(--ink)}
 .acts .warn{flex:0 0 auto;background:#eee;color:var(--red)}
 .acts .warn.sure{background:var(--red);color:#fff}
+.fin{background:#e7f4ec;color:var(--ok);border-radius:10px;padding:10px 12px;font-weight:700;text-align:center}
 .st{font-weight:700;color:var(--soft);font-size:14px}
 .empty{padding:6px 16px;color:var(--soft)}
 .login{max-width:380px;margin:60px auto;padding:0 16px}
@@ -1382,8 +1383,8 @@ function payText(o) {
 function nextAction(o) {
   if (o.status === "new") return ["accepted", "접수하기"];
   if (o.status === "accepted") return o.type === "delivery" ? ["out", "🛵 배달 출발"] : ["ready", "🛍️ 포장 준비 완료"];
-  if (o.status === "out") return ["done", "완료"];
-  if (o.status === "ready") return o.type === "delivery" ? ["out", "🛵 배달 출발"] : ["done", "완료"];
+  if (o.status === "out") return ["done", "✅ 배달 완료"];
+  if (o.status === "ready") return o.type === "delivery" ? ["out", "🛵 배달 출발"] : ["done", "✅ 픽업 완료"];
   return null;
 }
 function card(o) {
@@ -1408,8 +1409,9 @@ function card(o) {
       ${o.payment?.method === "transfer" && !o.payment?.paid && o.status !== "canceled" ? `<button class="sub" data-paid="${o.id}">입금 확인</button>` : ""}
       ${!closed ? `<button class="sub" data-edit="${o.id}">수정</button>` : ""}
       ${["new", "accepted"].includes(o.status) ? `<button class="warn" data-id="${o.id}" data-to="canceled">취소</button>` : ""}
-      ${closed ? `<button class="sub" data-id="${o.id}" data-to="accepted">되돌리기</button><button class="warn" data-delete="${o.id}">삭제</button>` : ""}
+      ${o.status === "canceled" ? `<button class="warn" data-delete="${o.id}">삭제</button>` : ""}
     </div>
+    ${o.status === "done" ? `<div class="fin">✅ ${o.type === "delivery" ? "배달" : "픽업"} 완료${o.doneAt?.toDate ? " " + o.doneAt.toDate().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" }) : ""}${o.doneBy === "rider" ? " · 배달기사" : o.doneBy === "store" ? " · 가게" : ""}</div>` : ""}
   </div>`;
 }
 function render() {
@@ -1457,8 +1459,17 @@ document.addEventListener("click", async e => {
   }
   const b = e.target.closest("button[data-to]"); if (!b) return;
   if (b.dataset.to === "canceled" && !confirmTap(b, "정말 취소?")) return;
+  const od = orders.find(x => x.id === b.dataset.id);
+  const sms = b.dataset.to === "done" && od?.type === "delivery" && od.customer?.phone;
+  if (b.dataset.to === "done" && !confirmTap(b, sms ? "한 번 더 누르면 완료 + 문자" : "한 번 더 누르면 완료")) return;
   b.disabled = true;
-  try { await updateDoc(doc(db, "onlineOrders", b.dataset.id), { status: b.dataset.to }); }
+  const upd = { status: b.dataset.to };
+  if (b.dataset.to === "out") upd.outAt = serverTimestamp();
+  if (b.dataset.to === "done") { upd.doneAt = serverTimestamp(); upd.doneBy = "store"; }
+  const save = updateDoc(doc(db, "onlineOrders", b.dataset.id), upd);
+  // 가게에서 직접 배달했을 때도 손님에게 '배달 완료' 문자를 바로 열어줘요
+  if (sms) location.href = `sms:${od.customer.phone}?body=${encodeURIComponent(`[맛있는밥집] 주문번호 ${od.code} 배달 완료했어요. 맛있게 드세요! 감사합니다 :)`)}`;
+  try { await save; }
   catch (err) { console.error(err); b.disabled = false; b.textContent = "다시 눌러주세요"; }
 });
 
