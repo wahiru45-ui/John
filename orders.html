@@ -15,6 +15,8 @@ button{touch-action:manipulation;cursor:pointer}
 .top h1{font:400 24px "Do Hyeon",sans-serif;margin:0;flex:1 1 auto}
 .top button{border:0;border-radius:10px;padding:9px 14px;font-weight:700;background:#fff;color:var(--ink);min-height:40px}
 .top button.on{background:var(--ok);color:#fff}
+#muteBtn{background:#ffd34d;color:var(--ink);animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.06)}}
 .tabs{display:flex;gap:8px;padding:12px 16px 0;overflow-x:auto}
 .tabs button{flex:none;border:1.5px solid var(--line);background:var(--card);border-radius:999px;padding:8px 16px;font-weight:700;min-height:42px}
 .tabs button.on{background:var(--red);border-color:var(--red);color:#fff}
@@ -128,6 +130,7 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
     <h1>배달·포장 주문</h1>
     <span class="state" id="statePill">확인 중</span>
     <button id="setBtn">⚙ 영업시간·할인</button>
+    <button id="muteBtn" class="hide">🔕 알림 멈추기</button>
     <button id="soundBtn">🔔 알림 소리 켜기</button>
     <button id="logout">로그아웃</button>
   </div>
@@ -1226,7 +1229,7 @@ $("loginBtn").onclick = async () => {
 $("pw").addEventListener("keydown", e => { if (e.key === "Enter") $("loginBtn").click(); });
 $("logout").onclick = () => signOut(auth);
 
-let unsub = null, orders = [], filter = "all", seen = null;
+let unsub = null, orders = [], filter = "all";
 onAuthStateChanged(auth, user => {
   $("loginView").classList.toggle("hide", !!user);
   $("app").classList.toggle("hide", !user);
@@ -1306,31 +1309,59 @@ function listen() {
   const kst = new Date(Date.now() + 9 * 3600e3);
   const start = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()) - 9 * 3600e3);
   const q = query(collection(db, "onlineOrders"), where("createdAt", ">=", Timestamp.fromDate(start)), orderBy("createdAt", "desc"));
-  seen = null;
   unsub = onSnapshot(q, snap => {
     orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const ids = new Set(orders.filter(o => o.status === "new").map(o => o.id));
-    if (seen && [...ids].some(id => !seen.has(id))) alarm();
-    seen = ids;
     render();
+    ringCheck();
   }, e => { console.error(e); $("newList").innerHTML = `<p class="empty">주문을 불러오지 못했어요. Firestore 규칙을 확인해 주세요.</p>`; });
 }
 
-// 알림 소리
-let ac = null;
-$("soundBtn").onclick = () => {
-  try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); beep(); $("soundBtn").textContent = "🔔 알림 소리 켜짐"; $("soundBtn").classList.add("on"); } catch {}
-};
-function beep() {
+// ===== 알림: "주문 왔어요" 음성 + 띵동 소리 =====
+// 새 주문이 들어오면 접수할 때까지 5초마다 반복하고, 주문 들어온 지 2분이 지나면 멈춰요.
+const RING_MS = 2 * 60 * 1000, EVERY_MS = 5000;
+let ac = null, soundOn = false, ringTimer = null, wake = null;
+const muted = new Set();
+const pendingRing = () => orders.filter(o => o.status === "new" && !muted.has(o.id) &&
+  Date.now() - (o.createdAt?.toMillis ? o.createdAt.toMillis() : o.createdAt?.toDate ? o.createdAt.toDate().getTime() : Date.now()) < RING_MS);
+function koVoice() { try { return speechSynthesis.getVoices().find(v => /^ko/i.test(v.lang)); } catch { return null; } }
+function speak(text) {
+  try {
+    if (!("speechSynthesis" in window)) return false;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "ko-KR"; u.rate = 1; u.pitch = 1.05; u.volume = 1;
+    const v = koVoice(); if (v) u.voice = v;
+    speechSynthesis.speak(u); return true;
+  } catch { return false; }
+}
+function dingdong() {
   if (!ac) return;
-  [0, 0.35, 0.7].forEach(t => { const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = 880; o.connect(g); g.connect(ac.destination); g.gain.setValueAtTime(0.4, ac.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + t + 0.3); o.start(ac.currentTime + t); o.stop(ac.currentTime + t + 0.3); });
+  [[0, 988], [0.28, 784]].forEach(([t, f]) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = "sine"; o.frequency.value = f; o.connect(g); g.connect(ac.destination); g.gain.setValueAtTime(0.5, ac.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + t + 0.6); o.start(ac.currentTime + t); o.stop(ac.currentTime + t + 0.6); });
 }
-let flash = null;
-function alarm() {
-  beep(); try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch {}
-  clearInterval(flash); let i = 0;
-  flash = setInterval(() => { document.title = i++ % 2 ? "🔔 새 주문!" : "배달·포장 주문 접수"; if (i > 20) { clearInterval(flash); document.title = "배달·포장 주문 접수"; } }, 700);
+function ringOnce() {
+  const n = pendingRing().length; if (!n) return stopRing();
+  if (soundOn) { dingdong(); setTimeout(() => speak(n > 1 ? `주문 ${n}건 왔어요` : "주문 왔어요"), 700); }
+  try { navigator.vibrate && navigator.vibrate([300, 150, 300]); } catch {}
+  document.title = document.title.startsWith("🔔") ? "배달·포장 주문 접수" : `🔔 새 주문 ${n}건!`;
 }
+function ringCheck() {
+  const n = pendingRing().length;
+  $("muteBtn").classList.toggle("hide", !n);
+  if (n && !ringTimer) { ringOnce(); ringTimer = setInterval(ringOnce, EVERY_MS); }
+  if (!n) stopRing();
+}
+function stopRing() { clearInterval(ringTimer); ringTimer = null; document.title = "배달·포장 주문 접수"; $("muteBtn").classList.add("hide"); try { speechSynthesis.cancel(); } catch {} }
+setInterval(ringCheck, 15000); // 2분이 지나면 저절로 멈추도록 확인
+$("muteBtn").onclick = () => { pendingRing().forEach(o => muted.add(o.id)); stopRing(); };
+async function keepAwake() { try { if (soundOn && "wakeLock" in navigator && document.visibilityState === "visible") wake = await navigator.wakeLock.request("screen"); } catch {} }
+document.addEventListener("visibilitychange", keepAwake);
+$("soundBtn").onclick = () => {
+  try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); } catch {}
+  soundOn = true; dingdong(); setTimeout(() => speak("주문 알림을 켰어요"), 700);
+  keepAwake();
+  $("soundBtn").textContent = "🔔 알림 켜짐"; $("soundBtn").classList.add("on");
+};
+try { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => {}; } catch {}
 
 $("tabs").onclick = e => {
   const b = e.target.closest("button"); if (!b) return;
