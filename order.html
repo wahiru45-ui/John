@@ -109,6 +109,14 @@ li.in{background:var(--pick)}
 .bank b{font-size:18px;letter-spacing:.3px}
 .bank button{margin-top:8px;border:0;background:#2556a8;color:#fff;border-radius:10px;padding:10px 14px;font:700 15px "Noto Sans KR",sans-serif;min-height:42px}
 .hint{font-size:13px;color:var(--soft);margin:8px 0 0}
+.saved{display:flex;align-items:center;gap:10px;background:#faf6ef;border:1.5px solid var(--line);border-radius:12px;padding:12px 12px 12px 14px;margin-top:12px}
+.saved .sv{flex:1;display:flex;flex-direction:column;font-size:16px;line-height:1.4}
+.saved .sv span{color:var(--soft);font-size:14px}
+.saved button,.svdone{border:0;background:var(--chip);color:var(--ink);border-radius:10px;height:40px;padding:0 16px;font:700 15px "Noto Sans KR",sans-serif}
+.svdone{background:var(--ink);color:#fff;margin-left:6px}
+.svact{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;font-size:14px;color:var(--soft)}
+.keep input{width:18px;height:18px;vertical-align:-4px;accent-color:var(--red);margin:0 4px 0 0}
+.link{border:0;background:none;color:var(--soft);text-decoration:underline;font:14px "Noto Sans KR",sans-serif;padding:8px}
 .err{color:var(--red);font-size:14px;min-height:20px;margin:10px 0 0}
 .big{display:block;width:100%;border:0;background:var(--red);color:#fff;border-radius:14px;padding:17px;font:700 18px "Noto Sans KR",sans-serif;margin:16px 0 30px}
 .big:disabled{opacity:.45}
@@ -130,7 +138,7 @@ li.in{background:var(--pick)}
 </div></header>
 <div class="wrap intro">
   <div class="facts">
-    <div><small>받는 방법</small><b>포장 · 배달</b></div>
+    <div><small>받는 방법</small><b>배달 · 포장</b></div>
     <div><small>최소 주문</small><b id="factMin">15,000원</b></div>
     <div><small>전화 주문</small><b><a href="tel:01065725152" aria-label="전화 010-6572-5152">📞 전화하기</a></b></div>
   </div>
@@ -166,12 +174,22 @@ li.in{background:var(--pick)}
 
     <div class="box" id="howBox"><h4>받는 방법</h4>
       <div class="seg">
-        <label><input type="radio" name="how" value="pickup" checked><span>포장</span></label>
-        <label><input type="radio" name="how" value="delivery"><span>배달</span></label>
+        <label><input type="radio" name="how" value="delivery" checked><span>배달</span></label>
+        <label><input type="radio" name="how" value="pickup"><span>포장</span></label>
       </div>
-      <label class="field"><span>이름</span><input id="cName" autocomplete="name" placeholder="홍길동"></label>
-      <label class="field"><span>전화번호 (필수)</span><input id="cPhone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="01012345678"></label>
-      <label class="field" id="addrField"><span>배달 주소 (필수)</span><input id="cAddr" autocomplete="street-address" placeholder="광주 서구 쌍촌동 ○○아파트 101동 1001호"></label>
+      <div class="saved hide" id="savedCard">
+        <div class="sv"><b id="svName"></b><span id="svPhone"></span><span id="svAddr"></span></div>
+        <button type="button" id="svEdit">수정</button>
+      </div>
+      <div id="custFields">
+        <label class="field"><span>이름</span><input id="cName" autocomplete="name" placeholder="홍길동"></label>
+        <label class="field"><span>전화번호 (필수)</span><input id="cPhone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="01012345678"></label>
+        <label class="field" id="addrField"><span>배달 주소 (필수)</span><input id="cAddr" autocomplete="street-address" placeholder="광주 서구 쌍촌동 ○○아파트 101동 1001호"></label>
+        <div class="svact">
+          <label class="keep"><input type="checkbox" id="keepInfo" checked> 이 폰에 내 정보 저장</label>
+          <span><button type="button" class="link" id="svClear">지우기</button><button type="button" class="svdone" id="svDone">저장</button></span>
+        </div>
+      </div>
     </div>
 
     <div class="box" id="payBox"><h4>결제 방법</h4>
@@ -1394,7 +1412,7 @@ function renderCart() {
 }
 function openPanel(id) { $(id).classList.add("on"); $(id).scrollTop = 0; document.body.style.overflow = "hidden"; }
 function closePanel() { $("checkout").classList.remove("on"); document.body.style.overflow = ""; }
-$("openCart").onclick = () => { renderCart(); $("err").textContent = ""; openPanel("checkout"); };
+$("openCart").onclick = () => { renderCart(); $("err").textContent = ""; editing = false; showInfo(); openPanel("checkout"); };
 document.querySelectorAll("[data-close]").forEach(b => b.onclick = closePanel);
 
 const val = name => document.querySelector(`input[name=${name}]:checked`).value;
@@ -1410,16 +1428,61 @@ function syncForm() {
   $("rcLabel").textContent = biz ? "사업자등록번호 (10자리)" : "휴대폰 번호";
   $("rcNo").placeholder = biz ? "1234567890" : "01012345678";
 }
-document.querySelectorAll("#checkout input[type=radio]").forEach(r => r.addEventListener("change", syncForm));
+document.querySelectorAll("#checkout input[type=radio]").forEach(r => r.addEventListener("change", () => { syncForm(); showInfo(); saveInfo(); }));
 syncForm();
 $("copyBank").onclick = async () => {
   try { await navigator.clipboard.writeText(SHOP.bankNo); $("copyBank").textContent = "복사됐어요"; }
   catch { $("copyBank").textContent = "길게 눌러 복사하세요"; }
   setTimeout(() => $("copyBank").textContent = "계좌번호 복사", 2000);
 };
-try { const s = JSON.parse(localStorage.getItem("mbj-customer") || "{}"); $("cName").value = s.name || ""; $("cPhone").value = s.phone || ""; $("cAddr").value = s.address || ""; } catch {}
-
+// ===== 손님 정보 자동 저장 (이 폰 안에만 저장돼요) =====
+const KEY = "mbj-customer";
 const digits = s => s.replace(/\D/g, "");
+let editing = false;
+const setRadio = (name, v) => { const r = document.querySelector(`input[name=${name}][value="${v}"]`); if (r) r.checked = true; };
+function loadInfo() {
+  let s = {}; try { s = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch {}
+  $("cName").value = s.name || ""; $("cPhone").value = s.phone || ""; $("cAddr").value = s.address || "";
+  $("depositor").value = s.depositor || ""; $("rcNo").value = s.rcNo || "";
+  if (s.how) setRadio("how", s.how);
+  if (s.pay) setRadio("pay", s.pay);
+  if (s.rc) setRadio("rc", s.rc);
+  if (s.rcType) setRadio("rcType", s.rcType);
+  if (s.keep === false) $("keepInfo").checked = false;
+  syncForm();
+}
+function saveInfo() {
+  try {
+    if (!$("keepInfo").checked) { localStorage.setItem(KEY, JSON.stringify({ keep: false })); return; }
+    localStorage.setItem(KEY, JSON.stringify({ name: $("cName").value.trim(), phone: digits($("cPhone").value), address: $("cAddr").value.trim(),
+      depositor: $("depositor").value.trim(), rcNo: digits($("rcNo").value), how: val("how"), pay: val("pay"), rc: val("rc"), rcType: val("rcType") }));
+  } catch {}
+}
+const fmtPhone = p => p.length === 11 ? `${p.slice(0, 3)}-${p.slice(3, 7)}-${p.slice(7)}` : p.length === 10 ? `${p.slice(0, 3)}-${p.slice(3, 6)}-${p.slice(6)}` : p;
+const infoOK = () => { const p = digits($("cPhone").value); return p.length >= 10 && p.length <= 11 && (val("how") !== "delivery" || $("cAddr").value.trim().length >= 5); };
+function showInfo() {
+  const card = !editing && infoOK();
+  $("savedCard").classList.toggle("hide", !card);
+  $("custFields").classList.toggle("hide", card);
+  $("svDone").classList.toggle("hide", !infoOK());
+  if (card) {
+    $("svName").textContent = $("cName").value.trim() || "이름 없음";
+    $("svPhone").textContent = fmtPhone(digits($("cPhone").value));
+    $("svAddr").textContent = val("how") === "delivery" ? $("cAddr").value.trim() : "포장 (가게에서 받아가요)";
+  }
+}
+let saveT;
+["cName", "cPhone", "cAddr", "depositor", "rcNo"].forEach(id => $(id).addEventListener("input", () => { clearTimeout(saveT); saveT = setTimeout(saveInfo, 300); $("svDone").classList.toggle("hide", !infoOK()); }));
+$("keepInfo").addEventListener("change", saveInfo);
+$("svEdit").onclick = () => { editing = true; showInfo(); $("cName").focus(); };
+$("svDone").onclick = () => { if (!infoOK()) return; saveInfo(); editing = false; showInfo(); toast($("keepInfo").checked ? "내 정보가 저장됐어요" : "이번 주문에만 사용해요"); };
+$("svClear").onclick = () => {
+  ["cName", "cPhone", "cAddr", "depositor", "rcNo"].forEach(id => $(id).value = "");
+  try { localStorage.removeItem(KEY); } catch {}
+  editing = true; showInfo(); toast("저장된 정보를 지웠어요");
+};
+loadInfo();
+
 $("submit").onclick = async () => {
   $("err").textContent = "";
   applyHours();
@@ -1438,9 +1501,9 @@ $("submit").onclick = async () => {
   };
   if (!order.items.length) return;
   const phone = digits($("cPhone").value);
-  if (phone.length < 10 || phone.length > 11) { $("err").textContent = "전화번호를 정확히 입력해 주세요."; $("cPhone").focus(); return; }
+  if (phone.length < 10 || phone.length > 11) { editing = true; showInfo(); $("err").textContent = "전화번호를 정확히 입력해 주세요."; $("cPhone").focus(); return; }
   const address = $("cAddr").value.trim();
-  if (order.type === "delivery" && address.length < 5) { $("err").textContent = "배달 주소를 입력해 주세요."; $("cAddr").focus(); return; }
+  if (order.type === "delivery" && address.length < 5) { editing = true; showInfo(); $("err").textContent = "배달 주소를 입력해 주세요."; $("cAddr").focus(); return; }
   order.customer = { name: $("cName").value.trim().slice(0, 30), phone, address: order.type === "delivery" ? address.slice(0, 150) : "" };
   const pay = { method: val("pay"), receipt: false };
   if (pay.method === "transfer") pay.depositor = ($("depositor").value.trim() || order.customer.name || "").slice(0, 30);
@@ -1450,7 +1513,7 @@ $("submit").onclick = async () => {
     Object.assign(pay, { receipt: true, receiptType: biz ? "business" : "personal", receiptNo: no });
   }
   order.payment = pay;
-  try { localStorage.setItem("mbj-customer", JSON.stringify(order.customer)); } catch {}
+  saveInfo();
   $("submit").disabled = true; $("submit").textContent = "주문 넣는 중…";
   try {
     const ref = await addDoc(collection(db, "onlineOrders"), order);
