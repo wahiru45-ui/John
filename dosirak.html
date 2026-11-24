@@ -29,6 +29,15 @@
   .date.on { border: 2px solid #d9532b; }
   .date.done { background: #eee; color: #aaa; }
   .date.done .c { color: #2a8a4a; }
+  .st { font-size: 11px; font-weight: 700; margin-top: 2px; }
+  .st.ok { color: #2a8a4a; }
+  .st.wait { color: #b07a00; }
+  .alarm { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 24px; }
+  .abox { background: #fff; border-radius: 18px; padding: 26px 22px; width: 100%; max-width: 340px; text-align: center; animation: pop .25s ease-out; }
+  .aicon { font-size: 44px; }
+  .amsg { font-size: 18px; font-weight: 700; margin: 10px 0 20px; line-height: 1.5; white-space: pre-line; }
+  .abox button { width: 100%; padding: 14px; border: none; border-radius: 12px; background: #d9532b; color: #fff; font-size: 16px; font-weight: 700; }
+  @keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   .panel { margin-top: 14px; border-top: 1px dashed #ddd; padding-top: 12px; }
   .ptitle { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
   .menu { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
@@ -100,6 +109,14 @@
   </section>
 </div>
 
+<div id="alarm" class="alarm" style="display:none">
+  <div class="abox">
+    <div class="aicon">🔔</div>
+    <div class="amsg" id="alarmMsg"></div>
+    <button id="alarmOk">확인</button>
+  </div>
+</div>
+
 <div id="done" class="done" style="display:none">
   <h2>신청이 저장됐어요 ✅</h2>
   <p>가게에서 확인 후 연락드릴게요.</p>
@@ -122,7 +139,7 @@ const firebaseConfig = {
 };
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, addDoc, serverTimestamp, doc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const db = getFirestore(initializeApp(firebaseConfig));
 
 // ===== 설정 =====
@@ -171,7 +188,8 @@ const canPick = s => s >= FIRST && !CLOSED.includes(new Date(s + "T00:00").getDa
 
 const cart = {};   // { "2026-11-24": {heat:1, warm:0, salad:2} }
 let loaded = [];   // 이 휴대폰에서 예전에 신청한 내역 (수정 가능)
-const owner = {};  // 날짜 → 그 날짜가 들어있는 신청서 번호
+const owner = {};
+const pendingDate = {}; // 아직 가게에서 확인 안 한 날짜  // 날짜 → 그 날짜가 들어있는 신청서 번호
 let orig = "{}";   // 불러온 직후 상태 (바뀐 게 있는지 비교용)
 const nameToId = Object.fromEntries(MENUS.map(m => [m.name, m.id]));
 const snapCart = () => JSON.stringify(Object.fromEntries(ALL.filter(canPick).map(d => [d, MENUS.map(m => (cart[d] && cart[d][m.id]) || 0)]).filter(([, v]) => v.some(x => x))));
@@ -195,7 +213,8 @@ function render() {
     return `<button class="${cls}" data-date="${s}" ${canPick(s) ? "" : "disabled"}>
       <div class="d">${d.getMonth() + 1}/${d.getDate()}</div>
       <div class="w">${WD[d.getDay()]}</div>
-      <div class="c">${n ? n + "개" + (owner[s] ? " ✓" : "") : done ? "신청됨" : ""}</div>
+      <div class="c">${n ? n + "개" : done ? "신청됨" : ""}</div>
+      ${owner[s] && n ? `<div class="st ${pendingDate[s] ? "wait" : "ok"}">${pendingDate[s] ? "확인 대기" : "✓ 확인됨"}</div>` : ""}
     </button>`;
   }).join("");
 
@@ -207,7 +226,8 @@ function render() {
     const done = false;
     panel.innerHTML = `
       <div class="ptitle">${label(active)} 도시락</div>
-      ${owner[active] ? `<p class="sub" style="margin:0 0 4px">✓ 이미 신청한 날이에요. 개수를 바꾸고 아래 버튼을 누르면 수정돼요. 0개로 만들면 이 날은 취소돼요.</p>` : ""}
+      ${owner[active] ? `<p class="sub" style="margin:0 0 4px;color:${pendingDate[active] ? "#d9532b" : "#2a8a4a"};font-weight:700">${pendingDate[active] ? "⏳ 가게에서 확인 중이에요" : "✅ 가게에서 주문을 확인했어요"}</p>` : ""}
+      ${owner[active] ? `<p class="sub" style="margin:0 0 4px">이미 신청한 날이에요. 개수를 바꾸고 아래 버튼을 누르면 수정돼요. 0개로 만들면 이 날은 취소돼요.</p>` : ""}
       ${done ? `<p class="sub" style="margin:0 0 4px">이 날짜는 이미 신청하셨어요. 더 고르면 추가로 신청돼요.</p>` : ""}
       ${MENUS.map(m => `
         <div class="menu">
@@ -274,6 +294,52 @@ if (me.phone) {
   document.getElementById("infoForm").style.display = "none";
 }
 
+// ===== 가게 알림 받기 (화면이 열려 있는 동안) =====
+const SEEN = "dosirak_seen";
+let seen = {};
+try { seen = JSON.parse(localStorage.getItem(SEEN) || "{}"); } catch {}
+const queue = [];
+function beep() {
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    [0, .25].forEach(t => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(ac.destination);
+      g.gain.setValueAtTime(.25, ac.currentTime + t); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + t + .2);
+      o.start(ac.currentTime + t); o.stop(ac.currentTime + t + .2);
+    });
+  } catch {}
+  try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch {}
+}
+function showAlarm(msg) {
+  queue.push(msg);
+  if (queue.length > 1) return;
+  document.getElementById("alarmMsg").textContent = msg;
+  document.getElementById("alarm").style.display = "flex";
+  beep();
+}
+document.getElementById("alarmOk").onclick = () => {
+  queue.shift();
+  if (queue.length) { document.getElementById("alarmMsg").textContent = queue[0]; beep(); }
+  else document.getElementById("alarm").style.display = "none";
+};
+function listen(id) {
+  onSnapshot(doc(db, "subscriptions", id), snap => {
+    if (!snap.exists()) return;
+    const d = snap.data();
+    // 확인됨/대기 표시 실시간 반영
+    (d.orders || []).forEach(o => { if (owner[o.date] === id) { if (d.status === "신청") pendingDate[o.date] = true; else delete pendingDate[o.date]; } });
+    render();
+    // 새 알림이 있으면 띄우기 (안 본 것만)
+    const a = d.alarm;
+    if (a && a.at && a.at > (seen[id] || 0)) {
+      seen[id] = a.at;
+      try { localStorage.setItem(SEEN, JSON.stringify(seen)); } catch {}
+      showAlarm(a.msg || "가게에서 알림이 왔어요");
+    }
+  }, () => {});
+}
+
 // 예전에 신청한 내역 불러오기 → 개수 수정 가능
 async function loadMine() {
   const keep = [];
@@ -288,12 +354,14 @@ async function loadMine() {
       (d.orders || []).forEach(o => {
         if (!ALL.includes(o.date) || !canPick(o.date)) return;
         owner[o.date] = owner[o.date] || id;
+        if (d.status === "신청") pendingDate[o.date] = true;
         cart[o.date] = cart[o.date] || {};
         o.items.forEach(i => { const k = nameToId[i.name]; if (k) cart[o.date][k] = (cart[o.date][k] || 0) + i.qty; });
       });
     } catch (e) { keep.push(id); }
   }
   me.subs = keep;
+  keep.forEach(listen);
   orig = snapCart();
   if (loaded.length) {
     const w = document.getElementById("welcome");
