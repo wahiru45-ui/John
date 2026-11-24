@@ -108,6 +108,10 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
 .hrow select:disabled{opacity:.35}
 .tog{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700}
 .tog input{width:20px;height:20px;accent-color:var(--red)}
+.tiprow{border-top:1px dashed var(--line);padding:4px 0 8px}
+.tiprow:first-child{border-top:0}
+.tminl{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--soft);flex-wrap:wrap}
+.tminl input{width:110px;padding:8px;border:1.5px solid var(--line);border-radius:8px;font-size:16px}
 .trow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,.8fr) auto 36px;gap:6px;align-items:center;padding:5px 0;font-size:14px}
 .trow input{width:100%;padding:9px 8px;border:1.5px solid var(--line);border-radius:8px;font-size:16px}
 .tdel{border:0;background:#eee;border-radius:8px;height:36px;color:var(--red);font-weight:700}
@@ -187,6 +191,14 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
     </div>
     <div class="box"><h4>요일별 주문 받는 시간</h4><div id="sHours"></div>
       <p style="font-size:13px;color:var(--soft);margin:8px 0 0">마감 시간이 시작보다 이르면 다음 날 새벽까지로 계산해요.</p>
+    </div>
+    <div class="box"><h4>거리별 배달팁 (손님 부담)</h4>
+      <p style="font-size:13px;color:var(--soft);margin:0 0 6px">손님 주소와 가게의 직선거리로 자동 계산해요. 카카오 지도 키가 있어야 작동해요.</p>
+      <div id="sTips"></div>
+      <button type="button" id="sAddTip" style="margin-top:8px;border:1.5px dashed var(--line);background:#fff;border-radius:10px;padding:10px;width:100%;font-weight:700">+ 거리 구간 추가</button>
+      <label class="field"><span>배달 가능 최대 거리 (km, 넘으면 배달 주문 막기)</span><input id="sMaxKm" type="number" inputmode="decimal" step="0.5"></label>
+      <label class="field"><span>가게 주소 (거리 계산 기준)</span><input id="sShop"></label>
+      <label class="field"><span>카카오 지도 JavaScript 키</span><input id="sKey" placeholder="카카오 개발자 사이트에서 복사해 붙여넣기" autocomplete="off"></label>
     </div>
     <div class="box"><h4>최소 주문금액·할인</h4>
       <p style="font-size:13px;color:var(--soft);margin:0 0 6px">상품 금액이 기준 이상이면 결제 금액에서 한 번 할인돼요. 여러 구간에 해당하면 가장 큰 할인 하나만 적용돼요.</p>
@@ -1242,7 +1254,8 @@ onAuthStateChanged(auth, user => {
 
 // ===== 영업시간·할인 설정 =====
 const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
-const DEFAULTS = { hours: { 0: { closed: true, open: "10:00", close: "20:00" } }, paused: false, minOrder: 15000, tiers: [{ min: 15000, amount: 3000 }, { min: 35000, amount: 5000 }, { min: 50000, amount: 7000 }] };
+const DEFAULTS = { hours: { 0: { closed: true, open: "10:00", close: "20:00" } }, paused: false, minOrder: 15000,
+  shopAddr: "광주 서구 쌍촌동 1325", kakaoKey: "", maxKm: 7, tips: [{ upto: 2, fee: 0, min: 0 }, { upto: 4, fee: 2000, min: 0 }, { upto: 7, fee: 4000, min: 30000 }], tiers: [{ min: 15000, amount: 3000 }, { min: 35000, amount: 5000 }, { min: 50000, amount: 7000 }] };
 let S = DEFAULTS, unsubS = null;
 // 결제 금액 구간별 할인: 상품 금액이 min 이상이면 amount 할인 (가장 큰 구간 하나만)
 const tiersOf = s => (Array.isArray(s.tiers) ? s.tiers : (s.discount ? [{ min: s.discountMin || 0, amount: s.discount }] : []))
@@ -1271,6 +1284,8 @@ const timeOpts = v => (TIMES.includes(v) ? TIMES : [...TIMES, v].sort()).map(t =
 $("setBtn").onclick = () => {
   $("sPause").checked = !!S.paused;
   drawTiers(tiersOf(S));
+  drawTips(S.tips || DEFAULTS.tips);
+  $("sMaxKm").value = S.maxKm ?? 7; $("sShop").value = S.shopAddr || DEFAULTS.shopAddr; $("sKey").value = S.kakaoKey || "";
   $("sMin").value = S.minOrder ?? 15000;
   $("sHours").innerHTML = DAYS.map((d, i) => {
     const h = dayHours(i), op = h.open === "00:00" && h.close === "24:00" ? "10:00" : h.open, cl = h.close === "24:00" ? "21:00" : h.close;
@@ -1290,6 +1305,12 @@ function drawTiers(ts) {
 const readTiers = () => [...document.querySelectorAll("#sTiers .trow")].map(r => ({ min: +r.querySelector(".tmin").value || 0, amount: +r.querySelector(".tamt").value || 0 }));
 $("sAddTier").onclick = () => { const ts = readTiers(); const last = ts[ts.length - 1]; ts.push({ min: last ? last.min + 10000 : 15000, amount: last ? last.amount + 1000 : 3000 }); drawTiers(ts); };
 $("sTiers").addEventListener("click", e => { const d = e.target.closest(".tdel"); if (!d) return; d.closest(".trow").remove(); if (!readTiers().length) drawTiers([]); });
+function drawTips(ts) {
+  $("sTips").innerHTML = [...ts].sort((a, b) => a.upto - b.upto).map(t => `<div class="tiprow"><div class="trow"><input class="tup" type="number" inputmode="decimal" step="0.5" value="${t.upto}" aria-label="거리"><span>km까지 →</span><input class="tfee" type="number" inputmode="numeric" step="500" value="${t.fee}" aria-label="배달팁"><span>원</span><button type="button" class="tdel" aria-label="구간 삭제">✕</button></div><label class="tminl">이 거리 최소 주문 <input class="tmin" type="number" inputmode="numeric" step="1000" value="${t.min || 0}" aria-label="최소 주문금액">원 <small>(0이면 기본값)</small></label></div>`).join("") || `<p style="color:var(--soft);font-size:14px">배달팁 없음</p>`;
+}
+const readTips = () => [...document.querySelectorAll("#sTips .tiprow")].map(r => ({ upto: +r.querySelector(".tup").value || 0, fee: Math.max(0, +r.querySelector(".tfee").value || 0), min: Math.max(0, +r.querySelector(".tmin").value || 0) }));
+$("sAddTip").onclick = () => { const ts = readTips(); const last = ts[ts.length - 1]; ts.push({ upto: last ? last.upto + 2 : 2, fee: last ? last.fee + 2000 : 0, min: last ? last.min || 0 : 0 }); drawTips(ts); };
+$("sTips").addEventListener("click", e => { const d = e.target.closest(".tdel"); if (!d) return; d.closest(".tiprow").remove(); if (!readTips().length) drawTips([]); });
 const closeSet = () => { $("setModal").classList.remove("on"); document.body.style.overflow = ""; };
 $("sClose").onclick = closeSet;
 $("setModal").addEventListener("click", e => { if (e.target === $("setModal")) closeSet(); });
@@ -1303,7 +1324,9 @@ $("sSave").onclick = async () => {
   const tiers = [...document.querySelectorAll("#sTiers .trow")].map(r => ({ min: Math.max(0, parseInt(r.querySelector(".tmin").value, 10) || 0), amount: Math.max(0, parseInt(r.querySelector(".tamt").value, 10) || 0) }))
     .filter(t => t.amount > 0).sort((a, b) => a.min - b.min);
   $("sSave").disabled = true; $("sSave").textContent = "저장 중…";
-  try { await setDoc(doc(db, "settings", "shop"), { hours, paused: $("sPause").checked, minOrder: Math.max(0, parseInt($("sMin").value, 10) || 0), tiers, updatedAt: serverTimestamp() }); closeSet(); }
+  try { await setDoc(doc(db, "settings", "shop"), { hours, paused: $("sPause").checked, minOrder: Math.max(0, parseInt($("sMin").value, 10) || 0), tiers,
+      tips: readTips().filter(t => t.upto > 0).sort((a, b) => a.upto - b.upto), maxKm: Math.max(0, +$("sMaxKm").value || 0) || 7,
+      shopAddr: $("sShop").value.trim() || DEFAULTS.shopAddr, kakaoKey: $("sKey").value.trim(), updatedAt: serverTimestamp() }); closeSet(); }
   catch (err) { console.error(err); $("sErr").textContent = "저장하지 못했어요. Firebase 규칙에 settings가 추가됐는지 확인해 주세요."; }
   finally { $("sSave").disabled = false; $("sSave").textContent = "설정 저장"; }
 };
@@ -1395,7 +1418,7 @@ function card(o) {
   return `<div class="card ${o.status === "new" ? "new" : ""}">
     <div class="head"><span class="code">${esc(o.code)}</span><span class="tag t-${o.type}">${TYPE[o.type] || ""}${o.type === "table" ? " " + esc(o.table) + "번" : ""}</span><span class="st">${ST[o.status] || ""}</span>${o.editedAt ? `<span class="edited">수정됨</span>` : ""}<span class="time">${time}</span></div>
     <ul class="items">${(o.items || []).map(i => `<li><span>${esc(i.name)}</span><b>× ${i.qty}</b></li>`).join("")}</ul>
-    ${o.discount ? `<div class="money"><div class="line"><span>상품 금액</span><b>${won(o.subtotal)}</b></div><div class="line dc"><span>할인</span><b>−${won(o.discount)}</b></div></div>` : ""}
+    ${o.discount || o.deliveryTip || o.tipCheck ? `<div class="money"><div class="line"><span>상품 금액</span><b>${won(o.subtotal)}</b></div>${o.discount ? `<div class="line dc"><span>할인</span><b>−${won(o.discount)}</b></div>` : ""}${o.type === "delivery" && (o.deliveryTip != null || o.tipCheck) ? `<div class="line"><span>배달팁${o.distKm != null ? ` (약 ${o.distKm}km)` : ""}</span><b>${o.tipCheck ? "⚠ 주소 확인 후 안내" : o.deliveryTip ? "+" + won(o.deliveryTip) : "무료"}</b></div>` : ""}</div>` : ""}
     <div class="total">${o.discount ? "결제 " : ""}${won(o.total)}</div>
     ${o.type !== "table" ? `
       ${c.name ? `<div class="line"><span>이름</span><b>${esc(c.name)}</b></div>` : ""}
@@ -1479,7 +1502,7 @@ const radio = (name, v) => { const r = document.querySelector(`input[name=${name
 const val = name => document.querySelector(`input[name=${name}]:checked`)?.value;
 function openEdit(id) {
   const o = orders.find(x => x.id === id); if (!o) return;
-  edit = { id, type: o.type, discount: o.discount || 0, paid: !!o.payment?.paid, items: (o.items || []).map(i => ({ ...i, price: Number(i.price ?? ALL.find(m => m.name === i.name)?.price) || 0 })) };
+  edit = { id, type: o.type, discount: o.discount || 0, tip: o.deliveryTip || 0, paid: !!o.payment?.paid, items: (o.items || []).map(i => ({ ...i, price: Number(i.price ?? ALL.find(m => m.name === i.name)?.price) || 0 })) };
   $("eTitle").textContent = `${o.code} 주문 수정`;
   const c = o.customer || {}, p = o.payment || {};
   radio("eHow", o.type === "delivery" ? "delivery" : "pickup");
@@ -1500,7 +1523,7 @@ $("eClose").onclick = closeEdit;
 $("modal").addEventListener("click", e => { if (e.target === $("modal")) closeEdit(); });
 const eSub = () => edit.items.reduce((s, i) => s + i.price * i.qty, 0);
 const eDisc = () => tierDiscount(S, eSub());
-const eTotal = () => eSub() - eDisc();
+const eTotal = () => eSub() - eDisc() + (edit.tip || 0);
 function drawItems() {
   $("eItems").innerHTML = edit.items.map((i, k) => `<div class="erow"><span class="nm">${esc(i.name)}<small>${won(i.price)}</small></span>
     <div class="step"><button data-eq="${k}" data-d="-1" aria-label="빼기">−</button><b>${i.qty}</b><button data-eq="${k}" data-d="1" aria-label="더하기">+</button></div>
