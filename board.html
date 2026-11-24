@@ -64,6 +64,7 @@ main{padding:16px}
 }
 .tile .tm{font-style:normal;font-weight:800;font-size:clamp(13px,2.2vmin,24px);line-height:1.15;text-align:center;padding:0 3px;max-width:100%;display:block;overflow:hidden;color:var(--text)}
 .htot{font-weight:900;font-size:22px;text-align:right;padding:8px 4px 2px;border-top:2px solid var(--text);margin-top:6px}
+.tile .tt{font-style:normal;font-weight:900;font-size:clamp(14px,2.4vmin,24px);margin-top:3px;padding-top:3px;border-top:1px solid var(--line);width:88%;text-align:center}
 .tile.has b{font-size:28px!important}.tile .tm div{word-break:keep-all;margin-top:1px}
 .tile .sum{font-size:14px}.tile.new .sum,.tile.cook .sum,.tile.eat .sum{color:var(--text)}
 .back{border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer}
@@ -203,7 +204,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 811</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 812</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -409,7 +410,7 @@ function renderGrid(){
     var st=!mine.length?"":mine.some(function(o){return o.status==="new"})?"new":mine.some(function(o){return o.status==="cook"})?"cook":"eat";
     var agg={},ks=[];mine.forEach(function(o){o.items.forEach(function(it){if(!agg[it.name]){agg[it.name]=0;ks.push(it.name)}agg[it.name]+=it.qty})});
     var sm=ks.map(function(k){return '<div>'+esc(k)+' ×'+agg[k]+'</div>'}).join("");
-    h+='<button class="tile '+(sm?'has ':'')+st+'" data-t="'+i+'"><b>'+i+'</b><span>'+nm[st]+'</span>'+(sm?'<em class="tm">'+sm+'</em>':'')+'</button>';
+    h+='<button class="tile '+(sm?'has ':'')+st+'" data-t="'+i+'"><b>'+i+'</b><span>'+nm[st]+'</span>'+(sm?'<em class="tm">'+sm+'</em><em class="tt">합계 '+won(total(i))+'</em>':'')+'</button>';
   }
   $("grid").innerHTML=h;
 }
