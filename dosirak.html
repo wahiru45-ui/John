@@ -49,6 +49,13 @@
   .tag.wait { background: #e0a100; } .tag.ok { background: #2a8a4a; } .tag.done { background: #888; }
   .mysum { display: flex; justify-content: space-between; font-weight: 700; padding: 8px 2px 0; border-top: 1px solid #eee; margin-top: 4px; }
   details.mypast summary { font-size: 13px; color: #999; padding: 6px 0; cursor: pointer; }
+  .addrRow { display: flex; gap: 8px; }
+  .addrRow input { flex: 1; background: #fafafa; }
+  .addrRow button { white-space: nowrap; padding: 0 14px; border-radius: 10px; border: none; background: #fee500; color: #3c1e1e; font-size: 15px; font-weight: 700; }
+  .pcLayer { position: fixed; inset: 0; background: #fff; z-index: 60; display: none; flex-direction: column; }
+  .pcHead { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #eee; font-weight: 700; font-size: 17px; }
+  .pcHead button { border: none; background: none; font-size: 24px; }
+  #pcBox { flex: 1; }
   .panel { margin-top: 14px; border-top: 1px dashed #ddd; padding-top: 12px; }
   .ptitle { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
   .menu { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
@@ -77,6 +84,7 @@
   .hint { font-size: 13px; color: #999; margin-top: 8px; }
   .welcome { background: #eaf6ee; color: #2a6a3a; font-size: 14px; padding: 10px 12px; border-radius: 10px; margin: 12px 12px 0; }
 </style>
+<script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 </head>
 <body>
 <div id="form">
@@ -117,12 +125,22 @@
     <label>이름</label>
     <input id="name" placeholder="홍길동">
     <label>배달 주소</label>
-    <input id="addr" placeholder="주소와 상세주소">
+    <div class="addrRow">
+      <input id="addrMain" placeholder="주소 찾기를 눌러 주세요" readonly>
+      <button type="button" id="findAddr">🔍 주소 찾기</button>
+    </div>
+    <input id="addrDetail" placeholder="상세주소 (동·호수, 층, 상호 등)" style="margin-top:8px">
+    <input id="addr" type="hidden">
     </div>
     <label>요청사항 (선택)</label>
     <textarea id="memo" placeholder="예) 문 앞에 놓아주세요"></textarea>
     <p class="hint">처음 한 번만 입력하면 이 휴대폰에 자동 등록돼서 다음부터는 날짜만 고르면 돼요.<br>결제는 신청 확인 후 가게에서 연락드려 안내해 드려요.</p>
   </section>
+</div>
+
+<div class="pcLayer" id="pcLayer">
+  <div class="pcHead"><span>📍 주소 찾기</span><button id="pcClose">✕</button></div>
+  <div id="pcBox"></div>
 </div>
 
 <div id="alarm" class="alarm" style="display:none">
@@ -339,9 +357,37 @@ document.addEventListener("click", e => {
   if (t.dataset.clear) { delete cart[active]; render(); }
 });
 
+// ===== 카카오(다음) 주소 찾기 =====
+const syncAddr = () => {
+  const m = document.getElementById("addrMain").value.trim(), d = document.getElementById("addrDetail").value.trim();
+  document.getElementById("addr").value = [m, d].filter(Boolean).join(" ");
+};
+document.getElementById("addrDetail").addEventListener("input", syncAddr);
+const pcLayer = document.getElementById("pcLayer");
+document.getElementById("pcClose").onclick = () => { pcLayer.style.display = "none"; };
+document.getElementById("findAddr").onclick = () => {
+  if (!window.daum || !daum.Postcode) { alert("주소 찾기를 불러오지 못했어요. 잠시 후 다시 눌러 주세요."); return; }
+  pcLayer.style.display = "flex";
+  const box = document.getElementById("pcBox"); box.innerHTML = "";
+  new daum.Postcode({
+    oncomplete: data => {
+      let a = data.roadAddress || data.jibunAddress || data.address;
+      const extra = [data.bname, data.buildingName].filter(Boolean).join(", ");
+      if (data.roadAddress && extra) a += ` (${extra})`;
+      document.getElementById("addrMain").value = a;
+      pcLayer.style.display = "none";
+      syncAddr();
+      document.getElementById("addrDetail").focus();
+    },
+    width: "100%", height: "100%"
+  }).embed(box);
+};
+
 // 이전에 신청한 정보 자동 채우기
 if (me.phone) {
   ["phone", "name", "addr"].forEach(k => document.getElementById(k).value = me[k] || "");
+  document.getElementById("addrMain").value = me.addrMain || me.addr || "";
+  document.getElementById("addrDetail").value = me.addrDetail || "";
   const w = document.getElementById("welcome");
   w.style.display = "block";
   w.textContent = `${me.name || ""}님, 다시 오셨네요! 날짜만 골라서 신청하시면 돼요.`;
@@ -432,8 +478,9 @@ async function loadMine() {
 }
 
 document.getElementById("submit").addEventListener("click", async () => {
+  if (document.getElementById("addrMain").value.trim()) syncAddr();
   const v = id => document.getElementById(id).value.trim();
-  if (!v("name") || !v("phone") || !v("addr")) { alert("연락처, 이름, 주소를 입력해 주세요."); return; }
+  if (!v("name") || !v("phone") || !v("addr")) { alert("연락처, 이름을 입력하고 🔍 주소 찾기로 주소를 골라 주세요."); return; }
   const btn = document.getElementById("submit");
   btn.disabled = true; btn.textContent = "보내는 중..."; btn.dataset.busy = "1";
   const mk = d => ({
@@ -488,7 +535,7 @@ document.getElementById("submit").addEventListener("click", async () => {
       me.subs.push(ref.id);
       listen(ref.id);
     }
-    me = { ...me, phone: v("phone"), ...info,
+    me = { ...me, phone: v("phone"), ...info, addrMain: v("addrMain"), addrDetail: v("addrDetail"),
            booked: [...new Set([...me.booked, ...pickedDates()])].filter(d => d >= ymd(new Date())) };
     try { localStorage.setItem(LS, JSON.stringify(me)); } catch {}
     document.getElementById("form").style.display = "none";

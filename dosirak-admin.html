@@ -87,6 +87,7 @@
   details.past { margin: 4px 0; font-size: 13px; color: #999; }
   details.past summary { cursor: pointer; padding: 3px 0; }
   details.cust summary { cursor: pointer; font-weight: 700; padding: 4px 0; }
+  a.map { color: #1a6ad1; text-decoration: none; }
   .empty { text-align: center; color: #999; padding: 40px; }
 </style>
 </head>
@@ -156,6 +157,8 @@ const WD = ["일", "월", "화", "수", "목", "금", "토"];
 const won = n => (n || 0).toLocaleString("ko-KR") + "원";
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const label = s => { const d = new Date(s + "T00:00"); return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`; };
+// 주소 → 카카오맵 검색 (앱이 있으면 앱으로, 없으면 웹으로 열려요)
+const mapUrl = a => "https://map.kakao.com/link/search/" + encodeURIComponent(String(a || "").replace(/\s*\(.*?\)\s*/g, " ").trim());
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const TODAY = ymd(new Date());
 
@@ -247,7 +250,7 @@ function daySummary() {
   const r = countUp(rows.map(x => x.o));
   const who = rows.map(({ s, o }) => `
     <div class="dv"><span class="dn">${esc(s.name)}</span> · ${o.items.map(i => `${esc(i.name)} ${i.qty}`).join(", ")}
-    <div class="da">📍 ${esc(s.addr)}${s.memo ? ` · 📝 ${esc(s.memo)}` : ""}</div>
+    <div class="da"><a class="map" href="${mapUrl(s.addr)}" target="_blank">📍 ${esc(s.addr)}</a>${s.memo ? ` · 📝 ${esc(s.memo)}` : ""}</div>
     <div class="btns">
       ${o.delivered
         ? `<button class="dlv done" style="margin:0" disabled>✅ 배달 완료됨</button>`
@@ -364,7 +367,7 @@ function render() {
       </div>
       ${!isOpen ? "" : `
       <div class="row" style="margin-top:8px">📞 <a href="tel:${esc(f.phone)}">${esc(f.phone)}</a></div>
-      <div class="row">📍 ${esc(f.addr)}</div>
+      <div class="row"><a class="map" href="${mapUrl(f.addr)}" target="_blank">📍 ${esc(f.addr)}</a> <span style="font-size:12px;color:#999">(카카오맵)</span></div>
       ${g.map(s => {
         if (editing === s.id) return editView();
         const up = s.orders.filter(o => o.date >= TODAY), past = s.orders.filter(o => o.date < TODAY);
