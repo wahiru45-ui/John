@@ -11,7 +11,7 @@
 :root{--bg:#fffaf1;--card:#fff;--ink:#1f1a15;--soft:#6f6358;--line:#eadfce;--red:#c3321c;--brown:#8a5a2b;--chip:#f4eadb;--ok:#2f7d4f;--pick:#fdf0ec}
 *{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Noto Sans KR",system-ui,sans-serif;padding-bottom:100px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Noto Sans KR",system-ui,sans-serif;padding-bottom:170px}
 button,a,label{touch-action:manipulation}
 button{cursor:pointer}
 .wrap{max-width:720px;margin:0 auto;padding:0 16px}
@@ -88,6 +88,14 @@ li.in{background:var(--pick)}
 .step b{min-width:22px;text-align:center;font-size:16px}
 .cartbar{position:fixed;left:0;right:0;bottom:0;z-index:10;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 30%);transform:translateY(110%);transition:transform .25s ease}
 .cartbar.show{transform:none}
+.mdeal{max-width:688px;margin:0 auto 8px;background:#fff;border:1.5px solid #f1c6bb;border-radius:14px;padding:8px 14px 18px;box-shadow:0 4px 14px rgba(80,40,10,.12)}
+.mdeal .mtop{font-size:14px;font-weight:700;color:var(--red);margin-bottom:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mdeal .mbar{position:relative;height:6px;background:#f6dcd5;border-radius:999px;margin:0 8px}
+.mdeal .mfill{position:absolute;left:0;top:0;bottom:0;background:var(--red);border-radius:999px;transition:width .3s}
+.mdeal .mk{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#fff;border:2px solid #e9a99a}
+.mdeal .mk.on{background:var(--red);border-color:var(--red)}
+.mdeal .mk b{position:absolute;top:12px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--soft);white-space:nowrap;font-weight:600}
+.mdeal .mk.on b{color:var(--red)}
 .cartbar button{display:flex;justify-content:space-between;align-items:center;width:100%;max-width:688px;margin:0 auto;border:0;background:var(--ink);color:#fff;border-radius:14px;padding:14px 18px;font:700 17px "Noto Sans KR",sans-serif}
 .cartbar button>span:first-child{white-space:nowrap}
 .cartbar .n{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;background:var(--red);margin-right:8px;font-size:15px}
@@ -205,7 +213,7 @@ li.in{background:var(--pick)}
 <main class="wrap"><div id="list"></div><p class="empty" id="empty">찾는 메뉴가 없어요.</p></main>
 
 <div class="toast" id="toast"></div>
-<div class="cartbar" id="cartbar"><button id="openCart"><span><span class="n" id="cartN">0</span>주문서 보기</span><span class="amt"><span id="cartSum"></span><small id="cartDisc"></small></span></button></div>
+<div class="cartbar" id="cartbar"><div class="mdeal" id="mDeal"><div class="mtop"><span id="mDealMsg"></span></div><div class="mbar"><div class="mfill" id="mDealFill"></div><div id="mDealMarks"></div></div></div><button id="openCart"><span><span class="n" id="cartN">0</span>주문서 보기</span><span class="amt"><span id="cartSum"></span><small id="cartDisc"></small></span></button></div>
 
 <!-- 주문서 -->
 <div class="panel" id="checkout">
@@ -1453,7 +1461,7 @@ function updateBar(bump) {
   $("cartN").textContent = n;
   $("cartSum").textContent = n ? won(sub - dc - stampOf(sub) + baseNow(sub) + tipNow()) : "";
   const nx = nextTier(S, sub), ts = tiersOf(S);
-  $("cartDisc").textContent = !n ? "" : short(sub) ? `${won(short(sub))} 더 담아야 주문할 수 있어요` : nx ? `${won(nx.min - sub)} 더 담으면 −${won(nx.amount)}` : dc ? `−${won(dc)} 할인 적용` : "";
+  $("cartDisc").textContent = n && dc ? `−${won(dc)} 할인 적용` : "";
   drawDeal(sub, dc, nx, ts);
   if (bump) { const b = $("openCart"); b.classList.remove("bump"); void b.offsetWidth; b.classList.add("bump"); }
 }
@@ -1463,6 +1471,7 @@ function drawDeal(sub, dc, nx, ts) {
   const man = n => n % 10000 ? (n / 10000).toFixed(1).replace(/\.0$/, "") + "만원" : n / 10000 + "만원";
   $("baseInfo").textContent = "🛵 배달비 " + baseList().map((t, i) => (i ? `${man(t.min)}↑ ` : "") + (+t.fee ? won(t.fee) : "무료")).join(" · ");
   $("deal").classList.toggle("hide", !ts.length);
+  $("mDeal").classList.toggle("hide", !ts.length);
   if (!ts.length) return;
   // 구간 점은 같은 간격으로 두고, 막대는 구간 사이를 금액 비율만큼 채워요
   const n = ts.length, at = i => (i + 1) / n * 100;
@@ -1474,6 +1483,9 @@ function drawDeal(sub, dc, nx, ts) {
   $("dealFill").style.width = fill + "%";
   $("dealMarks").innerHTML = ts.map((t, i) => `<i class="mk ${sub >= t.min ? "on" : ""}" style="left:${at(i)}%"></i>`).join("");
   $("dealTicks").innerHTML = ts.map((t, i) => `<span style="left:${at(i)}%"><b>−${won(t.amount)}</b>${won(t.min)}~</span>`).join("");
+  $("mDealFill").style.width = fill + "%";
+  $("mDealMarks").innerHTML = ts.map((t, i) => `<i class="mk ${sub >= t.min ? "on" : ""}" style="left:${at(i)}%"><b>−${(t.amount / 1000)}천</b></i>`).join("");
+  $("mDealMsg").textContent = short(sub) ? `${won(short(sub))} 더 담아야 주문할 수 있어요` : nx ? `🎁 ${won(nx.min - sub)} 더 담으면 −${won(nx.amount)} 할인` : `🎉 최대 할인 −${won(dc)} 적용 중!`;
   $("dealMsg").textContent = !sub ? `${won(ts[0].min)}부터 할인` : nx ? (dc ? `지금 −${won(dc)} · ` : "") + `${won(nx.min - sub)} 더 담으면 −${won(nx.amount)}` : `최대 할인 −${won(dc)} 적용 중`;
 }
 let toastT;
