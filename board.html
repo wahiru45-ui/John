@@ -75,6 +75,33 @@ body.g .grid{flex:1;min-height:0;grid-template-columns:repeat(4,1fr);grid-templa
 body.g .tile{aspect-ratio:auto;min-height:0;overflow:hidden}
 }
 @media (min-width:1000px){body.g .grid{grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(2,minmax(0,1fr))}}
+.nw{display:flex;flex-direction:column;gap:12px}
+.nl{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;min-height:0}
+.nl h2{margin:0 0 6px;font-size:22px}
+#nlist{flex:1;min-height:90px;overflow:auto}
+.nr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:21px;font-weight:800}
+.nq{display:flex;align-items:center;gap:8px;flex:none}.nq b{min-width:24px;text-align:center}
+.nq button{width:42px;height:42px;border:2px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;font-size:22px;font-weight:800;cursor:pointer;touch-action:manipulation}
+.nempty{color:var(--muted);font-weight:700;padding:14px 0}
+.nrs{height:72px;margin:8px 0;border:3px solid var(--text);border-radius:14px;background:var(--card);color:var(--text);font:inherit;font-size:28px;font-weight:900;cursor:pointer}
+.nrs.on{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.nbig{height:150px;border-radius:18px;font:inherit;font-size:46px;font-weight:900;cursor:pointer;touch-action:manipulation}
+.nok{border:0;background:var(--accent);color:var(--accent-text)}
+.ncl{margin-top:10px;border:3px solid #9fb3ad;background:var(--card);color:var(--muted)}
+.nbig.off{opacity:.4}
+body.n #menu{display:grid;gap:10px;grid-template-columns:repeat(2,1fr);grid-auto-rows:minmax(110px,auto)}
+@media (min-width:600px){
+body.n{max-width:none;height:100vh;height:100dvh;overflow:hidden;padding-bottom:0}
+body.n #app{height:100%;display:flex;flex-direction:column}
+body.n header{position:static;flex:none}
+body.n #cust{flex:1;min-height:0;padding:6px 14px 14px}
+body.n .nw{height:100%;flex-direction:row}
+body.n .nl{width:340px;flex:none}
+body.n #menu{flex:1;min-width:0;grid-template-columns:repeat(3,1fr);grid-auto-rows:minmax(0,1fr)}
+body.n .mt{min-height:0}
+}
+@media (min-width:1000px){body.n #menu{grid-template-columns:repeat(5,1fr)}}
+@media (max-height:700px){.nbig{height:104px;font-size:38px}.nrs{height:60px;font-size:24px}}
 .tile .tm{font-style:normal;font-weight:800;font-size:clamp(13px,2.2vmin,24px);line-height:1.15;text-align:center;padding:0 3px;max-width:100%;display:block;overflow:hidden;color:var(--text)}
 .cfr{display:flex;justify-content:space-between;gap:10px;font-size:24px;font-weight:700;padding:6px 2px;border-bottom:1px dashed var(--line)}
 .htot{font-weight:900;font-size:22px;text-align:right;padding:8px 4px 2px;border-top:2px solid var(--text);margin-top:6px}
@@ -218,23 +245,19 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 823</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 826</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
-  <div id="gridview">
-    <div class="hello"><h1>테이블을 선택하세요</h1></div>
-    <div id="toast"></div>
-    <div class="grid" id="grid"></div>
-  </div>
-  <div id="orderview" class="hide">
-    <div class="ohead"><h1 id="otitle"></h1><button class="back" id="back">← 테이블 선택</button></div>
-    <div class="obody">
-      <div id="menu"></div>
-      <aside class="side">
-        <div id="history"></div>
-      </aside>
-    </div>
+  <div class="nw">
+    <section class="nl">
+      <h2>주문 내역</h2>
+      <div id="nlist"></div>
+      <button id="nrs" type="button" class="nrs">🕒 예약</button>
+      <button id="nok" type="button" class="nbig nok">주문하기</button>
+      <button id="ncl" type="button" class="nbig ncl">전체 지우기</button>
+    </section>
+    <div id="menu"></div>
   </div>
 </main>
 
@@ -286,14 +309,10 @@ var MENU=[
   {id:11,c:"탕·조림",name:"갈치조림(2인분)",price:40000,e:"🥘"},
   {id:12,c:"탕·조림",name:"고등어조림(2인분)",price:30000,e:"🥘"},
   {id:13,c:"탕·조림",name:"고등어김치조림(2인분)",price:30000,e:"🥘"},
-  {id:14,c:"사이드",name:"공기밥",price:1000,e:"🍚"},
-  {id:15,c:"사이드",name:"볶음밥",price:2000,e:"🍳"},
-  {id:16,c:"주류",name:"소주",price:4000,e:"🍶"},
-  {id:17,c:"주류",name:"맥주",price:4000,e:"🍺"},
-  {id:18,c:"음료",name:"음료수",price:2000,e:"🥤"}
+  {id:15,c:"사이드",name:"볶음밥",price:2000,e:"🍳"}
 ];
 var LABEL={new:"접수",cook:"조리중",done:"완료"};
-var cart={},orders=[],audio=null,fs=null,auth=null,unsub=null,first=true,pruned=false,cur=null,armed=false;
+var cart={},orders=[],audio=null,fs=null,auth=null,unsub=null,first=true,pruned=false,cur=null,armed=false,rtv="";
 var $=function(id){return document.getElementById(id)};
 function won(n){return n.toLocaleString("ko-KR")+"원"}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
@@ -305,26 +324,28 @@ function tableOrders(t){return orders.filter(function(o){return o.table==t&&!o.c
 function total(t){var s=0;tableOrders(t).forEach(function(o){o.items.forEach(function(i){s+=i.price*i.qty})});return s}
 
 function renderMenu(){
-  var n=0,sum=0;
-  MENU.forEach(function(m){var q=cart[m.id]||0;n+=q;sum+=q*m.price});
-  var has=cur&&tableOrders(cur).length>0;
-  var acts='<div class="mt act go'+(n?'':' off')+'" role="button" data-act="order"><div class="mn">주문하기</div><div class="mp">'+(n?n+'개 · '+won(sum):'메뉴를 골라주세요')+(rtv&&n?' · '+rtv+' 예약':'')+'</div></div>'+
-    '<div class="mt act cl'+(has?'':' off')+'" role="button" data-act="clear"><div class="mn">테이블 비우기</div><div class="mp">계산 완료</div></div>'+
-    '<div class="mt act'+(rtv?' on':'')+'" role="button" data-act="resv"><div class="mn">'+(rtv?'🕒 '+rtv:'예약')+'</div><div class="mp">'+(rtv?'예약 변경':'시간 선택')+'</div></div>';
-  var grp={"사이드":"s","주류":"s","음료":"s"},prev="";
-  $("menu").innerHTML=acts+MENU.map(function(m){
-    var q=cart[m.id]||0,g=grp[m.c]||m.c,gs=(g!==prev);prev=g;
-    return '<div data-c="'+m.c+'" class="mt'+(gs?' gs':'')+(q?' on':'')+'" role="button" tabindex="0" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 담기"><div class="me">'+m.e+'</div><div class="mn">'+m.name+'</div><div class="mp">'+won(m.price)+'</div>'+
-    (q?'<div class="mq">'+q+'</div><div class="mx" role="button" data-d="-1" data-id="'+m.id+'" aria-label="'+m.name+' 빼기">−</div>':'')+'</div>';
+  var n=0;
+  MENU.forEach(function(m){n+=cart[m.id]||0});
+  $("menu").innerHTML=MENU.map(function(m){
+    var q=cart[m.id]||0;
+    return '<div class="mt'+(q?' on':'')+'" role="button" tabindex="0" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 담기"><div class="me">'+m.e+'</div><div class="mn">'+m.name+'</div><div class="mp">'+won(m.price)+'</div>'+(q?'<div class="mq">'+q+'</div>':'')+'</div>';
   }).join("");
+  var h="";
+  MENU.forEach(function(m){var q=cart[m.id]||0;if(q)h+='<div class="nr"><span>'+m.name+'</span><span class="nq"><button type="button" data-d="-1" data-id="'+m.id+'" aria-label="'+m.name+' 빼기">−</button><b>'+q+'</b><button type="button" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 더하기">＋</button></span></div>'});
+  $("nlist").innerHTML=h||'<div class="nempty">오른쪽에서 메뉴를 눌러주세요</div>';
+  $("nok").classList.toggle("off",!n);$("ncl").classList.toggle("off",!n);
+  $("nrs").textContent=rtv?"🕒 "+rtv+" 예약":"🕒 예약";$("nrs").classList.toggle("on",!!rtv);
 }
-$("menu").addEventListener("click",function(e){
-  var a=e.target.closest("[data-act]");
-  if(a){if(a.classList.contains("off"))return;if(a.dataset.act==="order")doOrder();else if(a.dataset.act==="resv")openResv();else doClear();return}
+function bump(e){
   var t=e.target.closest("[data-d]");if(!t)return;
   cart[t.dataset.id]=Math.max(0,(cart[t.dataset.id]||0)+(+t.dataset.d));
   renderMenu();
-});
+}
+$("menu").addEventListener("click",bump);
+$("nlist").addEventListener("click",bump);
+$("nrs").onclick=function(){openResv()};
+$("ncl").onclick=function(){if($("ncl").classList.contains("off"))return;cart={};rtv="";renderMenu()};
+$("nok").onclick=function(){if($("nok").classList.contains("off"))return;doOrder()};
 
 var soundOn=true,kfs=0,wl=null;
 try{soundOn=localStorage.getItem("ksnd")!=="0";kfs=parseFloat(localStorage.getItem("kfs"))||0}catch(err){}
@@ -371,7 +392,7 @@ function escJob(list){
     huge=[0x1D,0x21,0x33],big=[0x1D,0x21,0x22],mid=[0x1D,0x21,0x11],nor=[0x1D,0x21,0x00],line="----------------------------------------------\n";
   list.forEach(function(o){
     var tm=new Date(o.time).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
-    b=b.concat(enc("\n\n\n"),huge,enc(o.table+"번 테이블\n"),mid,enc(tm+" 주문\n"),nor);
+    b=b.concat(enc("\n\n\n"),huge,enc(tm+"\n"),mid,enc("주문\n"),nor);
     if(o.resv)b=b.concat(big,enc("예약 "+o.resv+"\n"),nor);
     b=b.concat(enc(line));
     o.items.forEach(function(i){b=b.concat(big,enc(i.name+" x"+i.qty+"\n"),nor)});
@@ -407,7 +428,7 @@ function printOrders(list){
 function printHtml(list){
   $("printarea").innerHTML=list.map(function(o){
     var tm=new Date(o.time).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
-    return '<div class="pj"><div class="pt">'+o.table+'번 테이블</div><div class="pm">'+tm+' 주문</div>'+
+    return '<div class="pj"><div class="pt">'+tm+'</div><div class="pm">주문</div>'+
       (o.resv?'<div class="pr">예약 '+o.resv+'</div>':'')+
       o.items.map(function(i){return '<div class="pi"><span>'+esc(i.name)+'</span><span>× '+i.qty+'</span></div>'}).join("")+
       (o.memo?'<div class="pn">요청: '+esc(o.memo)+'</div>':'')+'<div class="pe"></div></div>';
@@ -415,7 +436,7 @@ function printHtml(list){
   setTimeout(function(){try{window.print()}catch(err){}},150);
 }
 $("prt").onclick=function(){setPrt(!prtOn)};
-$("prtest").onclick=function(){printOrders([{table:"5",time:Date.now(),resv:"18:30",memo:"공기밥 빼주세요",items:[{name:"백반",qty:2},{name:"고등어구이 백반",qty:1}]}])};
+$("prtest").onclick=function(){printOrders([{table:"",time:Date.now(),resv:"18:30",memo:"공기밥 빼주세요",items:[{name:"백반",qty:2},{name:"고등어구이 백반",qty:1}]}])};
 setPrt(prtOn);
 function wake(){
   try{if(wl||!navigator.wakeLock||document.hidden||$("kitchen").classList.contains("hide"))return;
@@ -423,62 +444,10 @@ function wake(){
 }
 document.addEventListener("visibilitychange",function(){if(!document.hidden)wake()});
 
-function renderGrid(){
-  var nm={"":"빈 테이블","new":"","cook":"","eat":""},h="";
-  for(var i=1;i<=16;i++){
-    var mine=tableOrders(i);
-    var st=!mine.length?"":mine.some(function(o){return o.status==="new"})?"new":mine.some(function(o){return o.status==="cook"})?"cook":"eat";
-    var agg={},ks=[];mine.forEach(function(o){o.items.forEach(function(it){if(!agg[it.name]){agg[it.name]=0;ks.push(it.name)}agg[it.name]+=it.qty})});
-    var sm=ks.map(function(k){return '<div>'+esc(k)+' ×'+agg[k]+'</div>'}).join("");
-    h+='<button class="tile '+(sm?'has ':'')+st+'" data-t="'+i+'"><b>'+i+'</b>'+(nm[st]?'<span>'+nm[st]+'</span>':'')+(sm?'<em class="tm">'+sm+'</em><em class="tt">합계 '+won(total(i))+'</em>':'')+'</button>';
-  }
-  $("grid").innerHTML=h;
-}
-function openGrid(){
-  cart={};armed=false;renderMenu();
-  $("orderview").classList.add("hide");$("gridview").classList.remove("hide");syncBody();
-}
-$("grid").addEventListener("click",function(e){
-  var t=e.target.closest("button");if(!t)return;
-  cur=t.dataset.t;cart={};rtv="";armed=false;renderMenu();renderHistory();
-  $("otitle").textContent=cur+"번 테이블";$("toast").innerHTML="";
-  $("gridview").classList.add("hide");$("orderview").classList.remove("hide");syncBody();
-  window.scrollTo(0,0);
-});
-$("back").addEventListener("click",openGrid);
-function doClear(){
-  if(!cur)return;
-  orders.forEach(function(o){if(o.table==cur&&!o.closed){o.closed=true;save(o)}});
-  openGrid();renderKitchen();
-}
-function syncBody(){document.body.classList.toggle("g",!$("cust").classList.contains("hide")&&$("orderview").classList.contains("hide"));document.body.classList.toggle("o",!$("cust").classList.contains("hide")&&!$("orderview").classList.contains("hide"))}
+function openGrid(){cart={};rtv="";renderMenu()}
+function syncBody(){document.body.classList.toggle("n",!$("cust").classList.contains("hide"))}
 
-function renderHistory(){
-  var os=tableOrders(cur);
-  renderMenu();
-  if(!os.length){$("history").innerHTML="";return}
-  var h='<div class="hist">';
-  os.forEach(function(o){
-    var tm=new Date(o.time).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
-    h+='<div class="horder"><div class="hmeta">'+tm+(o.resv?' · 🕒 '+o.resv+' 예약':'')+(o.memo?' · 📝 '+esc(o.memo):'')+'</div>';
-    o.items.forEach(function(it,idx){
-      h+='<div class="hrow"><span>'+it.name+' × '+it.qty+'</span><span>'+won(it.price*it.qty)+'</span><button class="mini" data-o="'+o.id+'" data-i="'+idx+'" aria-label="'+it.name+' 하나 빼기">−</button></div>';
-    });
-    h+='</div>';
-  });
-  h+='<div class="htot">합계 '+won(total(cur))+'</div></div>';
-  $("history").innerHTML=h;
-}
-$("history").addEventListener("click",function(e){
-  var t=e.target.closest("button");if(!t)return;
-  var o=orders.filter(function(x){return x.id==t.dataset.o})[0];if(!o)return;
-  var k=+t.dataset.i;o.items[k].qty--;
-  if(o.items[k].qty<=0)o.items.splice(k,1);
-  if(!o.items.length){orders.splice(orders.indexOf(o),1);drop(o)}else save(o);
-  armed=false;renderHistory();renderKitchen();
-});
-
-var rtv="",ph="",pm="00";
+var ph="",pm="00";
 function drawResv(){
   var h="",i;for(i=10;i<=21;i++){var v=(i<10?"0":"")+i;h+='<button type="button" data-h="'+v+'" class="'+(ph===v?"on":"")+'">'+i+'시</button>'}
   $("rph").innerHTML=h;
@@ -499,12 +468,11 @@ $("rp").addEventListener("click",function(e){
 function doOrder(){
   var items=MENU.filter(function(m){return cart[m.id]}).map(function(m){return{name:m.name,qty:cart[m.id],price:m.price}});
   if(!items.length)return;
-  var no={id:newId(),table:cur,items:items,time:Date.now(),status:"new",memo:"",resv:rtv,closed:false};
+  var no={id:newId(),table:"",items:items,time:Date.now(),status:"new",memo:"",resv:rtv,closed:false};
   orders.push(no);save(no);
   if(prtOn)printOrders([no]);
-  var tn=cur;
-  cart={};armed=false;rtv="";renderMenu();renderHistory();renderGrid();renderKitchen();ping();
-  openGrid();
+  cart={};rtv="";renderMenu();renderKitchen();ping();
+  var b=$("nok");b.textContent="주문 완료!";clearTimeout(window.__nok);window.__nok=setTimeout(function(){b.textContent="주문하기"},1400);
 }
 
 var kview="list";
@@ -534,18 +502,17 @@ function renderBoard(){
   $("tickets").innerHTML=h;
 }
 function renderKitchen(){
-  renderGrid();
   var live=orders.filter(function(o){return !o.closed});
   var newN=live.filter(function(o){return o.status==="new"}).length;
   var bd=$("badge");bd.textContent=newN||"";bd.classList.toggle("zero",!newN);
   $("tickets").className=kview==="board"?"board":"board cards";
   if(kview==="board"){renderBoard();return}
-  var list=live.filter(function(o){return o.status!=="done"}).sort(function(a,b){return a.time-b.time});
+  var list=live.filter(function(o){return o.status!=="done"&&Date.now()-o.time<900000}).sort(function(a,b){return a.time-b.time});
   if(!list.length){$("tickets").innerHTML='<div class="empty">아직 들어온 주문이 없어요.</div>';return}
   $("tickets").innerHTML=list.map(function(o){
     var mins=Math.floor((Date.now()-o.time)/60000),qn=0;
     o.items.forEach(function(i){qn+=i.qty});
-    return '<div class="cell '+(o.status==="new"?"new":"cook")+'"><div class="ch"><b>'+o.table+'번</b><span>'+(mins<1?"방금":mins+"분")+" · "+qn+"개"+'</span></div>'+
+    return '<div class="cell '+(o.status==="new"?"new":"cook")+'" data-id="'+o.id+'"><div class="ch"><b>'+new Date(o.time).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"})+'</b><span>'+(mins<1?"방금":mins+"분")+" · "+qn+"개"+'</span></div>'+
       (o.resv?'<div class="rv rvl">🕒 '+o.resv+' 예약</div>':'')+
       '<ul>'+o.items.map(function(i){return '<li class="'+(o.status==="new"?"n":"")+'"><span>'+i.name+'</span><span class="q">× '+i.qty+'</span></li>'}).join("")+'</ul>'+
       (o.memo?'<div class="mm">📝 '+esc(o.memo)+'</div>':'')+
@@ -553,7 +520,8 @@ function renderKitchen(){
   }).join("");
 }
 $("tickets").addEventListener("click",function(e){
-  var t=e.target.closest("button");if(!t)return;
+  var t=e.target.closest("button");
+  if(!t)return;
   if(t.dataset.t){
     tableOrders(t.dataset.t).forEach(function(o){if(o.status!=="done"){o.status="done";save(o)}});
     renderKitchen();return;
@@ -599,7 +567,6 @@ function start(){
     if(!pruned&&!snap.metadata.fromCache){pruned=true;orders.forEach(function(o){if(o.closed&&Date.now()-o.time>172800000)drop(o)})}
     net(snap.metadata.fromCache?"off":"ok");
     renderKitchen();
-    if(cur&&!$("orderview").classList.contains("hide"))renderHistory();
     if(freshN&&!$("kitchen").classList.contains("hide"))beep();
     if(freshN&&prtOn)printOrders(freshL);
   },function(){net("err")});
