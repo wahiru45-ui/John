@@ -149,6 +149,7 @@
         <div id="mTitle" style="flex:1;text-align:center;font-weight:700"></div>
         <button id="mNext">▶</button>
       </div>
+      <div id="menuErr" style="display:none;background:#fdecea;color:#b3261e;border-radius:10px;padding:10px;margin-bottom:10px;font-size:14px;font-weight:700"></div>
       <div class="mgrid mhead"><span></span><span>메인</span><span>국</span></div>
       <div id="menuRows"></div>
       <div class="btns" style="margin-top:12px">
@@ -281,7 +282,11 @@ function watchMenus() {
     snap.docs.forEach(d => { menus[d.id] = d.data(); });
     if (view === "day") render();
     if (view === "menu" && !Object.keys(menuDraft).length) renderMenu();
-  }, err => console.warn(err));
+    document.getElementById("menuErr").style.display = "none";
+  }, err => {
+    document.getElementById("menuErr").style.display = "block";
+    document.getElementById("menuErr").textContent = "⚠️ 식단을 불러오지 못했어요 (" + (err.code || err.message) + "). Firebase 규칙에 식단(dosirakMenus) 부분이 빠졌는지 확인해 주세요.";
+  });
 }
 function val(date, key) {
   if (menuDraft[date] && key in menuDraft[date]) return menuDraft[date][key];
