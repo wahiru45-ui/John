@@ -1658,7 +1658,7 @@ function drawItems() {
   $("eItems").innerHTML = edit.items.map((i, k) => `<div class="erow"><span class="nm">${esc(i.name)}<small>${won(i.price)}</small></span>
     <div class="step"><button data-eq="${k}" data-d="-1" aria-label="빼기">−</button><b>${i.qty}</b><button data-eq="${k}" data-d="1" aria-label="더하기">+</button></div>
     <button class="del" data-erm="${k}">삭제</button></div>`).join("") || `<p class="empty" style="padding:6px 0">메뉴가 없어요. 아래에서 추가하세요.</p>`;
-  $("eTotal").textContent = eDisc() || eSd() ? `${won(eSub())} − 할인 ${won(eDisc() + eSd())}${eSd() ? "(스탬프 포함)" : ""} = ${won(eTotal())}` : won(eTotal());
+  $("eTotal").textContent = eDisc() || eSd() || eBase() || edit.tip ? `${won(eSub())}${eDisc() + eSd() ? ` − 할인 ${won(eDisc() + eSd())}${eSd() ? "(스탬프 포함)" : ""}` : ""}${eBase() + (edit.tip || 0) ? ` + 배달비 ${won(eBase() + (edit.tip || 0))}` : ""} = ${won(eTotal())}` : won(eTotal());
 }
 $("eItems").addEventListener("click", e => {
   const q = e.target.closest("[data-eq]"), rm = e.target.closest("[data-erm]");
