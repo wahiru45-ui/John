@@ -218,7 +218,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 822</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 823</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -367,15 +367,16 @@ function kmap(){
 }
 function enc(str){var m=kmap(),o=[];for(var i=0;i<str.length;i++){var ch=str[i],c=str.charCodeAt(i);if(c<128)o.push(c);else if(m[ch])o.push(m[ch][0],m[ch][1]);else o.push(63)}return o}
 function escJob(list){
-  var b=[0x1B,0x40,0x1C,0x26,0x1C,0x43,0x01],big=[0x1D,0x21,0x11],nor=[0x1D,0x21,0x00];
+  var b=[0x1B,0x40,0x1C,0x26,0x1C,0x43,0x01,0x1B,0x61,0x01,0x1B,0x45,0x01,0x1B,0x47,0x01],
+    huge=[0x1D,0x21,0x33],big=[0x1D,0x21,0x22],mid=[0x1D,0x21,0x11],nor=[0x1D,0x21,0x00],line="----------------------------------------------\n";
   list.forEach(function(o){
     var tm=new Date(o.time).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"});
-    b=b.concat(big,enc(o.table+"번 테이블\n"),nor,enc(tm+" 주문\n"));
+    b=b.concat(enc("\n\n\n"),huge,enc(o.table+"번 테이블\n"),mid,enc(tm+" 주문\n"),nor);
     if(o.resv)b=b.concat(big,enc("예약 "+o.resv+"\n"),nor);
-    b=b.concat(enc("------------------------\n"));
+    b=b.concat(enc(line));
     o.items.forEach(function(i){b=b.concat(big,enc(i.name+" x"+i.qty+"\n"),nor)});
-    if(o.memo)b=b.concat(enc("------------------------\n"),big,enc("요청: "+o.memo+"\n"),nor);
-    b=b.concat(enc("\n\n\n\n"),[0x1D,0x56,0x42,0x00]);
+    if(o.memo)b=b.concat(enc(line),big,enc("요청: "+o.memo+"\n"),nor);
+    b=b.concat(enc(line),enc("\n\n\n\n\n\n\n\n"),[0x1D,0x56,0x42,0x00]);
   });
   return new Uint8Array(b);
 }
