@@ -184,6 +184,8 @@ const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")
 const label = s => { const d = new Date(s + "T00:00"); return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`; };
 // 주소 → 카카오맵 검색 (앱이 있으면 앱으로, 없으면 웹으로 열려요)
 const mapUrl = a => "https://map.kakao.com/link/search/" + encodeURIComponent(String(a || "").replace(/\s*\(.*?\)\s*/g, " ").trim());
+// 손님 구분: 전화번호 + 이름 (전화번호를 0000처럼 대충 넣어도 이름이 다르면 다른 손님)
+const custKey = s => String(s.phone || "").replace(/[^0-9]/g, "") + "|" + String(s.name || "").trim();
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const TODAY = ymd(new Date());
 
@@ -399,7 +401,7 @@ function allSummary() {
   // 손님별 (전화번호 기준)
   const per = {};
   ok.forEach(s => inWeek(s).forEach(o => {
-    const p = per[s.phone] = per[s.phone] || { name: s.name, days: new Set(), boxes: 0, money: 0 };
+    const p = per[custKey(s)] = per[custKey(s)] || { name: s.name, days: new Set(), boxes: 0, money: 0 };
     p.days.add(o.date); o.items.forEach(i => p.boxes += i.qty); p.money += o.amount;
   }));
   const custRows = Object.values(per).sort((a, b) => b.money - a.money)
@@ -442,7 +444,7 @@ function render() {
   const shown = (tab === "전체" ? subs : subs.filter(s => s.status === tab))
     .filter(s => !kw || [s.name, s.phone, s.addr].some(x => String(x || "").replace(/-/g, "").includes(kw)));
   const groups = {};
-  shown.forEach(s => { (groups[s.phone] = groups[s.phone] || []).push(s); });
+  shown.forEach(s => { const k = custKey(s); (groups[k] = groups[k] || []).push(s); });
 
   document.getElementById("newBox").innerHTML = editing === "new" ? `<div style="margin:0 12px 12px">${editView()}</div>` : "";
   document.getElementById("addNew").style.display = editing === "new" ? "none" : "block";
@@ -457,10 +459,10 @@ function render() {
     const sum = live.reduce((a, s) => a + s.orders.reduce((b, o) => b + o.amount, 0), 0);
     const next = live.flatMap(s => s.orders.map(o => o.date)).filter(d => d >= TODAY).sort()[0];
     const waiting = g.filter(s => s.status === "신청").length;
-    const isOpen = open[f.phone] || g.some(s => s.id === editing);
+    const isOpen = open[custKey(f)] || g.some(s => s.id === editing);
     return `
     <div class="card">
-      <div class="chead" data-open="${esc(f.phone)}">
+      <div class="chead" data-open="${esc(custKey(f))}">
         <div>
           <span class="nm">${esc(f.name)}</span>${waiting ? `<span class="mini" style="background:${COLOR.신청}">확인 대기 ${waiting}</span>` : ""}
           <div class="info">${next ? `다음 배달 ${label(next)}` : "남은 배달 없음"} · 신청 ${g.length}건</div>
@@ -509,7 +511,7 @@ function editView() {
     <div class="stitle">${editing === "new" ? "➕ 직접 주문 추가" : "✏️ 신청 수정"}</div>
     ${editing === "new" && customers().length ? `<label>기존 손님 불러오기</label>
       <select id="pickCust"><option value="">새 손님 (직접 입력)</option>
-      ${customers().map(c => `<option value="${esc(c.phone)}">${esc(c.name)} · ${esc(c.phone)}</option>`).join("")}</select>` : ""}
+      ${customers().map(c => `<option value="${esc(custKey(c))}">${esc(c.name)} · ${esc(c.phone)}</option>`).join("")}</select>` : ""}
     <label>이름</label><input data-f="name" value="${esc(d.name)}">
     <label>연락처</label><input data-f="phone" value="${esc(d.phone)}">
     <label>주소</label><input data-f="addr" value="${esc(d.addr)}">
@@ -536,7 +538,7 @@ function editView() {
 // 전화번호별 손님 목록 (가장 최근 정보)
 function customers() {
   const m = {};
-  subs.forEach(s => { if (s.phone && !m[s.phone]) m[s.phone] = { name: s.name, phone: s.phone, addr: s.addr, memo: s.memo }; });
+  subs.forEach(s => { const k = custKey(s); if ((s.phone || s.name) && !m[k]) m[k] = { name: s.name, phone: s.phone, addr: s.addr, memo: s.memo }; });
   return Object.values(m);
 }
 function startNew() {
@@ -587,10 +589,10 @@ async function saveEdit() {
 
 document.addEventListener("change", e => {
   if (e.target.id === "pickCust" && draft) {
-    const c = customers().find(x => x.phone === e.target.value);
+    const c = customers().find(x => custKey(x) === e.target.value);
     Object.assign(draft, c ? { name: c.name || "", phone: c.phone || "", addr: c.addr || "", memo: c.memo || "" } : { name: "", phone: "", addr: "", memo: "" });
     render();
-    const sel = document.getElementById("pickCust"); if (sel) sel.value = c ? c.phone : "";
+    const sel = document.getElementById("pickCust"); if (sel) sel.value = c ? custKey(c) : "";
   }
 });
 
