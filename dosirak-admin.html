@@ -29,7 +29,8 @@
   .dv .da { color: #666; }
   .dlv { margin-top: 6px; width: 100%; padding: 10px; border-radius: 10px; border: none; background: #2a8a4a; color: #fff; font-size: 15px; font-weight: 700; }
   .dv .btns button { padding: 9px 4px; }
-  .dlv.done { background: #fff; color: #2a8a4a; border: 1px solid #2a8a4a; font-weight: 600; }
+  .btns .dlv { background: #2a8a4a; color: #fff; border: 1px solid #2a8a4a; font-weight: 700; }
+  .btns .dlv.done { background: #fff; color: #2a8a4a; border: 1px solid #2a8a4a; font-weight: 600; }
   .pend { color: #d9532b; font-size: 13px; margin-top: 6px; }
   .tabs { display: flex; gap: 8px; padding: 0 12px 12px; overflow-x: auto; }
   .tab { padding: 8px 14px; border-radius: 18px; border: 1px solid #ccc; background: #fff; white-space: nowrap; font-size: 15px; }
@@ -248,6 +249,8 @@ function daySummary() {
     if (s.status === "신청") pending++;
   }));
   const r = countUp(rows.map(x => x.o));
+  const left = rows.filter(x => !x.o.delivered).length;
+  rows.sort((a, b) => (a.o.delivered ? 1 : 0) - (b.o.delivered ? 1 : 0));  // 남은 곳 먼저, 완료는 아래로
   const who = rows.map(({ s, o }) => `
     <div class="dv"><span class="dn">${esc(s.name)}</span> · ${o.items.map(i => `${esc(i.name)} ${i.qty}`).join(", ")}
     <div class="da"><a class="map" href="${mapUrl(s.addr)}" target="_blank">📍 ${esc(s.addr)}</a>${s.memo ? ` · 📝 ${esc(s.memo)}` : ""}</div>
@@ -259,7 +262,7 @@ function daySummary() {
       <button data-sms="${s.id}" data-kind="arrive">💬 문자</button>
     </div>
     </div>`).join("");
-  return `<div class="stitle">📦 ${label(day)}${day === TODAY ? " 오늘" : ""} 배달 · ${rows.length}곳</div>
+  return `<div class="stitle">📦 ${label(day)}${day === TODAY ? " 오늘" : ""} 배달 · <span style="color:#d9532b">남은 ${left}곳</span> / 전체 ${rows.length}곳${rows.length && !left ? " 🎉" : ""}</div>
     ${lines(r)}
     ${who ? `<div class="deliv">${who}</div>` : ""}
     ${pending ? `<div class="pend">⚠️ 이 날짜에 아직 확인 안 한 신청이 ${pending}건 있어요</div>` : ""}`;
