@@ -98,6 +98,8 @@
   .todayMenu { background: #fff; border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; font-size: 14px; }
   .mtag { display: inline-block; font-size: 12px; font-weight: 700; border-radius: 8px; padding: 1px 7px; margin-right: 4px; vertical-align: middle; color: #fff; }
   .mtag.m0 { background: #e0a100; } .mtag.m1 { background: #d9532b; } .mtag.m2 { background: #5b4bb7; }
+  .dong { margin: 12px 0 2px; padding: 6px 10px; background: #fde7da; border-radius: 8px; font-weight: 700; color: #8a3410; font-size: 14px; }
+  .dong span { font-weight: 400; color: #b0583a; margin-left: 4px; }
   .mealsum { display: flex; gap: 6px; margin: 6px 0 2px; flex-wrap: wrap; font-size: 14px; }
   .ed select.msel { width: auto; padding: 4px 6px; font-size: 13px; margin-left: 6px; }
   .empty { text-align: center; color: #999; padding: 40px; }
@@ -194,6 +196,11 @@ const custKey = s => String(s.phone || "").replace(/[^0-9]/g, "") + "|" + String
 // 식사 시간: 없으면 점심
 const MEALS = ["아침", "점심", "저녁"];
 const mealOf = o => o.meal || "점심";
+// 주소에서 동 이름 뽑기: "(화정동)", "농성동 유탑", "쌍촌동1325" → 화정동/농성동/쌍촌동. 없으면 "기타"
+const dongOf = a => {
+  const m = String(a || "").match(/\(([가-힣0-9]+동)[,)]/) || String(a || "").match(/([가-힣]+[0-9]*동)(?=[^가-힣]|$)/);
+  return m ? m[1].replace(/[0-9]+동$/, "동") : "기타";
+};
 const mealTag = o => `<span class="mtag m${MEALS.indexOf(mealOf(o))}">${mealOf(o)}</span>`;
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const TODAY = ymd(new Date());
@@ -362,13 +369,22 @@ function daySummary() {
   }));
   const r = countUp(rows.map(x => x.o));
   const left = rows.filter(x => !x.o.delivered).length;
-  // 남은 곳 먼저, 그 안에서 아침 → 점심 → 저녁 순
-  rows.sort((a, b) => ((a.o.delivered ? 1 : 0) - (b.o.delivered ? 1 : 0)) || (MEALS.indexOf(mealOf(a.o)) - MEALS.indexOf(mealOf(b.o))));
+  // 남은 곳 먼저 → 아침·점심·저녁 → 동 이름 순 (기타는 맨 뒤)
+  const dk = x => { const d = dongOf(x.s.addr); return d === "기타" ? "힣힣" : d; };
+  rows.sort((a, b) => ((a.o.delivered ? 1 : 0) - (b.o.delivered ? 1 : 0))
+    || (MEALS.indexOf(mealOf(a.o)) - MEALS.indexOf(mealOf(b.o)))
+    || dk(a).localeCompare(dk(b), "ko") || String(a.s.addr).localeCompare(String(b.s.addr), "ko"));
   const byMeal = MEALS.map(m => {
     const n = rows.filter(x => mealOf(x.o) === m).reduce((a, x) => a + x.o.items.reduce((b, i) => b + i.qty, 0), 0);
     return n ? `<span>${mealTag({ meal: m })}${n}개</span>` : "";
   }).join("");
-  const who = rows.map(({ s, o }) => `
+  let lastGroup = "";
+  const who = rows.map(({ s, o }) => {
+    const g = (o.delivered ? "done" : mealOf(o)) + "|" + dongOf(s.addr);
+    const cnt = rows.filter(x => (x.o.delivered ? "done" : mealOf(x.o)) + "|" + dongOf(x.s.addr) === g).length;
+    const head = g !== lastGroup ? `<div class="dong">${o.delivered ? "✅ 완료 · " : ""}📍 ${esc(dongOf(s.addr))} <span>${cnt}곳</span></div>` : "";
+    lastGroup = g;
+    return head + `
     <div class="dv">${mealTag(o)}<span class="dn">${esc(s.name)}</span> · ${o.items.map(i => `${esc(i.name)} ${i.qty}`).join(", ")}
     <div class="da"><a class="map" href="${mapUrl(s.addr)}" target="_blank">📍 ${esc(s.addr)}</a>${s.memo ? ` · 📝 ${esc(s.memo)}` : ""}</div>
     <div class="btns">
@@ -378,7 +394,7 @@ function daySummary() {
       <button data-alarm="${s.id}" data-kind="arrive">🔔 알람${s.alarm?.kind === "arrive" && s.alarm?.date === o.date ? " ✓" : ""}</button>
       <button data-sms="${s.id}" data-kind="arrive">💬 문자</button>
     </div>
-    </div>`).join("");
+    </div>`; }).join("");
   const mm = menus[day];
   const menuLine = mm && (mm.main || mm.soup) ? `<div class="todayMenu">🍖 <b>${esc(mm.main || "-")}</b> · 🍲 ${esc(mm.soup || "-")}</div>` : "";
   return menuLine + `<div class="stitle">📦 ${label(day)}${day === TODAY ? " 오늘" : ""} 배달 · <span style="color:#d9532b">남은 ${left}곳</span> / 전체 ${rows.length}곳${rows.length && !left ? " 🎉" : ""}</div>
