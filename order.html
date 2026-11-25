@@ -100,7 +100,7 @@ li.in{background:var(--pick)}
 .seg{display:grid;grid-template-columns:repeat(var(--n,2),1fr);gap:8px}
 .seg label{position:relative}
 .seg input{position:absolute;opacity:0}
-.seg span{display:block;text-align:center;padding:12px 4px;border:1.5px solid var(--line);border-radius:12px;font-weight:700;font-size:15px;transition:background .15s,color .15s}
+.seg span{display:flex;flex-direction:column;justify-content:center;min-height:52px;line-height:1.25;text-align:center;padding:10px 4px;border:1.5px solid var(--line);border-radius:12px;font-weight:700;font-size:15px;transition:background .15s,color .15s}
 .seg input:checked+span{border-color:var(--red);background:var(--red);color:#fff}
 .seg input:focus-visible+span{outline:2px solid var(--ink)}
 .field{display:block;margin-top:10px}
@@ -241,9 +241,9 @@ li.in{background:var(--pick)}
 
     <div class="box" id="payBox"><h4>결제 방법</h4>
       <div class="seg" style="--n:3">
-        <label><input type="radio" name="pay" value="card" checked><span>카드</span></label>
-        <label><input type="radio" name="pay" value="transfer"><span>계좌이체</span></label>
-        <label><input type="radio" name="pay" value="cash"><span>현금</span></label>
+        <label><input type="radio" name="pay" value="card" checked><span>만나서<br>카드결제</span></label>
+        <label><input type="radio" name="pay" value="cash"><span>만나서<br>현금</span></label>
+        <label><input type="radio" name="pay" value="transfer"><span>계좌이체<br><small style="font-weight:600;font-size:12px">미리 보내기</small></span></label>
       </div>
       <p class="hint" id="payHint"></p>
       <div id="bankBox" class="bank hide">
@@ -1740,7 +1740,7 @@ $("submit").onclick = async () => {
   }
 };
 
-const PAYNAME = { card: "카드", transfer: "계좌이체", cash: "현금" };
+const PAYNAME = { card: "만나서 카드결제", transfer: "계좌이체", cash: "만나서 현금" };
 
 // ===== 내 주문 상태 따라가기 =====
 // 주문하면 이 폰에 주문번호를 기억해 두고, 가게에서 상태를 바꾸면 바로 알려줘요.
