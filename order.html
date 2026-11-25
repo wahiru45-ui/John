@@ -338,10 +338,10 @@ const firebaseConfig = {
 const SHOP = { name: "맛있는밥집 쌍촌본점", phone: "010-6572-5152", bank: "광주은행 1121-023-048337 (예금주 민지송)", bankNo: "1121-023-048337" };
 // 직원 화면에서 설정하기 전 기본값: 일요일 휴무, 나머지 요일은 시간 제한 없음
 // 최소 주문금액 15,000원
-// 할인: 15,000원 이상 3,000원 / 35,000원 이상 5,000원 / 50,000원 이상 7,000원
+// 할인: 15,000원 이상 2,000원 / 35,000원 이상 4,000원 / 50,000원 이상 7,000원
 const DEFAULTS = { hours: { 0: { closed: true, open: "10:00", close: "20:00" } }, paused: false, minOrder: 15000,
   // 거리별 배달팁(손님 부담): upto km까지 fee원, 그 거리의 최소 주문금액 min원. maxKm 넘으면 배달 불가. 카카오 지도 키가 있어야 작동해요.
-  shopAddr: "광주 서구 쌍촌동 1325", kakaoKey: "", maxKm: 7, tips: [{ upto: 2, fee: 0, min: 0 }, { upto: 4, fee: 2000, min: 0 }, { upto: 7, fee: 4000, min: 30000 }], baseFee: [{ min: 0, fee: 1500 }, { min: 35000, fee: 900 }, { min: 50000, fee: 0 }], stamp: { on: true, need: 3, amount: 3000 }, tiers: [{ min: 15000, amount: 3000 }, { min: 35000, amount: 5000 }, { min: 50000, amount: 7000 }] };
+  shopAddr: "광주 서구 쌍촌동 1325", kakaoKey: "", maxKm: 7, tips: [{ upto: 2, fee: 0, min: 0 }, { upto: 4, fee: 2000, min: 0 }, { upto: 7, fee: 4000, min: 30000 }], baseFee: [{ min: 0, fee: 1500 }, { min: 35000, fee: 900 }, { min: 50000, fee: 0 }], stamp: { on: true, need: 3, amount: 3000 }, tiers: [{ min: 15000, amount: 2000 }, { min: 35000, amount: 4000 }, { min: 50000, amount: 7000 }] };
 // 주문 메뉴. 가격을 바꾸려면 숫자만 고치세요. [이름, 가격, 안내]
 const MENU = [
 {
