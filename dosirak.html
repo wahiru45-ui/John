@@ -452,8 +452,9 @@ async function loadMine() {
   for (const id of me.subs) {
     try {
       const snap = await getDoc(doc(db, "subscriptions", id));
-      if (!snap.exists()) continue;
+      if (!snap.exists()) { dbg.push(`${id.slice(0,6)}: 없음(삭제됨)`); continue; }
       const d = snap.data();
+      dbg.push(`${id.slice(0,6)}: ${d.status} · ${(d.orders || []).map(o => o.date.slice(5)).join(",")}`);
       if (d.status === "종료") continue;
       keep.push(id);
       loaded.push({ id, ...d });
@@ -465,7 +466,7 @@ async function loadMine() {
         cart[o.date] = cart[o.date] || {};
         o.items.forEach(i => { const k = nameToId[i.name]; if (k) cart[o.date][k] = (cart[o.date][k] || 0) + i.qty; });
       });
-    } catch (e) { keep.push(id); }
+    } catch (e) { keep.push(id); dbg.push(`${id.slice(0,6)}: 오류 ${e.code || e.message}`); }
   }
   me.subs = keep;
   keep.forEach(listen);
@@ -551,7 +552,15 @@ document.getElementById("submit").addEventListener("click", async () => {
 });
 
 render();
-if (me.subs.length) loadMine();
+// 점검 모드: 주소 끝에 ?debug=1
+const dbg = [];
+function showDebug() {
+  if (!location.search.includes("debug")) return;
+  let b = document.getElementById("dbg");
+  if (!b) { b = document.createElement("pre"); b.id = "dbg"; b.style.cssText = "margin:12px;padding:12px;background:#222;color:#0f0;font-size:12px;border-radius:10px;white-space:pre-wrap"; document.body.appendChild(b); }
+  b.textContent = `[점검]\n이름: ${me.name || "-"} / 전화: ${me.phone || "-"}\n저장된 신청번호: ${me.subs.length}개\n` + (dbg.join("\n") || "(불러온 것 없음)");
+}
+if (me.subs.length) loadMine().then(showDebug); else showDebug();
 </script>
 </body>
 </html>
