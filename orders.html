@@ -118,6 +118,16 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
 .pause{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .pause input{width:24px;height:24px;accent-color:var(--red)}
 .sum{grid-template-columns:repeat(5,minmax(0,1fr))}
+.card .body,.card .cl,.card .cr{display:flex;flex-direction:column;gap:8px}
+@media(min-width:900px){
+.grid{grid-template-columns:repeat(auto-fill,minmax(600px,1fr))}
+.card .body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+.card .cr .acts{order:-1}
+.card .cr .acts .go{flex:1 0 100%;font-size:18px;min-height:54px}
+.card .cr .acts button,.card .cr .acts .sms{white-space:nowrap}
+.card .cl{border-right:1px dashed var(--line);padding-right:16px}
+.sum{padding-top:8px}
+}
 @media(max-width:600px){.sum{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
@@ -1481,9 +1491,11 @@ function card(o) {
   const closed = ["done", "canceled"].includes(o.status);
   return `<div class="card ${o.status === "new" ? "new" : ""}">
     <div class="head"><span class="code">${esc(o.code)}</span><span class="tag t-${o.type}">${TYPE[o.type] || ""}${o.type === "table" ? " " + esc(o.table) + "번" : ""}</span><span class="st">${ST[o.status] || ""}</span>${o.editedAt ? `<span class="edited">수정됨</span>` : ""}<span class="time">${time}</span></div>
+    <div class="body"><div class="cl">
     <ul class="items">${(o.items || []).map(i => `<li><span>${esc(i.name)}</span><b>× ${i.qty}</b></li>`).join("")}</ul>
     ${o.discount || o.deliveryTip || o.tipCheck ? `<div class="money"><div class="line"><span>상품 금액</span><b>${won(o.subtotal)}</b></div>${o.discount ? `<div class="line dc"><span>할인</span><b>−${won(o.discount)}</b></div>` : ""}${o.type === "delivery" && (o.deliveryTip != null || o.tipCheck) ? `<div class="line"><span>배달팁${o.distKm != null ? ` (약 ${o.distKm}km)` : ""}</span><b>${o.tipCheck ? "⚠ 주소 확인 후 안내" : o.deliveryTip ? "+" + won(o.deliveryTip) : "무료"}</b></div>` : ""}</div>` : ""}
     <div class="total">${o.discount ? "결제 " : ""}${won(o.total)}</div>
+    </div><div class="cr">
     ${o.type !== "table" ? `
       ${c.name ? `<div class="line"><span>이름</span><b>${esc(c.name)}</b></div>` : ""}
       <div class="line"><span>전화</span><a href="tel:${esc(c.phone)}">${esc(fmtPhone(c.phone))}</a></div>
@@ -1499,6 +1511,7 @@ function card(o) {
       ${["new", "accepted"].includes(o.status) ? `<button class="warn" data-id="${o.id}" data-to="canceled">취소</button>` : ""}
       ${o.status === "canceled" ? `<button class="warn" data-delete="${o.id}">삭제</button>` : ""}
     </div>
+    </div></div>
     ${o.status === "done" ? `<div class="fin">✅ ${o.type === "delivery" ? "배달" : "픽업"} 완료${o.doneAt?.toDate ? " " + o.doneAt.toDate().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" }) : ""}${o.doneBy === "rider" ? " · 배달기사" : o.doneBy === "store" ? " · 가게" : ""}</div>` : ""}
   </div>`;
 }
