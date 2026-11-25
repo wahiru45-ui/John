@@ -120,14 +120,25 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
 .sum{grid-template-columns:repeat(5,minmax(0,1fr))}
 .card .body,.card .cl,.card .cr{display:flex;flex-direction:column;gap:8px}
 @media(min-width:900px){
-.grid{grid-template-columns:repeat(auto-fill,minmax(600px,1fr))}
-.card .body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+#app:not(.hide){display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.top{position:static}
+.tabs{padding-top:8px}
+.sum{padding-top:8px}
+.sum>div{padding-top:6px;padding-bottom:6px}
+.board{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,.85fr);gap:10px;padding:10px 12px 12px}
+.col{min-height:0;overflow-y:auto;background:rgba(0,0,0,.04);border-radius:14px;padding:0 8px 10px}
+.col h2,.col summary{position:sticky;top:0;z-index:2;background:#ece8e1;margin:0 -8px 8px;padding:8px 12px;border-radius:14px 14px 0 0;font-size:20px}
+.col details{margin:0}
+.col summary{list-style:none;cursor:default;pointer-events:none}
+.col summary::-webkit-details-marker{display:none}
+.col .grid{grid-template-columns:minmax(0,1fr);padding:0}
+.col .empty{padding:6px 4px}
 .card .cr .acts{order:-1}
 .card .cr .acts .go{flex:1 0 100%;font-size:18px;min-height:54px}
-.card .cr .acts button,.card .cr .acts .sms{white-space:nowrap}
-.card .cl{border-right:1px dashed var(--line);padding-right:16px}
-.sum{padding-top:8px}
+.card .body{gap:8px}
+.card .cl{gap:6px}
 }
+.acts .go{white-space:nowrap}
 @media(max-width:600px){.sum{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
@@ -157,9 +168,11 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
     <button data-f="pickup">포장</button>
   </div>
   <div class="sum" id="sum"></div>
-  <h2 id="newTitle">새 주문</h2><div class="grid" id="newList"></div>
-  <h2 id="workTitle">진행 중</h2><div class="grid" id="workList"></div>
-  <details><summary id="doneTitle">완료·취소</summary><div class="grid" id="doneList" style="padding:0"></div></details>
+  <div class="board">
+  <section class="col"><h2 id="newTitle">새 주문</h2><div class="grid" id="newList"></div></section>
+  <section class="col"><h2 id="workTitle">진행 중</h2><div class="grid" id="workList"></div></section>
+  <section class="col"><details id="doneBox"><summary id="doneTitle">완료·취소</summary><div class="grid" id="doneList" style="padding:0"></div></details></section>
+  </div>
 </div>
 
 <!-- 주문 수정 창 -->
@@ -1515,6 +1528,9 @@ function card(o) {
     ${o.status === "done" ? `<div class="fin">✅ ${o.type === "delivery" ? "배달" : "픽업"} 완료${o.doneAt?.toDate ? " " + o.doneAt.toDate().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" }) : ""}${o.doneBy === "rider" ? " · 배달기사" : o.doneBy === "store" ? " · 가게" : ""}</div>` : ""}
   </div>`;
 }
+const WIDE = matchMedia("(min-width:900px)");
+function syncDone() { if (WIDE.matches) $("doneBox").open = true; }
+WIDE.addEventListener?.("change", syncDone); syncDone();
 function render() {
   const list = orders.filter(o => filter === "all" || o.type === filter);
   const g = { n: list.filter(o => o.status === "new"), w: list.filter(o => ["accepted", "ready", "out"].includes(o.status)), d: list.filter(o => ["done", "canceled"].includes(o.status)) };
