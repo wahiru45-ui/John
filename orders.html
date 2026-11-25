@@ -137,6 +137,7 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
     <span class="state" id="statePill">확인 중</span>
     <button id="setBtn">⚙ 영업시간·할인</button>
     <button id="muteBtn" class="hide">🔕 알림 멈추기</button>
+    <button id="printBtn">🖨 자동 인쇄 켜짐</button>
     <button id="soundBtn">🔔 알림 소리 켜기</button>
     <button id="logout">로그아웃</button>
   </div>
@@ -205,6 +206,11 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
       <label class="field" style="margin:0 0 12px"><span>최소 주문금액 (원, 이 금액보다 적으면 손님이 주문할 수 없어요. 0이면 제한 없음)</span><input id="sMin" type="number" inputmode="numeric" min="0" step="1000"></label>
       <div id="sTiers"></div>
       <button type="button" id="sAddTier" style="margin-top:8px;border:1.5px dashed var(--line);background:#fff;border-radius:10px;padding:10px;width:100%;font-weight:700">+ 할인 구간 추가</button>
+    </div>
+    <div class="box"><h4>주문서 인쇄 (이 기기에만 저장)</h4>
+      <div class="seg" style="--n:2"><label><input type="radio" name="pw" value="80"><span>80mm 영수증</span></label><label><input type="radio" name="pw" value="58"><span>58mm 영수증</span></label></div>
+      <p style="font-size:13px;color:var(--soft);margin:8px 0 0">접수하기를 누르면 주문서가 자동으로 인쇄돼요. 인쇄 창 없이 바로 나오게 하려면 크롬을 '조용히 인쇄' 모드로 켜야 해요.</p>
+      <button type="button" id="testPrint" style="margin-top:10px;border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:10px;width:100%;font-weight:700">🖨 테스트 인쇄</button>
     </div>
     <p class="err" id="sErr"></p>
     <button class="save" id="sSave">설정 저장</button>
@@ -1281,6 +1287,56 @@ function listenSettings() {
 setInterval(showState, 30000);
 const TIMES = Array.from({ length: 49 }, (_, k) => String(Math.floor(k / 2)).padStart(2, "0") + (k % 2 ? ":30" : ":00"));
 const timeOpts = v => (TIMES.includes(v) ? TIMES : [...TIMES, v].sort()).map(t => `<option ${t === v ? "selected" : ""}>${t}</option>`).join("");
+// ===== 주문서 인쇄: 접수하면 영수증 프린터로 자동 인쇄 =====
+const PKEY = "mbj-print";
+let P = { auto: true, width: 80 };
+try { P = { ...P, ...JSON.parse(localStorage.getItem(PKEY) || "{}") }; } catch {}
+const saveP = () => { try { localStorage.setItem(PKEY, JSON.stringify(P)); } catch {} };
+function drawPrintBtn() { $("printBtn").textContent = P.auto ? "🖨 자동 인쇄 켜짐" : "🖨 자동 인쇄 꺼짐"; $("printBtn").classList.toggle("on", P.auto); }
+$("printBtn").onclick = () => { P.auto = !P.auto; saveP(); drawPrintBtn(); };
+drawPrintBtn();
+document.querySelectorAll("input[name=pw]").forEach(r => { r.checked = +r.value === +P.width; r.addEventListener("change", () => { P.width = +r.value; saveP(); }); });
+function receiptHTML(o) {
+  const c = o.customer || {}, p = o.payment || {};
+  const t = o.createdAt?.toDate ? o.createdAt.toDate() : new Date();
+  const when = t.toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" });
+  const pay = p.method === "card" ? "카드 (받을 때 결제)" : p.method === "transfer" ? `계좌이체${p.paid ? " (입금 확인)" : " (입금 확인 전)"}` : p.method === "cash" ? "현금 (받을 때 결제)" : "";
+  const rc = p.receipt ? `현금영수증 ${p.receiptType === "business" ? "사업자" : "개인"} ${esc(p.receiptNo)}` : "";
+  const w = P.width === 58 ? 48 : 72;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    @page{size:${P.width}mm auto;margin:0}*{box-sizing:border-box}
+    body{margin:0;padding:3mm 2mm;width:${w}mm;font-family:"Malgun Gothic","Noto Sans KR",sans-serif;font-size:${P.width === 58 ? 11 : 13}px;color:#000;line-height:1.35}
+    h1{font-size:${P.width === 58 ? 20 : 26}px;margin:0;text-align:center}.c{text-align:center}.big{font-size:1.5em;font-weight:700}
+    hr{border:0;border-top:1px dashed #000;margin:2mm 0}table{width:100%;border-collapse:collapse}td{padding:1px 0;vertical-align:top}td.r{text-align:right;white-space:nowrap}
+    .memo{border:1.5px solid #000;padding:1.5mm;font-weight:700;margin-top:1.5mm}
+  </style></head><body>
+    <div class="c">맛있는밥집 쌍촌본점</div>
+    <h1>[${o.type === "delivery" ? "배달" : o.type === "pickup" ? "포장" : "매장"}] ${esc(o.code)}</h1>
+    <div class="c">${when}</div><hr>
+    <table>${(o.items || []).map(i => `<tr><td>${esc(i.name)}</td><td class="r big">×${i.qty}</td></tr>`).join("")}</table><hr>
+    <table>
+      ${o.subtotal != null ? `<tr><td>상품 금액</td><td class="r">${won(o.subtotal)}</td></tr>` : ""}
+      ${o.discount ? `<tr><td>할인</td><td class="r">-${won(o.discount)}</td></tr>` : ""}
+      ${o.deliveryTip ? `<tr><td>배달팁</td><td class="r">+${won(o.deliveryTip)}</td></tr>` : ""}
+      <tr><td><b>결제 금액</b></td><td class="r big">${won(o.total)}</td></tr>
+    </table>
+    <div>${pay}</div>${rc ? `<div>${rc}</div>` : ""}<hr>
+    ${c.name ? `<div>이름: ${esc(c.name)}</div>` : ""}
+    ${c.phone ? `<div class="big">${esc(fmtPhone(c.phone))}</div>` : ""}
+    ${o.type === "delivery" ? `<div class="big" style="font-size:1.2em">${esc(c.address)}</div>` : ""}
+    ${o.memo ? `<div class="memo">요청: ${esc(o.memo)}</div>` : ""}
+    <div class="c" style="margin-top:3mm">감사합니다</div>
+  </body></html>`;
+}
+function printOrder(o) {
+  const f = document.createElement("iframe");
+  f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+  document.body.appendChild(f);
+  f.contentDocument.open(); f.contentDocument.write(receiptHTML(o)); f.contentDocument.close();
+  setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { console.error(e); } setTimeout(() => f.remove(), 60000); }, 200);
+}
+$("testPrint").onclick = () => printOrder({ type: "delivery", code: "테스트", createdAt: null, items: [{ name: "제육볶음도시락", qty: 2 }, { name: "배추겉절이", qty: 1 }], subtotal: 34000, discount: 3000, deliveryTip: 2000, total: 33000, customer: { name: "테스트", phone: "01012345678", address: "광주 서구 쌍촌동 1325" }, payment: { method: "card" }, memo: "인쇄 테스트예요" });
+
 $("setBtn").onclick = () => {
   $("sPause").checked = !!S.paused;
   drawTiers(tiersOf(S));
@@ -1431,6 +1487,7 @@ function card(o) {
       ${["out", "ready"].includes(o.status) && c.phone ? `<a class="sms" href="sms:${esc(c.phone)}?body=${encodeURIComponent(`[맛있는밥집] 주문번호 ${o.code} ${o.status === "out" ? "음식이 배달 출발했어요. 맛있게 드세요!" : "포장이 준비됐어요. 가게로 와주세요."}`)}">📩 문자</a>` : ""}
       ${o.payment?.method === "transfer" && !o.payment?.paid && o.status !== "canceled" ? `<button class="sub" data-paid="${o.id}">입금 확인</button>` : ""}
       ${!closed ? `<button class="sub" data-edit="${o.id}">수정</button>` : ""}
+      <button class="sub" data-print="${o.id}" aria-label="주문서 인쇄">🖨</button>
       ${["new", "accepted"].includes(o.status) ? `<button class="warn" data-id="${o.id}" data-to="canceled">취소</button>` : ""}
       ${o.status === "canceled" ? `<button class="warn" data-delete="${o.id}">삭제</button>` : ""}
     </div>
@@ -1480,6 +1537,8 @@ document.addEventListener("click", async e => {
     try { await deleteDoc(doc(db, "onlineOrders", del.dataset.delete)); } catch (err) { console.error(err); del.disabled = false; del.textContent = "다시 눌러주세요"; }
     return;
   }
+  const pr = e.target.closest("[data-print]");
+  if (pr) { const po = orders.find(x => x.id === pr.dataset.print); if (po) printOrder(po); return; }
   const b = e.target.closest("button[data-to]"); if (!b) return;
   if (b.dataset.to === "canceled" && !confirmTap(b, "정말 취소?")) return;
   const od = orders.find(x => x.id === b.dataset.id);
@@ -1490,6 +1549,7 @@ document.addEventListener("click", async e => {
   if (b.dataset.to === "out") upd.outAt = serverTimestamp();
   if (b.dataset.to === "done") { upd.doneAt = serverTimestamp(); upd.doneBy = "store"; }
   const save = updateDoc(doc(db, "onlineOrders", b.dataset.id), upd);
+  if (b.dataset.to === "accepted" && P.auto && od) printOrder({ ...od, status: "accepted" });
   // 가게에서 직접 배달했을 때도 손님에게 '배달 완료' 문자를 바로 열어줘요
   if (sms) location.href = `sms:${od.customer.phone}?body=${encodeURIComponent(`[맛있는밥집] 주문번호 ${od.code} 배달 완료했어요. 맛있게 드세요! 감사합니다 :)`)}`;
   try { await save; }
