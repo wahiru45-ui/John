@@ -40,6 +40,12 @@ header{background:var(--red);color:#fff;padding:20px 0 46px;text-align:center}
 .stamp .tx b{display:block;font-size:15px;color:#7a4a00}
 .stamp.ready{background:#fdecea;border-color:#f3b9ae}
 .stamp.ready .tx b{color:var(--red)}
+.paybox{background:#fff8e6;border:2px solid #e8c56a;border-radius:16px;padding:14px;margin:12px 0}
+.paybox .pbt{font-size:16px;color:#7a4a00}
+.paybox .pbt b{font-size:28px;margin-left:6px;font-variant-numeric:tabular-nums}
+.paybox .pbn{font-size:13px;color:#7a5a20;margin:8px 0 0}
+.paybox.sent{background:#e3f5e9;border-color:#7cc59a}
+.trk .pbtn{margin-top:6px;border:0;border-radius:10px;background:var(--red);color:#fff;font-weight:700;padding:8px 12px;font-size:14px}
 .deal{margin-top:10px;background:var(--pick);border:1px solid #f3d3c9;border-radius:16px;padding:12px 14px 10px}
 .deal .hd{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .deal .hd b{color:var(--red);font-size:15px}
@@ -290,20 +296,25 @@ li.in{background:var(--pick)}
 <!-- 주문 완료 -->
 <div class="panel" id="donePanel">
   <div class="wrap done">
-    <p>주문이 들어갔어요</p>
+    <p id="doneHead">주문이 들어갔어요</p>
     <div class="code" id="doneCode"></div>
     <p>주문번호</p>
     <p><span class="badge" id="doneStatus">가게에서 주문을 확인하고 있어요</span></p>
     <p style="color:var(--soft);font-size:14px;margin-top:0">가게에서 접수하면 처음 화면으로 돌아가요. 배달 출발하면 이 화면에서 알려드려요.</p>
     <p id="doneInfo" style="color:var(--soft);font-size:15px"></p>
     <div id="doneBank" class="bank hide" style="text-align:left"></div>
+    <div id="pwBox" class="paybox hide">
+      <div class="pbt"><span id="payLbl">남은 시간</span> <b id="payLeft">3:00</b></div>
+      <button class="big" id="paySent" type="button">💰 입금했어요</button>
+      <p class="pbn" id="payNote">입금한 다음 눌러주세요. 3분이 지나면 주문이 자동으로 취소돼요.</p>
+    </div>
     <button class="big" id="again">처음으로</button>
   </div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, addDoc, doc, getDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, addDoc, doc, getDoc, updateDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",
@@ -1622,7 +1633,7 @@ $("addrBtn").onclick = async () => {
 document.querySelectorAll("[data-close]").forEach(b => b.onclick = closePanel);
 
 const val = name => document.querySelector(`input[name=${name}]:checked`).value;
-const PAYHINT = { card: "음식 받을 때 카드로 결제해요.", transfer: "주문 후 아래 계좌로 결제 금액을 보내주세요.", cash: "음식 받을 때 현금으로 결제해요." };
+const PAYHINT = { card: "음식 받을 때 카드로 결제해요.", transfer: "주문 후 3분 안에 입금하고 '입금했어요'를 눌러주세요. 가게에서 입금을 확인하면 주문이 들어가요.", cash: "음식 받을 때 현금으로 결제해요." };
 function syncForm() {
   const pay = val("pay");
   $("addrField").classList.toggle("hide", val("how") !== "delivery");
@@ -1728,6 +1739,7 @@ $("submit").onclick = async () => {
     Object.assign(pay, { receipt: true, receiptType: biz ? "business" : "personal", receiptNo: no });
   }
   order.payment = pay;
+  if (pay.method === "transfer") order.payWait = true;
   saveInfo();
   $("submit").disabled = true; $("submit").textContent = "주문 넣는 중…";
   try {
@@ -1747,7 +1759,9 @@ const PAYNAME = { card: "만나서 카드결제", transfer: "계좌이체", cash
 const OKEY = "mbj-orders";
 const TRACK = { new: "가게에서 주문을 확인하고 있어요", accepted: "주문이 접수됐어요. 맛있게 만들고 있어요", ready: "포장이 준비됐어요. 가게로 와주세요", out: "배달 출발했어요! 곧 도착해요", done: "주문이 완료됐어요. 맛있게 드세요", canceled: "주문이 취소됐어요. 가게로 문의해 주세요" };
 // 배달/포장에 따라 문구를 다르게 보여줘요
-const trackText = (r, st) => r.type === "delivery"
+const trackText = (r, st) => st === "paywait" ? (r.ps ? "가게에서 입금을 확인하고 있어요" : "입금을 기다리고 있어요 (3분 안에)")
+  : st === "canceled" && r.why ? `주문이 취소됐어요 (${r.why})`
+  : r.type === "delivery"
   ? ({ ready: "음식이 준비됐어요. 곧 배달 출발해요" }[st] || TRACK[st])
   : ({ out: "포장이 준비됐어요. 가게로 와주세요" }[st] || TRACK[st]);
 const alertKey = (r, st) => st === "canceled" ? "canceled" : r.type === "delivery" ? (st === "out" ? "out" : null) : (st === "ready" || st === "out" ? "ready" : null);
@@ -1767,12 +1781,13 @@ function say(text) { try { speechSynthesis.cancel(); const u = new SpeechSynthes
 const ALERT = {
   out: { icon: "🛵", title: "배달 출발했어요!", text: "맛있게 만든 음식이 출발했어요. 곧 도착해요.", voice: "배달 출발했어요" },
   ready: { icon: "🛍️", title: "포장이 준비됐어요!", text: "가게로 오셔서 찾아가세요.", voice: "포장 준비됐어요" },
-  canceled: { icon: "⚠️", title: "주문이 취소됐어요", text: `궁금한 점은 가게로 전화해 주세요 (${SHOP.phone}).`, voice: "주문이 취소됐어요" }
+  canceled: { icon: "⚠️", title: "주문이 취소됐어요", text: `궁금한 점은 가게로 전화해 주세요 (${SHOP.phone}).`, voice: "주문이 취소됐어요" },
+  payok: { icon: "💰", title: "입금이 확인됐어요!", text: "주문이 가게로 들어갔어요.", voice: "입금이 확인됐어요" }
 };
 function bigAlert(rec, st) {
   const a = ALERT[st]; if (!a) return;
   $("alertIcon").textContent = a.icon; $("alertTitle").textContent = a.title;
-  $("alertText").textContent = `주문번호 ${rec.code} · ${a.text}`;
+  $("alertText").textContent = `주문번호 ${rec.code} · ${st === "canceled" && rec.why ? rec.why + ". " : ""}${a.text}`;
   $("alertBox").classList.add("on");
   chime(); setTimeout(() => say(a.voice), 900);
   try { navigator.vibrate && navigator.vibrate([400, 150, 400, 150, 400]); } catch {}
@@ -1783,7 +1798,7 @@ function renderTrack() {
   const act = mine.filter(r => live[r.id] && live[r.id] !== "done" || !live[r.id]);
   $("trackBar").innerHTML = mine.map(r => {
     const st = live[r.id] || "new";
-    return `<div class="trk ${st}"><b>주문 ${esc(r.code)} · ${r.type === "delivery" ? "배달" : "포장"}</b><span>${trackText(r, st)}</span></div>`;
+    return `<div class="trk ${st}"><b>주문 ${esc(r.code)} · ${r.type === "delivery" ? "배달" : "포장"}</b><span>${trackText(r, st)}</span>${st === "paywait" && !r.ps ? `<button class="pbtn" data-paysent="${r.id}">💰 입금했어요</button>` : ""}</div>`;
   }).join("");
   $("trackBar").classList.toggle("hide", !mine.length);
 }
@@ -1791,12 +1806,17 @@ function backToMenu() { $("donePanel").classList.remove("on"); document.body.sty
 function track(rec) {
   if (watchers.has(rec.id)) return;
   watchers.set(rec.id, onSnapshot(doc(db, "onlineOrders", rec.id), s => {
-    const st = s.exists() ? (s.data().status || "new") : "canceled";
+    const d = s.exists() ? s.data() : {};
+    const st = !s.exists() ? "canceled" : d.status === "new" && d.payWait ? "paywait" : (d.status || "new");
     const prev = live[rec.id]; live[rec.id] = st;
+    rec.ps = !!d.paySent; if (d.cancelReason) rec.why = d.cancelReason;
+    if (prev === "paywait" && st === "new") { if (doneId === rec.id) payPanel(rec, false); bigAlert(rec, "payok"); }
+    if (doneId === rec.id) payPanel(rec, st === "paywait");
     if (rec.st !== st) { rec.st = st; saveMine(mine); if (st === "done" || st === "canceled") setTimeout(() => loadStamp(true), 2500); }
     if (doneId === rec.id) {
       $("doneStatus").textContent = trackText(rec, st);
       $("doneStatus").classList.toggle("ok", ["accepted", "ready", "out", "done"].includes(st));
+      $("doneHead").textContent = st === "paywait" ? "입금하면 주문이 들어가요" : st === "canceled" ? "주문이 취소됐어요" : "주문이 들어갔어요";
       if (st === "accepted") setTimeout(() => { if (doneId === rec.id) { backToMenu(); toast(rec.type === "delivery" ? "주문 접수! 배달 출발하면 알려드릴게요" : "주문 접수! 포장 준비되면 알려드릴게요"); } }, 2500);
     }
     // 배달 출발·포장 준비·취소는 한 번만 크게 알려줘요 (화면을 닫았다 다시 열어도)
@@ -1811,6 +1831,34 @@ function track(rec) {
     renderTrack();
   }, () => {}));
 }
+// ===== 계좌이체: 3분 안에 입금하고 '입금했어요' 누르기 =====
+const PAY_LIMIT = 3 * 60 * 1000;
+let payTick = null;
+function payPanel(rec, on) {
+  const box = $("pwBox");
+  box.classList.toggle("hide", !on);
+  clearInterval(payTick); payTick = null;
+  if (!on) return;
+  box.classList.toggle("sent", !!rec.ps);
+  $("paySent").classList.toggle("hide", !!rec.ps);
+  $("paySent").dataset.paysent = rec.id;
+  $("payNote").textContent = rec.ps ? "가게에서 입금을 확인하고 있어요. 확인되면 바로 알려드려요." : "입금한 다음 눌러주세요. 3분이 지나면 주문이 자동으로 취소돼요.";
+  const tick = () => {
+    const l = Math.max(0, PAY_LIMIT - (Date.now() - rec.t));
+    $("payLbl").textContent = rec.ps ? "✅ 가게에 알렸어요" : "남은 시간";
+    $("payLeft").textContent = rec.ps ? "" : `${Math.floor(l / 60000)}:${String(Math.floor(l / 1000) % 60).padStart(2, "0")}`;
+    if (!l && !rec.ps) { $("payNote").textContent = "입금 시간이 지났어요. 곧 주문이 취소돼요. 다시 주문해 주세요."; $("paySent").classList.add("hide"); clearInterval(payTick); }
+  };
+  tick(); if (!rec.ps) payTick = setInterval(tick, 1000);
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-paysent]"); if (!b) return;
+  const rec = mine.find(r => r.id === b.dataset.paysent); if (!rec) return;
+  if (Date.now() - rec.t > PAY_LIMIT + 3000) { toast("입금 시간(3분)이 지났어요. 가게로 전화해 주세요."); return; }
+  b.disabled = true; b.textContent = "보내는 중…";
+  try { await updateDoc(doc(db, "onlineOrders", rec.id), { paySent: true, paySentAt: serverTimestamp() }); rec.ps = true; saveMine(mine); if (doneId === rec.id) payPanel(rec, true); renderTrack(); toast("가게에 알렸어요. 입금 확인되면 알려드릴게요"); }
+  catch (err) { console.error(err); b.disabled = false; b.textContent = "다시 눌러주세요"; }
+});
 function showDone(id, order) {
   const ids = [...cart.keys()];
   closePanel(); cart.clear(); ids.forEach(updateRow); updateBar(); $("memo").value = "";
@@ -1823,9 +1871,12 @@ function showDone(id, order) {
     db_.innerHTML = `<div>아래 계좌로 <b>${won(order.total)}</b>을 보내주세요.</div><div style="margin-top:6px">${SHOP.bank}</div><button type="button" id="copyBank2">계좌번호 복사</button>`;
     $("copyBank2").onclick = async () => { try { await navigator.clipboard.writeText(SHOP.bankNo); $("copyBank2").textContent = "복사됐어요"; } catch { $("copyBank2").textContent = "길게 눌러 복사하세요"; } };
   } else db_.classList.add("hide");
-  const rec = { id, code: order.code, type: order.type, t: Date.now(), ...(order.stampDiscount ? { sd: 1 } : {}) };
+  const rec = { id, code: order.code, type: order.type, t: Date.now(), ...(order.stampDiscount ? { sd: 1 } : {}), ...(order.payWait ? { pw: 1 } : {}) };
+  $("doneHead").textContent = order.payWait ? "입금하면 주문이 들어가요" : "주문이 들어갔어요";
+  if (order.payWait) { $("doneStatus").textContent = "입금을 기다리고 있어요 (3분 안에)"; }
   mine.unshift(rec); saveMine(mine);
   doneId = id; openPanel("donePanel");
+  payPanel(rec, !!order.payWait);
   track(rec); renderTrack();
 }
 $("again").onclick = backToMenu;

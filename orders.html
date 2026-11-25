@@ -28,6 +28,13 @@ h2{font:400 22px "Do Hyeon",sans-serif;margin:18px 16px 8px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;padding:0 16px}
 .card{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px}
 .card.new{border-color:var(--red);box-shadow:0 0 0 4px rgba(195,50,28,.12)}
+.card.pw{border-color:#d9a21b;background:#fffaf0}
+.card.pw.sent{border-color:#1f8a4c;box-shadow:0 0 0 4px rgba(31,138,76,.15)}
+.pwbox{background:#fdf0cf;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.pwbox b{font-size:18px;color:#7a4a00}
+.pwbox span{font-size:13px;color:#7a5a20}
+.card.pw.sent .pwbox{background:#e3f5e9}
+.card.pw.sent .pwbox b{color:#14663a}
 .head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .code{font:400 26px "Do Hyeon",sans-serif}
 .tag{border-radius:999px;padding:3px 10px;font-size:14px;font-weight:700;color:#fff}
@@ -1452,8 +1459,26 @@ function listen() {
 const RING_MS = 2 * 60 * 1000, EVERY_MS = 5000;
 let ac = null, soundOn = false, ringTimer = null, wake = null;
 const muted = new Set();
-const pendingRing = () => orders.filter(o => o.status === "new" && !muted.has(o.id) &&
-  Date.now() - (o.createdAt?.toMillis ? o.createdAt.toMillis() : o.createdAt?.toDate ? o.createdAt.toDate().getTime() : Date.now()) < RING_MS);
+const msOf = t => t?.toMillis ? t.toMillis() : t?.toDate ? t.toDate().getTime() : Date.now();
+// 계좌이체 입금 대기: 입금 확인 전에는 '새 주문'이 아니에요
+const isPayWait = o => o.status === "new" && o.payWait;
+const pendingRing = () => orders.filter(o => o.status === "new" && !isPayWait(o) && !muted.has(o.id) &&
+  Date.now() - msOf(o.paidAt || o.createdAt) < RING_MS);
+// 손님이 '입금했어요'를 누른 주문: 가게가 확인할 때까지 알려줘요
+const payRing = () => orders.filter(o => isPayWait(o) && o.paySent && !muted.has(o.id + "p") && Date.now() - msOf(o.paySentAt) < RING_MS);
+const PAY_LIMIT = 3 * 60 * 1000; // 3분 안에 '입금했어요'를 안 누르면 자동 취소
+const autoCanceled = new Set();
+function payTimeouts() {
+  orders.filter(o => isPayWait(o) && !o.paySent && !autoCanceled.has(o.id) && Date.now() - msOf(o.createdAt) > PAY_LIMIT + 5000).forEach(o => {
+    autoCanceled.add(o.id);
+    updateDoc(doc(db, "onlineOrders", o.id), { status: "canceled", cancelReason: "입금 시간 초과", canceledAt: serverTimestamp() }).catch(e => { console.error(e); autoCanceled.delete(o.id); });
+  });
+}
+const leftText = o => { const l = Math.max(0, PAY_LIMIT - (Date.now() - msOf(o.createdAt))); return `${Math.floor(l / 60000)}:${String(Math.floor(l / 1000) % 60).padStart(2, "0")}`; };
+setInterval(() => {
+  payTimeouts();
+  document.querySelectorAll("[data-pwt]").forEach(el => { const o = orders.find(x => x.id === el.dataset.pwt); if (o) el.textContent = leftText(o); });
+}, 1000);
 function koVoice() { try { return speechSynthesis.getVoices().find(v => /^ko/i.test(v.lang)); } catch { return null; } }
 function speak(text) {
   try {
@@ -1470,20 +1495,20 @@ function dingdong() {
   [[0, 988], [0.28, 784]].forEach(([t, f]) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = "sine"; o.frequency.value = f; o.connect(g); g.connect(ac.destination); g.gain.setValueAtTime(0.5, ac.currentTime + t); g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + t + 0.6); o.start(ac.currentTime + t); o.stop(ac.currentTime + t + 0.6); });
 }
 function ringOnce() {
-  const n = pendingRing().length; if (!n) return stopRing();
-  if (soundOn) { dingdong(); setTimeout(() => speak(n > 1 ? `주문 ${n}건 왔어요` : "주문 왔어요"), 700); }
+  const n = pendingRing().length, pn = payRing().length; if (!n && !pn) return stopRing();
+  if (soundOn) { dingdong(); setTimeout(() => speak(n ? (n > 1 ? `주문 ${n}건 왔어요` : "주문 왔어요") : "입금 확인해 주세요"), 700); }
   try { navigator.vibrate && navigator.vibrate([300, 150, 300]); } catch {}
   document.title = document.title.startsWith("🔔") ? "배달·포장 주문 접수" : `🔔 새 주문 ${n}건!`;
 }
 function ringCheck() {
-  const n = pendingRing().length;
+  const n = pendingRing().length + payRing().length;
   $("muteBtn").classList.toggle("hide", !n);
   if (n && !ringTimer) { ringOnce(); ringTimer = setInterval(ringOnce, EVERY_MS); }
   if (!n) stopRing();
 }
 function stopRing() { clearInterval(ringTimer); ringTimer = null; document.title = "배달·포장 주문 접수"; $("muteBtn").classList.add("hide"); try { speechSynthesis.cancel(); } catch {} }
 setInterval(ringCheck, 15000); // 2분이 지나면 저절로 멈추도록 확인
-$("muteBtn").onclick = () => { pendingRing().forEach(o => muted.add(o.id)); stopRing(); };
+$("muteBtn").onclick = () => { pendingRing().forEach(o => muted.add(o.id)); payRing().forEach(o => muted.add(o.id + "p")); stopRing(); };
 async function keepAwake() { try { if (soundOn && "wakeLock" in navigator && document.visibilityState === "visible") wake = await navigator.wakeLock.request("screen"); } catch {} }
 document.addEventListener("visibilitychange", keepAwake);
 $("soundBtn").onclick = () => {
@@ -1516,7 +1541,25 @@ function nextAction(o) {
   if (o.status === "ready") return o.type === "delivery" ? ["out", "🛵 배달 출발"] : ["done", "✅ 픽업 완료"];
   return null;
 }
+function payWaitCard(o) {
+  const t = o.createdAt?.toDate ? o.createdAt.toDate() : new Date();
+  const time = t.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" });
+  const c = o.customer || {}, p = o.payment || {};
+  return `<div class="card pw ${o.paySent ? "sent" : ""}">
+    <div class="head"><span class="code">${esc(o.code)}</span><span class="tag t-${o.type}">${TYPE[o.type] || ""}</span><span class="st">💰 입금 대기</span><span class="time">${time}</span></div>
+    <div class="pwbox">${o.paySent ? `<b>✅ 손님이 '입금했어요'를 눌렀어요</b><span>은행 앱에서 확인해 주세요</span>` : `<b>입금 기다리는 중 · <span data-pwt="${o.id}">${leftText(o)}</span></b><span>3분 안에 입금 안 하면 자동 취소돼요</span>`}</div>
+    <div class="line"><span>입금자</span><b style="font-size:20px">${esc(p.depositor || c.name || "")}</b></div>
+    <div class="line"><span>입금할 금액</span><b style="font-size:20px">${won(o.total)}</b></div>
+    <div class="line"><span>주문</span><b style="text-align:right">${(o.items || []).map(i => `${esc(i.name)} ×${i.qty}`).join(", ")}</b></div>
+    <div class="line"><span>전화</span><a href="tel:${esc(c.phone)}">${esc(fmtPhone(c.phone))}</a></div>
+    <div class="acts">
+      <button class="go" data-payok="${o.id}">💰 입금 확인 → 주문 받기</button>
+      <button class="warn" data-payno="${o.id}">입금 안 됨 · 취소</button>
+    </div>
+  </div>`;
+}
 function card(o) {
+  if (isPayWait(o)) return payWaitCard(o);
   const t = o.createdAt?.toDate ? o.createdAt.toDate() : new Date();
   const time = t.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" });
   const c = o.customer || {}, act = nextAction(o);
@@ -1542,6 +1585,7 @@ function card(o) {
       <button class="sub" data-print="${o.id}" aria-label="주문서 인쇄">🖨</button>
       ${["new", "accepted"].includes(o.status) ? `<button class="warn" data-id="${o.id}" data-to="canceled">취소</button>` : ""}
       ${o.status === "canceled" ? `<button class="warn" data-delete="${o.id}">삭제</button>` : ""}
+    ${o.status === "canceled" && o.cancelReason ? `<div class="memo">취소 사유: ${esc(o.cancelReason)}</div>` : ""}
     </div>
     </div></div>
     ${o.status === "done" ? `<div class="fin">✅ ${o.type === "delivery" ? "배달" : "픽업"} 완료${o.doneAt?.toDate ? " " + o.doneAt.toDate().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" }) : ""}${o.doneBy === "rider" ? " · 배달기사" : o.doneBy === "store" ? " · 가게" : ""}</div>` : ""}
@@ -1552,14 +1596,14 @@ function syncDone() { if (WIDE.matches) $("doneBox").open = true; }
 WIDE.addEventListener?.("change", syncDone); syncDone();
 function render() {
   const list = orders.filter(o => filter === "all" || o.type === filter);
-  const g = { n: list.filter(o => o.status === "new"), w: list.filter(o => ["accepted", "ready", "out"].includes(o.status)), d: list.filter(o => ["done", "canceled"].includes(o.status)) };
+  const g = { n: list.filter(o => o.status === "new").sort((a, b) => (isPayWait(b) ? 1 : 0) - (isPayWait(a) ? 1 : 0)), w: list.filter(o => ["accepted", "ready", "out"].includes(o.status)), d: list.filter(o => ["done", "canceled"].includes(o.status)) };
   $("newTitle").textContent = `새 주문 (${g.n.length})`;
   $("workTitle").textContent = `진행 중 (${g.w.length})`;
   $("doneTitle").textContent = `완료·취소 (${g.d.length})`;
   $("newList").innerHTML = g.n.map(card).join("") || `<p class="empty">새 주문이 없어요.</p>`;
   $("workList").innerHTML = g.w.map(card).join("") || `<p class="empty">진행 중인 주문이 없어요.</p>`;
   $("doneList").innerHTML = g.d.map(card).join("") || `<p class="empty">아직 없어요.</p>`;
-  const live = orders.filter(o => o.status !== "canceled" && o.type !== "table");
+  const live = orders.filter(o => o.status !== "canceled" && o.type !== "table" && !isPayWait(o));
   const sumBy = f => live.filter(f).reduce((s, o) => s + (o.total || 0), 0);
   $("sum").innerHTML = `
     <div><small>오늘 배달·포장</small><b>${live.length}건</b></div>
@@ -1577,6 +1621,20 @@ const confirmTap = (b, label) => {
   return false;
 };
 document.addEventListener("click", async e => {
+  const pok = e.target.closest("[data-payok]");
+  if (pok) {
+    if (!confirmTap(pok, "은행 앱에서 입금 확인했나요?")) return;
+    pok.disabled = true;
+    try { await updateDoc(doc(db, "onlineOrders", pok.dataset.payok), { payWait: false, "payment.paid": true, paidAt: serverTimestamp() }); } catch (err) { console.error(err); pok.disabled = false; pok.textContent = "다시 눌러주세요"; }
+    return;
+  }
+  const pno = e.target.closest("[data-payno]");
+  if (pno) {
+    if (!confirmTap(pno, "한 번 더: 주문 취소")) return;
+    pno.disabled = true;
+    try { await updateDoc(doc(db, "onlineOrders", pno.dataset.payno), { status: "canceled", cancelReason: "입금 확인 안 됨", canceledAt: serverTimestamp() }); } catch (err) { console.error(err); pno.disabled = false; }
+    return;
+  }
   const pd = e.target.closest("[data-paid]");
   if (pd) {
     if (!confirmTap(pd, "입금 확인했나요?")) return;

@@ -28,7 +28,12 @@ service cloud.firestore {
                     && request.resource.data.items.size() <= 60
                     && request.resource.data.total is number;
       allow get: if true;
-      allow list, update, delete: if request.auth != null;
+      allow list, delete: if request.auth != null;
+      // 가게는 모두 수정, 손님은 계좌이체 '입금했어요'(paySent)만 누를 수 있어요
+      allow update: if request.auth != null
+        || (resource.data.status == 'new' && resource.data.payWait == true
+            && request.resource.data.paySent == true
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paySent', 'paySentAt']));
     }
     // 스탬프
     match /stamps/{phone} {
