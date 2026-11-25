@@ -96,6 +96,10 @@
   .mgrid input { width: 100%; padding: 10px 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; font-family: inherit; }
   .mgrid input.dirty { border-color: #d9532b; background: #fff8f4; }
   .todayMenu { background: #fff; border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; font-size: 14px; }
+  .mtag { display: inline-block; font-size: 12px; font-weight: 700; border-radius: 8px; padding: 1px 7px; margin-right: 4px; vertical-align: middle; color: #fff; }
+  .mtag.m0 { background: #e0a100; } .mtag.m1 { background: #d9532b; } .mtag.m2 { background: #5b4bb7; }
+  .mealsum { display: flex; gap: 6px; margin: 6px 0 2px; flex-wrap: wrap; font-size: 14px; }
+  .ed select.msel { width: auto; padding: 4px 6px; font-size: 13px; margin-left: 6px; }
   .empty { text-align: center; color: #999; padding: 40px; }
 </style>
 </head>
@@ -187,6 +191,10 @@ const label = s => { const d = new Date(s + "T00:00"); return `${d.getMonth() + 
 const mapUrl = a => "https://map.kakao.com/link/search/" + encodeURIComponent(String(a || "").replace(/\s*\(.*?\)\s*/g, " ").trim());
 // 손님 구분: 전화번호 + 이름 (전화번호를 0000처럼 대충 넣어도 이름이 다르면 다른 손님)
 const custKey = s => String(s.phone || "").replace(/[^0-9]/g, "") + "|" + String(s.name || "").trim();
+// 식사 시간: 없으면 점심
+const MEALS = ["아침", "점심", "저녁"];
+const mealOf = o => o.meal || "점심";
+const mealTag = o => `<span class="mtag m${MEALS.indexOf(mealOf(o))}">${mealOf(o)}</span>`;
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const TODAY = ymd(new Date());
 
@@ -354,9 +362,14 @@ function daySummary() {
   }));
   const r = countUp(rows.map(x => x.o));
   const left = rows.filter(x => !x.o.delivered).length;
-  rows.sort((a, b) => (a.o.delivered ? 1 : 0) - (b.o.delivered ? 1 : 0));  // 남은 곳 먼저, 완료는 아래로
+  // 남은 곳 먼저, 그 안에서 아침 → 점심 → 저녁 순
+  rows.sort((a, b) => ((a.o.delivered ? 1 : 0) - (b.o.delivered ? 1 : 0)) || (MEALS.indexOf(mealOf(a.o)) - MEALS.indexOf(mealOf(b.o))));
+  const byMeal = MEALS.map(m => {
+    const n = rows.filter(x => mealOf(x.o) === m).reduce((a, x) => a + x.o.items.reduce((b, i) => b + i.qty, 0), 0);
+    return n ? `<span>${mealTag({ meal: m })}${n}개</span>` : "";
+  }).join("");
   const who = rows.map(({ s, o }) => `
-    <div class="dv"><span class="dn">${esc(s.name)}</span> · ${o.items.map(i => `${esc(i.name)} ${i.qty}`).join(", ")}
+    <div class="dv">${mealTag(o)}<span class="dn">${esc(s.name)}</span> · ${o.items.map(i => `${esc(i.name)} ${i.qty}`).join(", ")}
     <div class="da"><a class="map" href="${mapUrl(s.addr)}" target="_blank">📍 ${esc(s.addr)}</a>${s.memo ? ` · 📝 ${esc(s.memo)}` : ""}</div>
     <div class="btns">
       ${o.delivered
@@ -369,6 +382,7 @@ function daySummary() {
   const mm = menus[day];
   const menuLine = mm && (mm.main || mm.soup) ? `<div class="todayMenu">🍖 <b>${esc(mm.main || "-")}</b> · 🍲 ${esc(mm.soup || "-")}</div>` : "";
   return menuLine + `<div class="stitle">📦 ${label(day)}${day === TODAY ? " 오늘" : ""} 배달 · <span style="color:#d9532b">남은 ${left}곳</span> / 전체 ${rows.length}곳${rows.length && !left ? " 🎉" : ""}</div>
+    ${byMeal ? `<div class="mealsum">${byMeal}</div>` : ""}
     ${lines(r)}
     ${who ? `<div class="deliv">${who}</div>` : ""}
     ${pending ? `<div class="pend">⚠️ 이 날짜에 아직 확인 안 한 신청이 ${pending}건 있어요</div>` : ""}`;
@@ -480,7 +494,7 @@ function render() {
       ${g.map(s => {
         if (editing === s.id) return editView();
         const up = s.orders.filter(o => o.date >= TODAY), past = s.orders.filter(o => o.date < TODAY);
-        const line = o => `<div class="od ${o.date < TODAY ? "past" : ""}"><span>${label(o.date)} ${o.items.map(i => `${esc(i.name)} ${i.qty}`).join(", ")}${o.delivered ? " ✅" : ""}</span><b>${won(o.amount)}</b></div>`;
+        const line = o => `<div class="od ${o.date < TODAY ? "past" : ""}"><span>${label(o.date)} ${mealTag(o)}${o.items.map(i => `${esc(i.name)} ${i.qty}`).join(", ")}${o.delivered ? " ✅" : ""}</span><b>${won(o.amount)}</b></div>`;
         return `
         <div class="sub">
           <div class="shead">
@@ -523,7 +537,7 @@ function editView() {
     <label>요청사항</label><input data-f="memo" value="${esc(d.memo)}">
     ${days.map(o => `
       <div class="edday">
-        <div class="edhead"><span>${label(o.date)}</span><button data-rmday="${o.date}">이 날 빼기</button></div>
+        <div class="edhead"><span>${label(o.date)}<select class="msel" data-mealday="${o.date}">${MEALS.map(m => `<option ${(o.meal || "점심") === m ? "selected" : ""}>${m}</option>`).join("")}</select></span><button data-rmday="${o.date}">이 날 빼기</button></div>
         ${MENUS.map(m => `
           <div class="edm"><span>${m.name}</span>
             <div class="q"><button data-dd="${o.date}" data-mn="${m.name}" data-v="-1">−</button>
@@ -556,7 +570,7 @@ function startEdit(id) {
   const s = subs.find(x => x.id === id);
   draft = {
     name: s.name || "", phone: s.phone || "", addr: s.addr || "", memo: s.memo || "",
-    orders: s.orders.map(o => ({ date: o.date, delivered: !!o.delivered, q: Object.fromEntries(o.items.map(i => [i.name, i.qty])) }))
+    orders: s.orders.map(o => ({ date: o.date, meal: mealOf(o), delivered: !!o.delivered, q: Object.fromEntries(o.items.map(i => [i.name, i.qty])) }))
   };
   editing = id; render();
 }
@@ -565,7 +579,7 @@ async function saveEdit() {
   const orders = draft.orders
     .map(o => {
       const items = MENUS.filter(m => o.q[m.name] > 0).map(m => ({ name: m.name, price: m.price, qty: o.q[m.name] }));
-      return { date: o.date, items, amount: items.reduce((a, i) => a + i.price * i.qty, 0), ...(o.delivered ? { delivered: true } : {}) };
+      return { date: o.date, items, amount: items.reduce((a, i) => a + i.price * i.qty, 0), ...(o.meal && o.meal !== "점심" ? { meal: o.meal } : {}), ...(o.delivered ? { delivered: true } : {}) };
     })
     .filter(o => o.items.length)
     .sort((a, b) => a.date < b.date ? -1 : 1);
@@ -593,6 +607,11 @@ async function saveEdit() {
 }
 
 document.addEventListener("change", e => {
+  if (e.target.dataset && e.target.dataset.mealday && draft) {
+    const o = draft.orders.find(x => x.date === e.target.dataset.mealday);
+    if (o) o.meal = e.target.value;
+    return;
+  }
   if (e.target.id === "pickCust" && draft) {
     const c = customers().find(x => custKey(x) === e.target.value);
     Object.assign(draft, c ? { name: c.name || "", phone: c.phone || "", addr: c.addr || "", memo: c.memo || "" } : { name: "", phone: "", addr: "", memo: "" });
@@ -661,7 +680,7 @@ document.addEventListener("click", async e => {
     const v = document.getElementById("newDay").value;
     if (!v) { alert("추가할 날짜를 골라 주세요."); return; }
     if (draft.orders.some(x => x.date === v)) { alert("이미 있는 날짜예요."); return; }
-    draft.orders.push({ date: v, q: {} }); render();
+    draft.orders.push({ date: v, meal: "점심", q: {} }); render();
   }
   if (t.dataset.del) {
     const s = subs.find(x => x.id === t.dataset.del);

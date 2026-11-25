@@ -14,6 +14,11 @@
   h2 { font-size: 17px; margin-bottom: 6px; }
   .sub { font-size: 13px; color: #888; margin-bottom: 12px; }
   .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .mealbox { border: 1px dashed #e0b59f; border-radius: 12px; padding: 6px 4px; display: flex; flex-direction: column; gap: 4px; justify-content: center; background: #fffaf6; }
+  .mealbox .mt { font-size: 11px; color: #a0583a; text-align: center; font-weight: 700; }
+  .mealbox .mbtn { border: 1px solid #ddd; border-radius: 8px; background: #fff; font-size: 13px; padding: 4px 0; }
+  .mealbox .mbtn.on { background: #d9532b; border-color: #d9532b; color: #fff; font-weight: 700; }
+  .meal-tag { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: #d9532b; border-radius: 8px; padding: 1px 7px; margin-left: 4px; vertical-align: middle; }
   .weeknav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
   .weeknav span { font-weight: 700; font-size: 15px; }
   .weeknav button { width: 40px; height: 36px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-size: 16px; }
@@ -242,8 +247,11 @@ const owner = {};
 const pendingDate = {}; // 아직 가게에서 확인 안 한 날짜  // 날짜 → 그 날짜가 들어있는 신청서 번호
 let orig = "{}";   // 불러온 직후 상태 (바뀐 게 있는지 비교용)
 const nameToId = Object.fromEntries(MENUS.map(m => [m.name, m.id]));
-const snapCart = () => JSON.stringify(Object.fromEntries(ALL.filter(canPick).map(d => [d, MENUS.map(m => (cart[d] && cart[d][m.id]) || 0)]).filter(([, v]) => v.some(x => x))));
+const snapCart = () => JSON.stringify(Object.fromEntries(ALL.filter(canPick).map(d => [d, [...MENUS.map(m => (cart[d] && cart[d][m.id]) || 0), (cart[d] && cart[d].meal) || "점심"]]).filter(([, v]) => v.some(x => typeof x === "number" && x))));
 const isChanged = () => snapCart() !== orig;
+// 식사 시간 (아침/점심/저녁). 안 고르면 점심
+const MEALS = ["아침", "점심", "저녁"];
+const getMeal = d => (cart[d] && cart[d].meal) || "점심";
 let active = null;
 let lastPicked = null;
 
@@ -267,7 +275,7 @@ function renderMine() {
     const tag = o.delivered ? `<span class="tag done">배달 완료</span>` : st === "신청" ? `<span class="tag wait">확인 대기</span>` : `<span class="tag ok">✓ 확인됨</span>`;
     const can = ALL.includes(o.date) && canPick(o.date) && !o.delivered;
     return `<div class="my">
-      <div class="mh"><span class="md">${label(o.date)}</span>${tag}</div>
+      <div class="mh"><span class="md">${label(o.date)} <span class="meal-tag">${o.meal || "점심"}</span></span>${tag}</div>
       <div class="mi">${o.items.map(i => `${i.name} ${i.qty}개`).join(", ")} · <b>${won(o.amount)}</b></div>
       ${can ? `<div class="mb"><button data-myedit="${o.date}">✏️ 개수 수정</button><button class="cx" data-mycancel="${o.date}">이 날 취소</button></div>`
             : (o.date >= today && !o.delivered ? `<div class="mi" style="font-size:12px;color:#999">당일·지난 주문은 가게로 연락해 주세요</div>` : "")}
@@ -308,7 +316,9 @@ function render() {
       <div class="c">${n ? n + "개" : done ? "신청됨" : ""}</div>
       ${owner[s] && n ? `<div class="st ${pendingDate[s] ? "wait" : "ok"}">${pendingDate[s] ? "확인 대기" : "✓ 확인됨"}</div>` : ""}
     </button>`;
-  }).join("");
+  }).join("") + `<div class="mealbox">${active && canPick(active)
+      ? `<div class="mt">식사 시간</div>` + MEALS.map(m => `<button class="mbtn ${getMeal(active) === m ? "on" : ""}" data-meal="${m}">${m}</button>`).join("")
+      : `<div class="mt">날짜를 고르면<br>아침·점심·저녁<br>선택</div>`}</div>`;
 
   const panel = document.getElementById("panel");
   if (!active) {
@@ -318,7 +328,7 @@ function render() {
     const done = false;
     const am = menus[active];
     panel.innerHTML = `
-      <div class="ptitle">${label(active)} 도시락</div>
+      <div class="ptitle">${label(active)} <span class="meal-tag">${getMeal(active)}</span> 도시락</div>
       ${am && (am.main || am.soup) ? `<div class="mcards"><div class="mcard"><div class="k">메인</div><div class="v">${escH(am.main || "-")}</div></div><div class="mcard"><div class="k">국</div><div class="v">${escH(am.soup || "-")}</div></div></div>` : `<p class="sub" style="margin:4px 0">이 날 식단은 준비 중이에요</p>`}
       ${owner[active] ? `<p class="sub" style="margin:0 0 4px;color:${pendingDate[active] ? "#d9532b" : "#2a8a4a"};font-weight:700">${pendingDate[active] ? "⏳ 가게에서 확인 중이에요" : "✅ 가게에서 주문을 확인했어요"}</p>` : ""}
       ${owner[active] ? `<p class="sub" style="margin:0 0 4px">이미 신청한 날이에요. 개수를 바꾸고 아래 버튼을 누르면 수정돼요. 0개로 만들면 이 날은 취소돼요.</p>` : ""}
@@ -342,7 +352,7 @@ function render() {
   document.getElementById("pickedBox").style.display = ps.length ? "block" : "none";
   document.getElementById("picked").innerHTML = ps.map(s => {
     const txt = MENUS.filter(m => cart[s][m.id]).map(m => `${m.name} ${cart[s][m.id]}`).join(", ");
-    return `<div class="pick"><span>${label(s)} ${txt}</span><b>${won(dayMoney(s))}</b></div>`;
+    return `<div class="pick"><span>${label(s)} <span class="meal-tag">${getMeal(s)}</span> ${txt}</span><b>${won(dayMoney(s))}</b></div>`;
   }).join("");
 
   const total = ps.reduce((a, s) => a + dayMoney(s), 0);
@@ -361,6 +371,7 @@ document.addEventListener("click", e => {
   const t = e.target.closest("button");
   if (!t) return;
   if (t.dataset.date) { active = t.dataset.date; render(); }
+  if (t.dataset.meal && active) { cart[active] = cart[active] || {}; cart[active].meal = t.dataset.meal; render(); }
   if (t.dataset.myedit) {
     const d = t.dataset.myedit;
     const w = Math.floor((new Date(d + "T00:00") - baseMon) / (7 * 86400000));
@@ -502,6 +513,7 @@ async function loadMine() {
         if (d.status === "신청") pendingDate[o.date] = true;
         cart[o.date] = cart[o.date] || {};
         o.items.forEach(i => { const k = nameToId[i.name]; if (k) cart[o.date][k] = (cart[o.date][k] || 0) + i.qty; });
+        if (o.meal) cart[o.date].meal = o.meal;
       });
     } catch (e) { keep.push(id); dbg.push(`${id.slice(0,6)}: 오류 ${e.code || e.message}`); }
   }
@@ -524,7 +536,8 @@ document.getElementById("submit").addEventListener("click", async () => {
   const mk = d => ({
     date: d,
     items: MENUS.filter(m => cart[d] && cart[d][m.id]).map(m => ({ name: m.name, price: m.price, qty: cart[d][m.id] })),
-    amount: dayMoney(d)
+    amount: dayMoney(d),
+    ...(getMeal(d) !== "점심" ? { meal: getMeal(d) } : {})
   });
   const editable = d => ALL.includes(d) && canPick(d);
   const used = new Set();
