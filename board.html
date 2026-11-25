@@ -55,7 +55,8 @@ main{padding:16px}
   @page{margin:0;size:80mm auto}
   body>*:not(#printarea){display:none!important}
   #printarea{display:block!important;width:62mm;margin:0 auto;color:#000;background:#fff;font-family:"Malgun Gothic","맑은 고딕",sans-serif;text-align:center;font-weight:900;-webkit-text-stroke:.7px #000}
-  .pj{padding:12mm 0 14mm;page-break-after:always;text-align:center}
+  .pj{padding:7mm 0 0;page-break-after:always;text-align:center}
+  .pj .pe{height:20mm;margin:0 auto;width:30mm;border-bottom:2px solid #000}
   .pj .pt{font-size:38px;font-weight:900;line-height:1.15;-webkit-text-stroke:1.2px #000}
   .pj .pm{font-size:18px;margin:4px 0 10px}
   .pj .pr{font-size:26px;font-weight:900;border:3px solid #000;padding:2px 8px;display:inline-block;margin-bottom:10px}
@@ -206,7 +207,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 820</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 821</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -397,7 +398,7 @@ function printHtml(list){
     return '<div class="pj"><div class="pt">'+o.table+'번 테이블</div><div class="pm">'+tm+' 주문</div>'+
       (o.resv?'<div class="pr">예약 '+o.resv+'</div>':'')+
       o.items.map(function(i){return '<div class="pi"><span>'+esc(i.name)+'</span><span>× '+i.qty+'</span></div>'}).join("")+
-      (o.memo?'<div class="pn">요청: '+esc(o.memo)+'</div>':'')+'</div>';
+      (o.memo?'<div class="pn">요청: '+esc(o.memo)+'</div>':'')+'<div class="pe"></div></div>';
   }).join("");
   setTimeout(function(){try{window.print()}catch(err){}},150);
 }
