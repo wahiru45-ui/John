@@ -101,6 +101,12 @@ body.n #menu{flex:1;min-width:0;grid-template-columns:repeat(3,1fr);grid-auto-ro
 body.n .mt{min-height:0}
 }
 @media (min-width:1000px){body.n #menu{grid-template-columns:repeat(5,1fr)}}
+@media (min-width:600px) and (max-width:999px){
+body.n .nl{width:270px}.nbig{font-size:34px;height:130px}.nrs{font-size:24px}
+body.n #menu{grid-template-columns:repeat(2,1fr)}
+body.n .mn{font-size:clamp(22px,3.2vmin,30px)}body.n .mp{font-size:clamp(17px,2.4vmin,22px)}body.n .me{font-size:44px}
+}
+@media (min-width:1000px){body.n .mn{font-size:clamp(18px,2.8vmin,26px)}body.n .mp{font-size:clamp(15px,2.2vmin,20px)}body.n .me{font-size:clamp(30px,5vmin,44px)}}
 @media (max-height:700px){.nbig{height:104px;font-size:38px}.nrs{height:60px;font-size:24px}}
 .tile .tm{font-style:normal;font-weight:800;font-size:clamp(13px,2.2vmin,24px);line-height:1.15;text-align:center;padding:0 3px;max-width:100%;display:block;overflow:hidden;color:var(--text)}
 .cfr{display:flex;justify-content:space-between;gap:10px;font-size:24px;font-weight:700;padding:6px 2px;border-bottom:1px dashed var(--line)}
@@ -245,7 +251,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 826</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 827</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -308,8 +314,7 @@ var MENU=[
   {id:10,c:"탕·조림",name:"닭볶음탕",price:30000,e:"🍗"},
   {id:11,c:"탕·조림",name:"갈치조림(2인분)",price:40000,e:"🥘"},
   {id:12,c:"탕·조림",name:"고등어조림(2인분)",price:30000,e:"🥘"},
-  {id:13,c:"탕·조림",name:"고등어김치조림(2인분)",price:30000,e:"🥘"},
-  {id:15,c:"사이드",name:"볶음밥",price:2000,e:"🍳"}
+  {id:13,c:"탕·조림",name:"고등어김치조림(2인분)",price:30000,e:"🥘"}
 ];
 var LABEL={new:"접수",cook:"조리중",done:"완료"};
 var cart={},orders=[],audio=null,fs=null,auth=null,unsub=null,first=true,pruned=false,cur=null,armed=false,rtv="";
