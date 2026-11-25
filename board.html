@@ -107,6 +107,11 @@ body.n #menu{grid-template-columns:repeat(2,1fr)}
 body.n .mn{font-size:clamp(26px,3.8vmin,36px)}body.n .mp{font-size:clamp(17px,2.4vmin,22px)}body.n .me{font-size:44px}
 }
 @media (min-width:1000px){body.n .mn{font-size:clamp(20px,3.3vmin,30px)}body.n .mp{font-size:clamp(15px,2.2vmin,20px)}body.n .me{font-size:clamp(30px,5vmin,44px)}}
+body.n .mt{justify-content:flex-start;padding:8px 6px 10px;gap:0}
+body.n .mt .mn{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.2;width:100%}
+body.n .mt .mn span{word-break:keep-all;overflow-wrap:normal;text-wrap:balance}
+body.n .mt .mp{flex:none;margin-top:4px}
+.nr>span:first-child{word-break:keep-all;text-align:left}
 @media (max-height:700px){.nbig{height:104px;font-size:38px}.nrs{height:60px;font-size:24px}}
 .tile .tm{font-style:normal;font-weight:800;font-size:clamp(13px,2.2vmin,24px);line-height:1.15;text-align:center;padding:0 3px;max-width:100%;display:block;overflow:hidden;color:var(--text)}
 .cfr{display:flex;justify-content:space-between;gap:10px;font-size:24px;font-weight:700;padding:6px 2px;border-bottom:1px dashed var(--line)}
@@ -251,7 +256,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 828</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 829</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -333,10 +338,10 @@ function renderMenu(){
   MENU.forEach(function(m){n+=cart[m.id]||0});
   $("menu").innerHTML=MENU.map(function(m){
     var q=cart[m.id]||0;
-    return '<div class="mt'+(q?' on':'')+'" role="button" tabindex="0" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 담기"><div class="mn">'+m.name+'</div><div class="mp">'+won(m.price)+'</div>'+(q?'<div class="mq">'+q+'</div>':'')+'</div>';
+    return '<div class="mt'+(q?' on':'')+'" role="button" tabindex="0" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 담기"><div class="mn"><span>'+m.name.replace("(","<wbr>(")+'</span></div><div class="mp">'+won(m.price)+'</div>'+(q?'<div class="mq">'+q+'</div>':'')+'</div>';
   }).join("");
   var h="";
-  MENU.forEach(function(m){var q=cart[m.id]||0;if(q)h+='<div class="nr"><span>'+m.name+'</span><span class="nq"><button type="button" data-d="-1" data-id="'+m.id+'" aria-label="'+m.name+' 빼기">−</button><b>'+q+'</b><button type="button" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 더하기">＋</button></span></div>'});
+  MENU.forEach(function(m){var q=cart[m.id]||0;if(q)h+='<div class="nr"><span>'+m.name.replace("(","<wbr>(")+'</span><span class="nq"><button type="button" data-d="-1" data-id="'+m.id+'" aria-label="'+m.name+' 빼기">−</button><b>'+q+'</b><button type="button" data-d="1" data-id="'+m.id+'" aria-label="'+m.name+' 더하기">＋</button></span></div>'});
   $("nlist").innerHTML=h||'<div class="nempty">오른쪽에서 메뉴를 눌러주세요</div>';
   $("nok").classList.toggle("off",!n);$("ncl").classList.toggle("off",!n);
   $("nrs").textContent=rtv?"🕒 "+rtv+" 예약":"🕒 예약";$("nrs").classList.toggle("on",!!rtv);
