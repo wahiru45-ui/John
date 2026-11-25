@@ -1489,7 +1489,11 @@ function drawDeal(sub, dc, nx, ts) {
   $("dealMsg").textContent = !sub ? `${won(ts[0].min)}부터 할인` : nx ? (dc ? `지금 −${won(dc)} · ` : "") + `${won(nx.min - sub)} 더 담으면 −${won(nx.amount)}` : `최대 할인 −${won(dc)} 적용 중`;
 }
 let toastT;
-function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 1200); }
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg;
+  // 할인 막대(또는 주문서 버튼) 바로 위에 붙여요
+  const cb = $("cartbar"); // 올라오는 중이어도 같은 자리가 되게 높이로 계산 (위쪽 여백 10px 빼기)
+  t.style.bottom = cb.classList.contains("show") ? (cb.offsetHeight - 10 + 8) + "px" : ""; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 1200); }
 function change(id, d) {
   const q = (cart.get(id) || 0) + d;
   if (q <= 0) cart.delete(id); else cart.set(id, Math.min(q, 30));
