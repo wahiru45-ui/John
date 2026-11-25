@@ -1,0 +1,38 @@
+name: Firebase 규칙 자동 적용
+
+on:
+  push:
+    branches: [main]
+    paths: [firestore.rules]
+  workflow_dispatch:
+
+jobs:
+  deploy-rules:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT: house-order-a689f
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 열쇠로 로그인
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: 규칙 적용
+        run: |
+          set -euo pipefail
+          TOKEN=$(gcloud auth print-access-token)
+          API=https://firebaserules.googleapis.com/v1/projects/$PROJECT
+          BODY=$(jq -n --rawfile src firestore.rules '{source:{files:[{name:"firestore.rules",content:$src}]}}')
+          RULESET=$(curl -sS --fail-with-body -X POST "$API/rulesets" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+            -d "$BODY" | jq -r .name)
+          echo "새 규칙 묶음: $RULESET"
+          curl -sS --fail-with-body -X PATCH "$API/releases/cloud.firestore" \
+            -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+            -d "$(jq -n --arg r "$RULESET" --arg n "projects/$PROJECT/releases/cloud.firestore" '{release:{name:$n,rulesetName:$r}}')"
+          echo
+          echo "✅ Firebase 규칙 적용 완료"
