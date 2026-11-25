@@ -230,6 +230,11 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
       <div id="sTiers"></div>
       <button type="button" id="sAddTier" style="margin-top:8px;border:1.5px dashed var(--line);background:#fff;border-radius:10px;padding:10px;width:100%;font-weight:700">+ 할인 구간 추가</button>
     </div>
+    <div class="box"><h4>🎟 스탬프 할인</h4>
+      <p style="font-size:13px;color:var(--soft);margin:0 0 6px">전화번호 기준으로 완료된 주문마다 도장 1개. 도장이 다 모이면 다음 주문에 자동 할인되고, 그 주문은 도장 없이 다시 처음부터 모아요.</p>
+      <label class="pause" style="margin-bottom:8px"><span>스탬프 할인 사용</span><input type="checkbox" id="stOn"></label>
+      <div class="trow" style="grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr) auto"><span>주문</span><input id="stNeed" type="number" inputmode="numeric" min="1" max="10" step="1" aria-label="필요한 주문 수"><span>번 완료 →</span><input id="stAmt" type="number" inputmode="numeric" min="0" step="500" aria-label="할인 금액"><span>원 할인</span></div>
+    </div>
     <div class="box"><h4>주문서 인쇄 (이 기기에만 저장)</h4>
       <div class="seg" style="--n:2"><label><input type="radio" name="pw" value="80"><span>80mm 영수증</span></label><label><input type="radio" name="pw" value="58"><span>58mm 영수증</span></label></div>
       <p style="font-size:13px;color:var(--soft);margin:8px 0 0">접수하기를 누르면 주문서가 자동으로 인쇄돼요. 인쇄 창 없이 바로 나오게 하려면 크롬을 '조용히 인쇄' 모드로 켜야 해요.</p>
@@ -247,7 +252,7 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, setDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, deleteDoc, setDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",
@@ -1288,7 +1293,7 @@ onAuthStateChanged(auth, user => {
 // ===== 영업시간·할인 설정 =====
 const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const DEFAULTS = { hours: { 0: { closed: true, open: "10:00", close: "20:00" } }, paused: false, minOrder: 15000,
-  shopAddr: "광주 서구 쌍촌동 1325", kakaoKey: "", maxKm: 7, tips: [{ upto: 2, fee: 0, min: 0 }, { upto: 4, fee: 2000, min: 0 }, { upto: 7, fee: 4000, min: 30000 }], tiers: [{ min: 15000, amount: 3000 }, { min: 35000, amount: 5000 }, { min: 50000, amount: 7000 }] };
+  shopAddr: "광주 서구 쌍촌동 1325", kakaoKey: "", maxKm: 7, tips: [{ upto: 2, fee: 0, min: 0 }, { upto: 4, fee: 2000, min: 0 }, { upto: 7, fee: 4000, min: 30000 }], stamp: { on: true, need: 3, amount: 3000 }, tiers: [{ min: 15000, amount: 3000 }, { min: 35000, amount: 5000 }, { min: 50000, amount: 7000 }] };
 let S = DEFAULTS, unsubS = null;
 // 결제 금액 구간별 할인: 상품 금액이 min 이상이면 amount 할인 (가장 큰 구간 하나만)
 const tiersOf = s => (Array.isArray(s.tiers) ? s.tiers : (s.discount ? [{ min: s.discountMin || 0, amount: s.discount }] : []))
@@ -1348,6 +1353,7 @@ function receiptHTML(o) {
     <table>
       ${o.subtotal != null ? `<tr><td>상품 금액</td><td class="r">${won(o.subtotal)}</td></tr>` : ""}
       ${o.discount ? `<tr><td>할인</td><td class="r">-${won(o.discount)}</td></tr>` : ""}
+      ${o.stampDiscount ? `<tr><td>스탬프 할인</td><td class="r">-${won(o.stampDiscount)}</td></tr>` : ""}
       ${o.deliveryTip ? `<tr><td>배달팁</td><td class="r">+${won(o.deliveryTip)}</td></tr>` : ""}
       <tr><td><b>결제 금액</b></td><td class="r big">${won(o.total)}</td></tr>
     </table>
@@ -1374,6 +1380,7 @@ $("setBtn").onclick = () => {
   drawTips(S.tips || DEFAULTS.tips);
   $("sMaxKm").value = S.maxKm ?? 7; $("sShop").value = S.shopAddr || DEFAULTS.shopAddr; $("sKey").value = S.kakaoKey || "";
   $("sMin").value = S.minOrder ?? 15000;
+  { const st = { ...DEFAULTS.stamp, ...(S.stamp || {}) }; $("stOn").checked = !!st.on; $("stNeed").value = st.need; $("stAmt").value = st.amount; }
   $("sHours").innerHTML = DAYS.map((d, i) => {
     const h = dayHours(i), op = h.open === "00:00" && h.close === "24:00" ? "10:00" : h.open, cl = h.close === "24:00" ? "21:00" : h.close;
     return `<div class="hrow"><b>${d}</b><label class="tog"><input type="checkbox" data-day="${i}" class="sOff" ${h.closed ? "checked" : ""}>휴무</label>
@@ -1413,7 +1420,8 @@ $("sSave").onclick = async () => {
   $("sSave").disabled = true; $("sSave").textContent = "저장 중…";
   try { await setDoc(doc(db, "settings", "shop"), { hours, paused: $("sPause").checked, minOrder: Math.max(0, parseInt($("sMin").value, 10) || 0), tiers,
       tips: readTips().filter(t => t.upto > 0).sort((a, b) => a.upto - b.upto), maxKm: Math.max(0, +$("sMaxKm").value || 0) || 7,
-      shopAddr: $("sShop").value.trim() || DEFAULTS.shopAddr, kakaoKey: $("sKey").value.trim(), updatedAt: serverTimestamp() }); closeSet(); }
+      shopAddr: $("sShop").value.trim() || DEFAULTS.shopAddr, kakaoKey: $("sKey").value.trim(),
+      stamp: { on: $("stOn").checked, need: Math.min(10, Math.max(1, parseInt($("stNeed").value, 10) || 3)), amount: Math.max(0, parseInt($("stAmt").value, 10) || 0) }, updatedAt: serverTimestamp() }); closeSet(); }
   catch (err) { console.error(err); $("sErr").textContent = "저장하지 못했어요. Firebase 규칙에 settings가 추가됐는지 확인해 주세요."; }
   finally { $("sSave").disabled = false; $("sSave").textContent = "설정 저장"; }
 };
@@ -1506,8 +1514,8 @@ function card(o) {
     <div class="head"><span class="code">${esc(o.code)}</span><span class="tag t-${o.type}">${TYPE[o.type] || ""}${o.type === "table" ? " " + esc(o.table) + "번" : ""}</span><span class="st">${ST[o.status] || ""}</span>${o.editedAt ? `<span class="edited">수정됨</span>` : ""}<span class="time">${time}</span></div>
     <div class="body"><div class="cl">
     <ul class="items">${(o.items || []).map(i => `<li><span>${esc(i.name)}</span><b>× ${i.qty}</b></li>`).join("")}</ul>
-    ${o.discount || o.deliveryTip || o.tipCheck ? `<div class="money"><div class="line"><span>상품 금액</span><b>${won(o.subtotal)}</b></div>${o.discount ? `<div class="line dc"><span>할인</span><b>−${won(o.discount)}</b></div>` : ""}${o.type === "delivery" && (o.deliveryTip != null || o.tipCheck) ? `<div class="line"><span>배달팁${o.distKm != null ? ` (약 ${o.distKm}km)` : ""}</span><b>${o.tipCheck ? "⚠ 주소 확인 후 안내" : o.deliveryTip ? "+" + won(o.deliveryTip) : "무료"}</b></div>` : ""}</div>` : ""}
-    <div class="total">${o.discount ? "결제 " : ""}${won(o.total)}</div>
+    ${o.discount || o.stampDiscount || o.deliveryTip || o.tipCheck ? `<div class="money"><div class="line"><span>상품 금액</span><b>${won(o.subtotal)}</b></div>${o.discount ? `<div class="line dc"><span>할인</span><b>−${won(o.discount)}</b></div>` : ""}${o.stampDiscount ? `<div class="line dc"><span>🎟 스탬프 할인</span><b>−${won(o.stampDiscount)}</b></div>` : ""}${o.type === "delivery" && (o.deliveryTip != null || o.tipCheck) ? `<div class="line"><span>배달팁${o.distKm != null ? ` (약 ${o.distKm}km)` : ""}</span><b>${o.tipCheck ? "⚠ 주소 확인 후 안내" : o.deliveryTip ? "+" + won(o.deliveryTip) : "무료"}</b></div>` : ""}</div>` : ""}
+    <div class="total">${o.discount || o.stampDiscount ? "결제 " : ""}${won(o.total)}</div>
     </div><div class="cr">
     ${o.type !== "table" ? `
       ${c.name ? `<div class="line"><span>이름</span><b>${esc(c.name)}</b></div>` : ""}
@@ -1584,8 +1592,9 @@ document.addEventListener("click", async e => {
   b.disabled = true;
   const upd = { status: b.dataset.to };
   if (b.dataset.to === "out") upd.outAt = serverTimestamp();
-  if (b.dataset.to === "done") { upd.doneAt = serverTimestamp(); upd.doneBy = "store"; }
+  if (b.dataset.to === "done") { upd.doneAt = serverTimestamp(); upd.doneBy = "store"; if (od && !od.stamped && od.customer?.phone) upd.stamped = true; }
   const save = updateDoc(doc(db, "onlineOrders", b.dataset.id), upd);
+  if (upd.stamped) save.then(() => giveStamp(od)).catch(() => {});
   if (b.dataset.to === "accepted" && P.auto && od) printOrder({ ...od, status: "accepted" });
   // 가게에서 직접 배달했을 때도 손님에게 '배달 완료' 문자를 바로 열어줘요
   if (sms) location.href = `sms:${od.customer.phone}?body=${encodeURIComponent(`[맛있는밥집] 주문번호 ${od.code} 배달 완료했어요. 맛있게 드세요! 감사합니다 :)`)}`;
@@ -1593,13 +1602,23 @@ document.addEventListener("click", async e => {
   catch (err) { console.error(err); b.disabled = false; b.textContent = "다시 눌러주세요"; }
 });
 
+// ===== 스탬프: 완료되면 도장 +1, 스탬프 할인을 쓴 주문이면 도장을 차감 =====
+async function giveStamp(o) {
+  const ph = (o.customer?.phone || "").replace(/\D/g, ""); if (ph.length < 10) return;
+  const st = { ...DEFAULTS.stamp, ...(S.stamp || {}) };
+  if (!st.on && !o.stampDiscount) return;
+  const ref = doc(db, "stamps", ph);
+  let n = 0; try { const d = await getDoc(ref); n = d.exists() ? Math.max(0, +d.data().count || 0) : 0; } catch {}
+  n = o.stampDiscount ? Math.max(0, n - (+st.need || 3)) : n + 1;
+  try { await setDoc(ref, { count: n, updatedAt: serverTimestamp() }, { merge: true }); } catch (e) { console.error("stamp", e); }
+}
 // ===== 주문 수정 =====
 let edit = null; // { id, type, items:[{name,price,qty}] }
 const radio = (name, v) => { const r = document.querySelector(`input[name=${name}][value="${v}"]`); if (r) r.checked = true; };
 const val = name => document.querySelector(`input[name=${name}]:checked`)?.value;
 function openEdit(id) {
   const o = orders.find(x => x.id === id); if (!o) return;
-  edit = { id, type: o.type, discount: o.discount || 0, tip: o.deliveryTip || 0, paid: !!o.payment?.paid, items: (o.items || []).map(i => ({ ...i, price: Number(i.price ?? ALL.find(m => m.name === i.name)?.price) || 0 })) };
+  edit = { id, type: o.type, discount: o.discount || 0, sd: o.stampDiscount || 0, tip: o.deliveryTip || 0, paid: !!o.payment?.paid, items: (o.items || []).map(i => ({ ...i, price: Number(i.price ?? ALL.find(m => m.name === i.name)?.price) || 0 })) };
   $("eTitle").textContent = `${o.code} 주문 수정`;
   const c = o.customer || {}, p = o.payment || {};
   radio("eHow", o.type === "delivery" ? "delivery" : "pickup");
@@ -1620,12 +1639,13 @@ $("eClose").onclick = closeEdit;
 $("modal").addEventListener("click", e => { if (e.target === $("modal")) closeEdit(); });
 const eSub = () => edit.items.reduce((s, i) => s + i.price * i.qty, 0);
 const eDisc = () => tierDiscount(S, eSub());
-const eTotal = () => eSub() - eDisc() + (edit.tip || 0);
+const eSd = () => Math.max(0, Math.min(edit.sd || 0, eSub() - eDisc()));
+const eTotal = () => eSub() - eDisc() - eSd() + (edit.tip || 0);
 function drawItems() {
   $("eItems").innerHTML = edit.items.map((i, k) => `<div class="erow"><span class="nm">${esc(i.name)}<small>${won(i.price)}</small></span>
     <div class="step"><button data-eq="${k}" data-d="-1" aria-label="빼기">−</button><b>${i.qty}</b><button data-eq="${k}" data-d="1" aria-label="더하기">+</button></div>
     <button class="del" data-erm="${k}">삭제</button></div>`).join("") || `<p class="empty" style="padding:6px 0">메뉴가 없어요. 아래에서 추가하세요.</p>`;
-  $("eTotal").textContent = eDisc() ? `${won(eSub())} − 할인 ${won(eDisc())} = ${won(eTotal())}` : won(eTotal());
+  $("eTotal").textContent = eDisc() || eSd() ? `${won(eSub())} − 할인 ${won(eDisc() + eSd())}${eSd() ? "(스탬프 포함)" : ""} = ${won(eTotal())}` : won(eTotal());
 }
 $("eItems").addEventListener("click", e => {
   const q = e.target.closest("[data-eq]"), rm = e.target.closest("[data-erm]");
@@ -1657,7 +1677,7 @@ $("eSave").onclick = async () => {
   if (!edit) return;
   $("eErr").textContent = "";
   if (!edit.items.length) { $("eErr").textContent = "메뉴가 하나 이상 있어야 해요. 주문을 없애려면 취소를 누르세요."; return; }
-  const upd = { items: edit.items, subtotal: eSub(), discount: eDisc(), total: eTotal(), memo: $("eMemo").value.trim().slice(0, 300), editedAt: serverTimestamp() };
+  const upd = { items: edit.items, subtotal: eSub(), discount: eDisc(), ...(edit.sd ? { stampDiscount: eSd() } : {}), total: eTotal(), memo: $("eMemo").value.trim().slice(0, 300), editedAt: serverTimestamp() };
   if (edit.type !== "table") {
     const type = val("eHow"), phone = digits($("ePhone").value), address = $("eAddr").value.trim();
     if (phone.length < 10 || phone.length > 11) { $("eErr").textContent = "전화번호를 확인해 주세요."; return; }

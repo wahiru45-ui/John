@@ -32,6 +32,14 @@ header{background:var(--red);color:#fff;padding:20px 0 46px;text-align:center}
 .facts small{display:block;font-size:12px;color:var(--soft)}
 .facts b{font-size:14px;white-space:nowrap}
 .facts a{color:var(--ink);text-decoration:none}
+.stamp{margin-top:10px;background:#fff8e6;border:1px solid #f1dca6;border-radius:16px;padding:10px 14px;display:flex;align-items:center;gap:12px}
+.stamp .dots{display:flex;gap:5px;flex:none}
+.stamp .dots i{width:26px;height:26px;border-radius:50%;border:2px dashed #d9b45a;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:14px;color:#fff}
+.stamp .dots i.on{background:var(--red);border:2px solid var(--red)}
+.stamp .tx{flex:1;font-size:13px;line-height:1.4}
+.stamp .tx b{display:block;font-size:15px;color:#7a4a00}
+.stamp.ready{background:#fdecea;border-color:#f3b9ae}
+.stamp.ready .tx b{color:var(--red)}
 .deal{margin-top:10px;background:var(--pick);border:1px solid #f3d3c9;border-radius:16px;padding:12px 14px 10px}
 .deal .hd{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .deal .hd b{color:var(--red);font-size:15px}
@@ -170,6 +178,7 @@ li.in{background:var(--pick)}
     <div><small>최소 주문</small><b id="factMin">15,000원</b></div>
     <div><small>전화 주문</small><b><a href="tel:01065725152" aria-label="전화 010-6572-5152">📞 전화하기</a></b></div>
   </div>
+  <div class="stamp hide" id="stampTop"></div>
   <div class="deal" id="deal">
     <div class="hd"><b>많이 담을수록 더 할인돼요</b></div>
     <div class="msg" id="dealMsg"></div>
@@ -196,10 +205,12 @@ li.in{background:var(--pick)}
       <div class="money">
         <div class="row"><span>상품 금액</span><span id="mSub"></span></div>
         <div class="row disc" id="mDiscRow"><span>결제 할인</span><span id="mDisc"></span></div>
+        <div class="row disc hide" id="mStampRow"><span>🎟 스탬프 할인</span><span id="mStamp"></span></div>
         <div class="row hide" id="mTipRow"><span>배달팁</span><span id="mTip"></span></div>
         <div class="row" id="mNudge" style="font-size:14px;color:var(--soft)"></div>
         <div class="row final"><span>결제 금액</span><span id="mTotal"></span></div>
       </div>
+      <div class="stamp hide" id="stampCk"></div>
     </div>
 
     <div class="box" id="howBox"><h4>받는 방법</h4>
@@ -290,7 +301,7 @@ li.in{background:var(--pick)}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, addDoc, doc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, addDoc, doc, getDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",
@@ -306,7 +317,7 @@ const SHOP = { name: "맛있는밥집 쌍촌본점", phone: "010-6572-5152", ban
 // 할인: 15,000원 이상 3,000원 / 35,000원 이상 5,000원 / 50,000원 이상 7,000원
 const DEFAULTS = { hours: { 0: { closed: true, open: "10:00", close: "20:00" } }, paused: false, minOrder: 15000,
   // 거리별 배달팁(손님 부담): upto km까지 fee원, 그 거리의 최소 주문금액 min원. maxKm 넘으면 배달 불가. 카카오 지도 키가 있어야 작동해요.
-  shopAddr: "광주 서구 쌍촌동 1325", kakaoKey: "", maxKm: 7, tips: [{ upto: 2, fee: 0, min: 0 }, { upto: 4, fee: 2000, min: 0 }, { upto: 7, fee: 4000, min: 30000 }], tiers: [{ min: 15000, amount: 3000 }, { min: 35000, amount: 5000 }, { min: 50000, amount: 7000 }] };
+  shopAddr: "광주 서구 쌍촌동 1325", kakaoKey: "", maxKm: 7, tips: [{ upto: 2, fee: 0, min: 0 }, { upto: 4, fee: 2000, min: 0 }, { upto: 7, fee: 4000, min: 30000 }], stamp: { on: true, need: 3, amount: 3000 }, tiers: [{ min: 15000, amount: 3000 }, { min: 35000, amount: 5000 }, { min: 50000, amount: 7000 }] };
 // 주문 메뉴. 가격을 바꾸려면 숫자만 고치세요. [이름, 가격, 안내]
 const MENU = [
 {
@@ -1345,7 +1356,7 @@ function applyHours() {
   else { c.style.display = "block"; c.textContent = S.paused ? "가게 사정으로 지금은 주문을 잠시 받지 않아요. 잠시 후 다시 확인해 주세요." : "지금은 주문 시간이 아니에요. " + nextOpenText(); }
   updateBar(); if ($("checkout").classList.contains("on")) renderCart();
 }
-onSnapshot(doc(db, "settings", "shop"), s => { S = s.exists() ? { ...DEFAULTS, ...s.data() } : DEFAULTS; applyHours(); }, () => applyHours());
+onSnapshot(doc(db, "settings", "shop"), s => { S = s.exists() ? { ...DEFAULTS, ...s.data() } : DEFAULTS; applyHours(); try { drawStamp(); } catch {} }, () => applyHours());
 setInterval(applyHours, 30000);
 
 // ===== 메뉴 =====
@@ -1383,6 +1394,39 @@ const tiersOf = s => (Array.isArray(s.tiers) ? s.tiers : (s.discount ? [{ min: s
 const tierDiscount = (s, sub) => { let d = 0; for (const t of tiersOf(s)) if (sub > 0 && sub >= t.min) d = Math.max(d, t.amount); return Math.min(d, sub); };
 const nextTier = (s, sub) => tiersOf(s).find(t => t.min > sub && t.amount > tierDiscount(s, sub));
 const discountOf = sub => tierDiscount(S, sub);
+// ===== 스탬프: 완료된 주문 N번마다 다음 주문 할인 (전화번호 기준) =====
+const STAMP = () => ({ on: true, need: 3, amount: 3000, ...(S.stamp || {}) });
+let stampN = null, stampPhone = "";
+const stampBusy = () => { try { return JSON.parse(localStorage.getItem("mbj-orders") || "[]").some(r => r.sd && Date.now() - r.t < 12 * 3600e3 && !["done", "canceled"].includes(r.st)); } catch { return false; } };
+const stampReady = () => { const t = STAMP(); return t.on && stampN != null && stampN >= t.need && !stampBusy(); };
+const stampOf = sub => stampReady() ? Math.max(0, Math.min(+STAMP().amount || 0, sub - discountOf(sub))) : 0;
+async function loadStamp(force) {
+  const ph = (document.getElementById("cPhone")?.value || "").replace(/\D/g, "");
+  if (ph.length < 10 || ph.length > 11) { stampN = null; stampPhone = ""; drawStamp(); return; }
+  if (ph === stampPhone && !force) return;
+  stampPhone = ph;
+  try { const d = await getDoc(doc(db, "stamps", ph)); if (stampPhone !== ph) return; stampN = d.exists() ? Math.max(0, +d.data().count || 0) : 0; }
+  catch { stampN = null; }
+  drawStamp(); if (typeof renderCart === "function" && $("checkout").classList.contains("on")) renderCart(); updateBar();
+}
+function drawStamp() {
+  const t = STAMP(), need = Math.max(1, +t.need || 3);
+  const html = () => {
+    const n = Math.min(stampN, need), ready = stampReady();
+    const dots = Array.from({ length: need }, (_, i) => `<i class="${i < n ? "on" : ""}">${i < n ? "✓" : ""}</i>`).join("");
+    const head = ready ? `🎉 도장 ${need}개 완성!` : `도장 ${n}/${need}`;
+    const sub = ready ? `이번 주문 ${won(t.amount)} 할인이 자동으로 들어가요` : stampBusy() && stampN >= need ? `지금 주문이 끝나면 다음 주문에 쓸 수 있어요` : `${need - n}번 더 주문하면 다음 주문 ${won(t.amount)} 할인`;
+    return [`<div class="dots">${dots}</div><div class="tx"><b>${head}</b>${sub}</div>`, ready];
+  };
+  ["stampTop", "stampCk"].forEach(id => {
+    const el = $(id); if (!el) return;
+    const show = t.on && stampN != null;
+    el.classList.toggle("hide", !show);
+    if (!show) return;
+    const [h, ready] = html(); el.innerHTML = h; el.classList.toggle("ready", ready);
+  });
+  if (t.on && stampN == null && $("stampCk")) { $("stampCk").classList.remove("hide"); $("stampCk").classList.remove("ready"); $("stampCk").innerHTML = `<div class="tx"><b>🎟 스탬프 적립</b>주문 ${need}번 완료하면 다음 주문 ${won(t.amount)} 할인! 전화번호로 모여요.</div>`; }
+}
 // 최소 주문금액: 기본값과 배달 거리 구간의 최소금액 중 큰 쪽
 const farMin = () => (typeof G !== "undefined" && G.status === "ok" && document.querySelector("input[name=how]:checked")?.value === "delivery") ? (+tierOf(G.km)?.min || 0) : 0;
 const minOrder = () => Math.max(0, +S.minOrder || 0, farMin());
@@ -1391,7 +1435,7 @@ function updateBar(bump) {
   const n = [...cart.values()].reduce((a, b) => a + b, 0), sub = subTotal(), dc = discountOf(sub);
   $("cartbar").classList.toggle("show", n > 0);
   $("cartN").textContent = n;
-  $("cartSum").textContent = n ? won(sub - dc + tipNow()) : "";
+  $("cartSum").textContent = n ? won(sub - dc - stampOf(sub) + tipNow()) : "";
   const nx = nextTier(S, sub), ts = tiersOf(S);
   $("cartDisc").textContent = !n ? "" : short(sub) ? `${won(short(sub))} 더 담아야 주문할 수 있어요` : nx ? `${won(nx.min - sub)} 더 담으면 −${won(nx.amount)}` : dc ? `−${won(dc)} 할인 적용` : "";
   drawDeal(sub, dc, nx, ts);
@@ -1524,7 +1568,10 @@ function renderCart() {
   const tip = tipNow();
   $("mTipRow").classList.toggle("hide", !(val("how") === "delivery" && G.status === "ok"));
   $("mTip").textContent = tip ? "+" + won(tip) : "무료";
-  $("mTotal").textContent = won(sub - dc + tip);
+  const sdc = stampOf(sub);
+  $("mStampRow").classList.toggle("hide", !sdc);
+  $("mStamp").textContent = "−" + won(sdc);
+  $("mTotal").textContent = won(sub - dc - sdc + tip);
   const nx = nextTier(S, sub);
   const sh = short(sub);
   $("mNudge").textContent = sh ? `${farMin() > (+S.minOrder || 0) ? `${G.km}km 배달은 ` : ""}최소 주문금액이 ${won(minOrder())}이에요. ${won(sh)} 더 담아주세요.` : nx ? `${won(nx.min - sub)} 더 담으면 ${won(nx.amount)} 할인돼요.` : "";
@@ -1532,7 +1579,7 @@ function renderCart() {
   $("mNudge").classList.toggle("hide", !sh && !nx);
   const far = val("how") === "delivery" && G.status === "far";
   $("submit").disabled = !open || !!sh || far;
-  $("submit").textContent = !open ? "지금은 주문 시간이 아니에요" : sh ? `${won(minOrder())} 이상 주문할 수 있어요` : far ? "배달 가능 거리를 넘었어요" : `${won(sub - dc + tip)} 주문하기`;
+  $("submit").textContent = !open ? "지금은 주문 시간이 아니에요" : sh ? `${won(minOrder())} 이상 주문할 수 있어요` : far ? "배달 가능 거리를 넘었어요" : `${won(sub - dc - sdc + tip)} 주문하기`;
 }
 function openPanel(id) { $(id).classList.add("on"); $(id).scrollTop = 0; document.body.style.overflow = "hidden"; }
 function closePanel() { $("checkout").classList.remove("on"); document.body.style.overflow = ""; }
@@ -1631,6 +1678,8 @@ $("svClear").onclick = () => {
   editing = true; showInfo(); toast("저장된 정보를 지웠어요");
 };
 loadInfo();
+$("cPhone").addEventListener("input", () => { clearTimeout(window.__stT); window.__stT = setTimeout(() => loadStamp(), 500); });
+loadStamp();
 
 $("submit").onclick = async () => {
   $("err").textContent = "";
@@ -1638,13 +1687,14 @@ $("submit").onclick = async () => {
   if (!open) { $("err").textContent = S.paused ? "지금은 주문을 잠시 받지 않아요." : "지금은 주문 시간이 아니에요. " + nextOpenText(); return; }
   if (val("how") === "delivery" && S.kakaoKey) { checkGeo(true); if (G.status === "loading" && geoRun) { $("submit").textContent = "배달 거리 확인 중…"; await geoRun; } }
   if (val("how") === "delivery" && G.status === "far") { $("err").textContent = `배달 가능 거리(${S.maxKm}km)를 넘었어요. 포장으로 주문해 주세요.`; return; }
-  const sub = subTotal(), dc = discountOf(sub), tip = tipNow();
+  const sub = subTotal(), dc = discountOf(sub), tip = tipNow(), sdc = stampOf(sub);
   if (short(sub)) { $("err").textContent = `최소 주문금액은 ${won(minOrder())}이에요. ${won(short(sub))} 더 담아주세요.`; return; }
   const order = {
     type: val("how"),
     table: null,
     items: cartLines().map(l => ({ name: l.name, price: l.price, qty: l.qty })),
-    subtotal: sub, discount: dc, deliveryTip: tip, total: sub - dc + tip,
+    subtotal: sub, discount: dc, deliveryTip: tip, total: sub - dc - sdc + tip,
+    ...(sdc ? { stampDiscount: sdc } : {}),
     ...(val("how") === "delivery" && G.status === "ok" ? { distKm: G.km } : {}),
     ...(val("how") === "delivery" && G.status === "fail" ? { tipCheck: true } : {}),
     memo: $("memo").value.trim().slice(0, 300),
@@ -1731,6 +1781,7 @@ function track(rec) {
   watchers.set(rec.id, onSnapshot(doc(db, "onlineOrders", rec.id), s => {
     const st = s.exists() ? (s.data().status || "new") : "canceled";
     const prev = live[rec.id]; live[rec.id] = st;
+    if (rec.st !== st) { rec.st = st; saveMine(mine); if (st === "done" || st === "canceled") setTimeout(() => loadStamp(true), 2500); }
     if (doneId === rec.id) {
       $("doneStatus").textContent = trackText(rec, st);
       $("doneStatus").classList.toggle("ok", ["accepted", "ready", "out", "done"].includes(st));
@@ -1753,14 +1804,14 @@ function showDone(id, order) {
   closePanel(); cart.clear(); ids.forEach(updateRow); updateBar(); $("memo").value = "";
   $("doneCode").textContent = order.code;
   $("doneStatus").textContent = TRACK.new; $("doneStatus").classList.remove("ok");
-  $("doneInfo").textContent = `${order.type === "delivery" ? "배달" : "포장"} · 결제 금액 ${won(order.total)}${order.discount ? ` (${won(order.discount)} 할인)` : ""}${order.deliveryTip ? ` · 배달팁 ${won(order.deliveryTip)} 포함` : ""}${order.tipCheck ? " · 배달팁은 가게에서 안내" : ""} · ${PAYNAME[order.payment.method]}${order.payment.receipt ? " · 현금영수증 신청" : ""}`;
+  $("doneInfo").textContent = `${order.type === "delivery" ? "배달" : "포장"} · 결제 금액 ${won(order.total)}${order.discount || order.stampDiscount ? ` (${won((order.discount || 0) + (order.stampDiscount || 0))} 할인${order.stampDiscount ? " · 스탬프 포함" : ""})` : ""}${order.deliveryTip ? ` · 배달팁 ${won(order.deliveryTip)} 포함` : ""}${order.tipCheck ? " · 배달팁은 가게에서 안내" : ""} · ${PAYNAME[order.payment.method]}${order.payment.receipt ? " · 현금영수증 신청" : ""}`;
   const db_ = $("doneBank");
   if (order.payment.method === "transfer") {
     db_.classList.remove("hide");
     db_.innerHTML = `<div>아래 계좌로 <b>${won(order.total)}</b>을 보내주세요.</div><div style="margin-top:6px">${SHOP.bank}</div><button type="button" id="copyBank2">계좌번호 복사</button>`;
     $("copyBank2").onclick = async () => { try { await navigator.clipboard.writeText(SHOP.bankNo); $("copyBank2").textContent = "복사됐어요"; } catch { $("copyBank2").textContent = "길게 눌러 복사하세요"; } };
   } else db_.classList.add("hide");
-  const rec = { id, code: order.code, type: order.type, t: Date.now() };
+  const rec = { id, code: order.code, type: order.type, t: Date.now(), ...(order.stampDiscount ? { sd: 1 } : {}) };
   mine.unshift(rec); saveMine(mine);
   doneId = id; openPanel("donePanel");
   track(rec); renderTrack();

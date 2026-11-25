@@ -93,7 +93,7 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:14px 0 8px;cursor:pointer}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",
@@ -190,6 +190,17 @@ function render() {
   $("sum").innerHTML = `<div><small>출발 대기</small><b>${ready.length}건</b></div><div><small>배달 중</small><b>${go.length}건</b></div><div><small>오늘 완료</small><b>${done.length}건</b></div>`;
 }
 
+// ===== 스탬프: 완료되면 도장 +1, 스탬프 할인을 쓴 주문이면 차감 =====
+async function giveStamp(o) {
+  const ph = (o.customer?.phone || "").replace(/\D/g, ""); if (ph.length < 10) return;
+  let st = { on: true, need: 3, amount: 3000 };
+  try { const sd = await getDoc(doc(db, "settings", "shop")); if (sd.exists() && sd.data().stamp) st = { ...st, ...sd.data().stamp }; } catch {}
+  if (!st.on && !o.stampDiscount) return;
+  const ref = doc(db, "stamps", ph);
+  let n = 0; try { const d = await getDoc(ref); n = d.exists() ? Math.max(0, +d.data().count || 0) : 0; } catch {}
+  n = o.stampDiscount ? Math.max(0, n - (+st.need || 3)) : n + 1;
+  try { await setDoc(ref, { count: n, updatedAt: serverTimestamp() }, { merge: true }); } catch (e) { console.error("stamp", e); }
+}
 // ===== 배달 출발 / 완료 =====
 // 배달 완료를 누르면 상태를 바꾸고, 손님에게 보낼 '배달 완료' 문자를 바로 열어줘요.
 const doneSms = o => `sms:${o.customer?.phone || ""}?body=${encodeURIComponent(`[맛있는밥집] 주문번호 ${o.code} 배달 완료했어요. 맛있게 드세요! 감사합니다 :)`)}`;
@@ -200,7 +211,9 @@ document.addEventListener("click", async e => {
   }
   b.disabled = true;
   const o = orders.find(x => x.id === b.dataset.id);
-  const save = updateDoc(doc(db, "onlineOrders", b.dataset.id), b.dataset.to === "out" ? { status: "out", outAt: serverTimestamp() } : { status: "done", doneAt: serverTimestamp(), doneBy: "rider" });
+  const stampIt = b.dataset.to === "done" && o && !o.stamped && o.customer?.phone;
+  const save = updateDoc(doc(db, "onlineOrders", b.dataset.id), b.dataset.to === "out" ? { status: "out", outAt: serverTimestamp() } : { status: "done", doneAt: serverTimestamp(), doneBy: "rider", ...(stampIt ? { stamped: true } : {}) });
+  if (stampIt) save.then(() => giveStamp(o)).catch(() => {});
   if (b.dataset.to === "done" && o?.customer?.phone) location.href = doneSms(o);
   try { await save; }
   catch (err) { console.error(err); b.disabled = false; b.textContent = "다시 눌러주세요"; }
