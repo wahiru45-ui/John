@@ -56,6 +56,15 @@
   .pcHead { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #eee; font-weight: 700; font-size: 17px; }
   .pcHead button { border: none; background: none; font-size: 24px; }
   #pcBox { flex: 1; }
+  .mrow { display: grid; grid-template-columns: 70px minmax(0,1fr); padding: 8px 4px; border-top: 1px solid #f0f0f0; font-size: 15px; }
+  .mrow .dd { color: #555; }
+  .mrow.past { color: #bbb; } .mrow.past .dd { color: #bbb; }
+  .mrow.on { background: #fff1ea; border-radius: 8px; color: #8a3410; }
+  .mrow .none { color: #aaa; font-size: 14px; }
+  .mcards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 6px; }
+  .mcard { background: #fff1ea; border-radius: 10px; padding: 8px 10px; }
+  .mcard .k { font-size: 12px; color: #b0583a; }
+  .mcard .v { font-size: 16px; font-weight: 700; color: #7a2e12; }
   .panel { margin-top: 14px; border-top: 1px dashed #ddd; padding-top: 12px; }
   .ptitle { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
   .menu { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
@@ -93,6 +102,11 @@
     <p>받고 싶은 날짜를 고르고, 날짜마다 도시락을 골라 주세요</p>
   </header>
   <div class="welcome" id="welcome" style="display:none"></div>
+
+  <section id="menuBox">
+    <h2>🍱 이번 주 식단 <span style="font-size:13px;color:#888;font-weight:400">발열·보온 도시락</span></h2>
+    <div id="menuList"></div>
+  </section>
 
   <section id="myBox" style="display:none">
     <h2>📋 내 신청 내역</h2>
@@ -173,7 +187,7 @@ const firebaseConfig = {
 };
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp, doc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, addDoc, serverTimestamp, doc, getDoc, updateDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const db = getFirestore(initializeApp(firebaseConfig));
 
 // ===== 설정 =====
@@ -222,6 +236,7 @@ const canPick = s => s >= FIRST && !CLOSED.includes(new Date(s + "T00:00").getDa
 
 const cart = {};   // { "2026-11-24": {heat:1, warm:0, salad:2} }
 let loaded = [];   // 이 휴대폰에서 예전에 신청한 내역 (수정 가능)
+let menus = {};    // 날짜 → {main, soup} (가게에서 입력한 식단)
 const live = {};   // 신청서 번호 → 최신 내용 (실시간)
 const owner = {};
 const pendingDate = {}; // 아직 가게에서 확인 안 한 날짜  // 날짜 → 그 날짜가 들어있는 신청서 번호
@@ -264,8 +279,21 @@ function renderMine() {
     (past.length ? `<details class="mypast"><summary>지난 내역 ${past.length}개 보기</summary>${past.map(card).join("")}</details>` : "");
 }
 
+function renderMenus() {
+  const today = ymd(new Date());
+  document.getElementById("menuList").innerHTML = DATES.map(d => {
+    const m = menus[d];
+    const txt = m && (m.main || m.soup)
+      ? `<span><b>${escH(m.main || "-")}</b> · ${escH(m.soup || "-")}</span>`
+      : `<span class="none">식단 준비 중</span>`;
+    return `<div class="mrow ${d < today ? "past" : ""} ${d === active ? "on" : ""}"><span class="dd">${label(d)}</span>${txt}</div>`;
+  }).join("");
+}
+const escH = x => String(x ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
 function render() {
   renderMine();
+  renderMenus();
   document.getElementById("wTitle").textContent = `${label(DATES[0])} ~ ${label(DATES[6])}`;
   document.getElementById("wPrev").disabled = weekIdx === 0;
   document.getElementById("wNext").disabled = weekIdx >= MAX_WEEK;
@@ -288,8 +316,10 @@ function render() {
   } else {
     const c = cart[active] || {};
     const done = false;
+    const am = menus[active];
     panel.innerHTML = `
       <div class="ptitle">${label(active)} 도시락</div>
+      ${am && (am.main || am.soup) ? `<div class="mcards"><div class="mcard"><div class="k">메인</div><div class="v">${escH(am.main || "-")}</div></div><div class="mcard"><div class="k">국</div><div class="v">${escH(am.soup || "-")}</div></div></div>` : `<p class="sub" style="margin:4px 0">이 날 식단은 준비 중이에요</p>`}
       ${owner[active] ? `<p class="sub" style="margin:0 0 4px;color:${pendingDate[active] ? "#d9532b" : "#2a8a4a"};font-weight:700">${pendingDate[active] ? "⏳ 가게에서 확인 중이에요" : "✅ 가게에서 주문을 확인했어요"}</p>` : ""}
       ${owner[active] ? `<p class="sub" style="margin:0 0 4px">이미 신청한 날이에요. 개수를 바꾸고 아래 버튼을 누르면 수정돼요. 0개로 만들면 이 날은 취소돼요.</p>` : ""}
       ${done ? `<p class="sub" style="margin:0 0 4px">이 날짜는 이미 신청하셨어요. 더 고르면 추가로 신청돼요.</p>` : ""}
@@ -398,6 +428,13 @@ if (me.phone) {
   document.getElementById("memo").value = me.memo || "";
   document.getElementById("infoForm").style.display = "none";
 }
+
+// ===== 식단 실시간 =====
+onSnapshot(query(collection(db, "dosirakMenus"), where("date", ">=", ALL[0]), where("date", "<=", ALL[ALL.length - 1])), snap => {
+  menus = {};
+  snap.docs.forEach(d => { menus[d.id] = d.data(); });
+  render();
+}, () => {});
 
 // ===== 가게 알림 받기 (화면이 열려 있는 동안) =====
 const SEEN = "dosirak_seen";

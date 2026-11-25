@@ -74,7 +74,7 @@
   .addbtn { width: 100%; padding: 14px; border-radius: 12px; border: none; background: #d9532b; color: #fff; font-size: 16px; font-weight: 700; }
   .ed select { width: 100%; padding: 9px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; background: #fff; }
   .nav { position: sticky; top: 0; z-index: 10; display: flex; gap: 6px; padding: 10px 12px; background: #f2f2f2; }
-  .nav button { flex: 1; padding: 12px 4px; border-radius: 12px; border: 1px solid #ccc; background: #fff; font-size: 15px; font-weight: 700; position: relative; }
+  .nav button { flex: 1; padding: 12px 2px; border-radius: 12px; border: 1px solid #ccc; background: #fff; font-size: 14px; font-weight: 700; position: relative; white-space: nowrap; }
   .nav button.on { background: #333; color: #fff; border-color: #333; }
   .nav .nb { position: absolute; top: -6px; right: -4px; background: #d9532b; color: #fff; font-size: 12px; border-radius: 10px; padding: 1px 7px; }
   .search { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 12px; font-size: 15px; }
@@ -89,6 +89,13 @@
   details.past summary { cursor: pointer; padding: 3px 0; }
   details.cust summary { cursor: pointer; font-weight: 700; padding: 4px 0; }
   a.map { color: #1a6ad1; text-decoration: none; }
+  .mgrid { display: grid; grid-template-columns: 58px minmax(0,1fr) minmax(0,1fr); gap: 6px; align-items: center; margin-bottom: 6px; }
+  .mgrid.mhead { font-size: 13px; color: #888; margin-bottom: 4px; }
+  .mgrid .md { font-size: 14px; font-weight: 700; }
+  .mgrid .md.past { color: #bbb; font-weight: 400; }
+  .mgrid input { width: 100%; padding: 10px 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; font-family: inherit; }
+  .mgrid input.dirty { border-color: #d9532b; background: #fff8f4; }
+  .todayMenu { background: #fff; border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; font-size: 14px; }
   .empty { text-align: center; color: #999; padding: 40px; }
 </style>
 </head>
@@ -106,6 +113,7 @@
     <button data-view="day" class="on">📦 배달</button>
     <button data-view="list">📋 주문<span id="waitBadge"></span></button>
     <button data-view="week">📊 정산</button>
+    <button data-view="menu">🍱 식단</button>
   </div>
   <div id="vDay">
   <div class="box day">
@@ -134,6 +142,22 @@
   <div class="tabs" id="tabs"></div>
   <div id="list"></div>
   </div>
+  <div id="vMenu" style="display:none">
+    <div class="box">
+      <div class="daynav">
+        <button id="mPrev">◀</button>
+        <div id="mTitle" style="flex:1;text-align:center;font-weight:700"></div>
+        <button id="mNext">▶</button>
+      </div>
+      <div class="mgrid mhead"><span></span><span>메인</span><span>국</span></div>
+      <div id="menuRows"></div>
+      <div class="btns" style="margin-top:12px">
+        <button id="mCopy">📋 지난주 복사</button>
+        <button id="mSave" class="save">💾 일주일 저장</button>
+      </div>
+      <p style="font-size:13px;color:#888;margin-top:10px">저장하면 손님 화면에 바로 나와요. 비워 둔 날은 "식단 준비 중"으로 보여요.</p>
+    </div>
+  </div>
 </div>
 
 <script type="module">
@@ -147,7 +171,7 @@ const firebaseConfig = {
 };
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, addDoc, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const app = initializeApp(firebaseConfig);
@@ -214,6 +238,7 @@ onAuthStateChanged(auth, user => {
   document.getElementById("app").style.display = user ? "block" : "none";
   document.getElementById("logout").style.display = user ? "block" : "none";
   if (user && !unsub) {
+    watchMenus();
     unsub = onSnapshot(query(collection(db, "subscriptions"), orderBy("createdAt", "desc")), snap => {
       subs = snap.docs.map(d => normalize({ id: d.id, ...d.data() }));
       render();
@@ -240,6 +265,78 @@ function countUp(list) {
 const lines = r => (Object.entries(r.count).map(([k, v]) => `<div class="sline">${k}<span><b>${v}개</b></span></div>`).join("") || '<div class="sline">없음</div>')
   + `<div class="sline total2">합계<span>${r.boxes}개 · ${won(r.money)}</span></div>`;
 
+// ===== 식단 =====
+let menus = {};          // 날짜 → {main, soup}
+let menuDraft = {};      // 고치는 중인 값
+let menuMon = (() => { const d = new Date(TODAY + "T00:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return ymd(d); })();
+let menuUnsub = null;
+const addDays = (s, n) => { const d = new Date(s + "T00:00"); d.setDate(d.getDate() + n); return ymd(d); };
+const menuWeek = () => [...Array(7)].map((_, i) => addDays(menuMon, i));
+function watchMenus() {
+  if (menuUnsub) return;
+  menuUnsub = onSnapshot(collection(db, "dosirakMenus"), snap => {
+    menus = {};
+    snap.docs.forEach(d => { menus[d.id] = d.data(); });
+    if (view === "day") render();
+    if (view === "menu" && !Object.keys(menuDraft).length) renderMenu();
+  }, err => console.warn(err));
+}
+function val(date, key) {
+  if (menuDraft[date] && key in menuDraft[date]) return menuDraft[date][key];
+  return (menus[date] && menus[date][key]) || "";
+}
+function renderMenu() {
+  const W = menuWeek();
+  document.getElementById("mTitle").textContent = `🍱 ${label(W[0])} ~ ${label(W[6])}`;
+  document.getElementById("menuRows").innerHTML = W.map(d => {
+    const dirty = k => menuDraft[d] && k in menuDraft[d] && menuDraft[d][k] !== ((menus[d] && menus[d][k]) || "");
+    return `<div class="mgrid">
+      <span class="md ${d < TODAY ? "past" : ""}">${label(d)}</span>
+      <input data-md="${d}" data-mk="main" value="${esc(val(d, "main"))}" placeholder="메인" class="${dirty("main") ? "dirty" : ""}">
+      <input data-md="${d}" data-mk="soup" value="${esc(val(d, "soup"))}" placeholder="국" class="${dirty("soup") ? "dirty" : ""}">
+    </div>`;
+  }).join("");
+}
+document.addEventListener("input", e => {
+  const t = e.target;
+  if (!t.dataset || !t.dataset.md) return;
+  (menuDraft[t.dataset.md] = menuDraft[t.dataset.md] || {})[t.dataset.mk] = t.value;
+  t.classList.add("dirty");
+});
+const confirmLeave = () => !Object.keys(menuDraft).length || confirm("저장 안 한 식단이 있어요. 그래도 넘어갈까요?");
+document.getElementById("mPrev").onclick = () => { if (!confirmLeave()) return; menuDraft = {}; menuMon = addDays(menuMon, -7); renderMenu(); };
+document.getElementById("mNext").onclick = () => { if (!confirmLeave()) return; menuDraft = {}; menuMon = addDays(menuMon, 7); renderMenu(); };
+document.getElementById("mCopy").onclick = () => {
+  const W = menuWeek();
+  let n = 0;
+  W.forEach(d => {
+    const prev = menus[addDays(d, -7)];
+    if (prev && (prev.main || prev.soup)) { menuDraft[d] = { main: prev.main || "", soup: prev.soup || "" }; n++; }
+  });
+  if (!n) { alert("지난주에 저장된 식단이 없어요."); return; }
+  renderMenu();
+  alert(`지난주 식단 ${n}일치를 불러왔어요.\n바꿀 것만 고친 뒤 '일주일 저장'을 눌러 주세요.`);
+};
+document.getElementById("mSave").onclick = async () => {
+  const W = menuWeek();
+  const btn = document.getElementById("mSave");
+  btn.disabled = true; btn.textContent = "저장 중...";
+  try {
+    for (const d of W) {
+      if (!menuDraft[d]) continue;
+      const main = val(d, "main").trim(), soup = val(d, "soup").trim();
+      if (main || soup) await setDoc(doc(db, "dosirakMenus", d), { date: d, main, soup });
+      else if (menus[d]) await deleteDoc(doc(db, "dosirakMenus", d));
+    }
+    menuDraft = {};
+    alert("식단을 저장했어요 ✅ 손님 화면에 바로 나와요.");
+  } catch (err) {
+    alert("저장 실패: " + err.message + "\n(Firebase 규칙에 식단 부분이 있는지 확인해 주세요)");
+  }
+  btn.disabled = false; btn.textContent = "💾 일주일 저장";
+  renderMenu();
+};
+
 // 선택한 날 배달 (진행중만)
 function daySummary() {
   const rows = [];
@@ -262,7 +359,9 @@ function daySummary() {
       <button data-sms="${s.id}" data-kind="arrive">💬 문자</button>
     </div>
     </div>`).join("");
-  return `<div class="stitle">📦 ${label(day)}${day === TODAY ? " 오늘" : ""} 배달 · <span style="color:#d9532b">남은 ${left}곳</span> / 전체 ${rows.length}곳${rows.length && !left ? " 🎉" : ""}</div>
+  const mm = menus[day];
+  const menuLine = mm && (mm.main || mm.soup) ? `<div class="todayMenu">🍖 <b>${esc(mm.main || "-")}</b> · 🍲 ${esc(mm.soup || "-")}</div>` : "";
+  return menuLine + `<div class="stitle">📦 ${label(day)}${day === TODAY ? " 오늘" : ""} 배달 · <span style="color:#d9532b">남은 ${left}곳</span> / 전체 ${rows.length}곳${rows.length && !left ? " 🎉" : ""}</div>
     ${lines(r)}
     ${who ? `<div class="deliv">${who}</div>` : ""}
     ${pending ? `<div class="pend">⚠️ 이 날짜에 아직 확인 안 한 신청이 ${pending}건 있어요</div>` : ""}`;
@@ -325,7 +424,7 @@ function allSummary() {
 }
 
 function render() {
-  ["day", "week", "list"].forEach(v => document.getElementById("v" + v[0].toUpperCase() + v.slice(1)).style.display = v === view ? "block" : "none");
+  ["day", "week", "list", "menu"].forEach(v => document.getElementById("v" + v[0].toUpperCase() + v.slice(1)).style.display = v === view ? "block" : "none");
   document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.view === view));
   const waitN = subs.filter(s => s.status === "신청").length;
   document.getElementById("waitBadge").innerHTML = waitN ? `<span class="nb">${waitN}</span>` : "";
@@ -510,7 +609,7 @@ document.addEventListener("click", async e => {
   if (!t) return;
   if (t.dataset.tab) { tab = t.dataset.tab; render(); }
   if (t.id === "addNew") { startNew(); return; }
-  if (t.dataset.view) { view = t.dataset.view; render(); window.scrollTo(0, 0); return; }
+  if (t.dataset.view) { view = t.dataset.view; render(); if (view === "menu") renderMenu(); window.scrollTo(0, 0); return; }
   if (t.dataset.arrive) {
     const s = subs.find(x => x.id === t.dataset.arrive);
     if (!s) return;
