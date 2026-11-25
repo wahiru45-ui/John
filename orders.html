@@ -224,6 +224,12 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
       <label class="field"><span>가게 주소 (거리 계산 기준)</span><input id="sShop"></label>
       <label class="field"><span>카카오 지도 JavaScript 키</span><input id="sKey" placeholder="카카오 개발자 사이트에서 복사해 붙여넣기" autocomplete="off"></label>
     </div>
+    <div class="box"><h4>🛵 기본 배달비 (주문 금액별, 배달만)</h4>
+      <p style="font-size:13px;color:var(--soft);margin:0 0 6px">상품 금액 기준이에요. 거리별 배달팁은 따로 더해져요.</p>
+      <div class="trow" style="grid-template-columns:auto minmax(0,1fr) auto"><span>기본</span><input id="bf0" type="number" inputmode="numeric" step="100" aria-label="기본 배달비"><span>원</span></div>
+      <div class="trow" style="margin-top:8px;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto"><input id="bm1" type="number" inputmode="numeric" step="1000" aria-label="기준 금액 1"><span>원 이상 →</span><input id="bf1" type="number" inputmode="numeric" step="100" aria-label="배달비 1"><span>원</span></div>
+      <div class="trow" style="margin-top:8px;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto"><input id="bm2" type="number" inputmode="numeric" step="1000" aria-label="기준 금액 2"><span>원 이상 →</span><input id="bf2" type="number" inputmode="numeric" step="100" aria-label="배달비 2"><span>원</span></div>
+    </div>
     <div class="box"><h4>최소 주문금액·할인</h4>
       <p style="font-size:13px;color:var(--soft);margin:0 0 6px">상품 금액이 기준 이상이면 결제 금액에서 한 번 할인돼요. 여러 구간에 해당하면 가장 큰 할인 하나만 적용돼요.</p>
       <label class="field" style="margin:0 0 12px"><span>최소 주문금액 (원, 이 금액보다 적으면 손님이 주문할 수 없어요. 0이면 제한 없음)</span><input id="sMin" type="number" inputmode="numeric" min="0" step="1000"></label>
@@ -1293,7 +1299,7 @@ onAuthStateChanged(auth, user => {
 // ===== 영업시간·할인 설정 =====
 const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const DEFAULTS = { hours: { 0: { closed: true, open: "10:00", close: "20:00" } }, paused: false, minOrder: 15000,
-  shopAddr: "광주 서구 쌍촌동 1325", kakaoKey: "", maxKm: 7, tips: [{ upto: 2, fee: 0, min: 0 }, { upto: 4, fee: 2000, min: 0 }, { upto: 7, fee: 4000, min: 30000 }], stamp: { on: true, need: 3, amount: 3000 }, tiers: [{ min: 15000, amount: 3000 }, { min: 35000, amount: 5000 }, { min: 50000, amount: 7000 }] };
+  shopAddr: "광주 서구 쌍촌동 1325", kakaoKey: "", maxKm: 7, tips: [{ upto: 2, fee: 0, min: 0 }, { upto: 4, fee: 2000, min: 0 }, { upto: 7, fee: 4000, min: 30000 }], baseFee: [{ min: 0, fee: 1500 }, { min: 35000, fee: 900 }, { min: 50000, fee: 0 }], stamp: { on: true, need: 3, amount: 3000 }, tiers: [{ min: 15000, amount: 3000 }, { min: 35000, amount: 5000 }, { min: 50000, amount: 7000 }] };
 let S = DEFAULTS, unsubS = null;
 // 결제 금액 구간별 할인: 상품 금액이 min 이상이면 amount 할인 (가장 큰 구간 하나만)
 const tiersOf = s => (Array.isArray(s.tiers) ? s.tiers : (s.discount ? [{ min: s.discountMin || 0, amount: s.discount }] : []))
@@ -1354,6 +1360,7 @@ function receiptHTML(o) {
       ${o.subtotal != null ? `<tr><td>상품 금액</td><td class="r">${won(o.subtotal)}</td></tr>` : ""}
       ${o.discount ? `<tr><td>할인</td><td class="r">-${won(o.discount)}</td></tr>` : ""}
       ${o.stampDiscount ? `<tr><td>스탬프 할인</td><td class="r">-${won(o.stampDiscount)}</td></tr>` : ""}
+      ${o.baseFee ? `<tr><td>기본 배달비</td><td class="r">+${won(o.baseFee)}</td></tr>` : ""}
       ${o.deliveryTip ? `<tr><td>배달팁</td><td class="r">+${won(o.deliveryTip)}</td></tr>` : ""}
       <tr><td><b>결제 금액</b></td><td class="r big">${won(o.total)}</td></tr>
     </table>
@@ -1380,6 +1387,9 @@ $("setBtn").onclick = () => {
   drawTips(S.tips || DEFAULTS.tips);
   $("sMaxKm").value = S.maxKm ?? 7; $("sShop").value = S.shopAddr || DEFAULTS.shopAddr; $("sKey").value = S.kakaoKey || "";
   $("sMin").value = S.minOrder ?? 15000;
+  { const b = (Array.isArray(S.baseFee) && S.baseFee.length ? S.baseFee : DEFAULTS.baseFee).slice().sort((a, b) => a.min - b.min);
+    const at = i => b[i] || DEFAULTS.baseFee[i];
+    $("bf0").value = at(0).fee; $("bm1").value = at(1).min; $("bf1").value = at(1).fee; $("bm2").value = at(2).min; $("bf2").value = at(2).fee; }
   { const st = { ...DEFAULTS.stamp, ...(S.stamp || {}) }; $("stOn").checked = !!st.on; $("stNeed").value = st.need; $("stAmt").value = st.amount; }
   $("sHours").innerHTML = DAYS.map((d, i) => {
     const h = dayHours(i), op = h.open === "00:00" && h.close === "24:00" ? "10:00" : h.open, cl = h.close === "24:00" ? "21:00" : h.close;
@@ -1421,6 +1431,7 @@ $("sSave").onclick = async () => {
   try { await setDoc(doc(db, "settings", "shop"), { hours, paused: $("sPause").checked, minOrder: Math.max(0, parseInt($("sMin").value, 10) || 0), tiers,
       tips: readTips().filter(t => t.upto > 0).sort((a, b) => a.upto - b.upto), maxKm: Math.max(0, +$("sMaxKm").value || 0) || 7,
       shopAddr: $("sShop").value.trim() || DEFAULTS.shopAddr, kakaoKey: $("sKey").value.trim(),
+      baseFee: [{ min: 0, fee: Math.max(0, parseInt($("bf0").value, 10) || 0) }, { min: Math.max(0, parseInt($("bm1").value, 10) || 0), fee: Math.max(0, parseInt($("bf1").value, 10) || 0) }, { min: Math.max(0, parseInt($("bm2").value, 10) || 0), fee: Math.max(0, parseInt($("bf2").value, 10) || 0) }],
       stamp: { on: $("stOn").checked, need: Math.min(10, Math.max(1, parseInt($("stNeed").value, 10) || 3)), amount: Math.max(0, parseInt($("stAmt").value, 10) || 0) }, updatedAt: serverTimestamp() }); closeSet(); }
   catch (err) { console.error(err); $("sErr").textContent = "저장하지 못했어요. Firebase 규칙에 settings가 추가됐는지 확인해 주세요."; }
   finally { $("sSave").disabled = false; $("sSave").textContent = "설정 저장"; }
@@ -1514,7 +1525,7 @@ function card(o) {
     <div class="head"><span class="code">${esc(o.code)}</span><span class="tag t-${o.type}">${TYPE[o.type] || ""}${o.type === "table" ? " " + esc(o.table) + "번" : ""}</span><span class="st">${ST[o.status] || ""}</span>${o.editedAt ? `<span class="edited">수정됨</span>` : ""}<span class="time">${time}</span></div>
     <div class="body"><div class="cl">
     <ul class="items">${(o.items || []).map(i => `<li><span>${esc(i.name)}</span><b>× ${i.qty}</b></li>`).join("")}</ul>
-    ${o.discount || o.stampDiscount || o.deliveryTip || o.tipCheck ? `<div class="money"><div class="line"><span>상품 금액</span><b>${won(o.subtotal)}</b></div>${o.discount ? `<div class="line dc"><span>할인</span><b>−${won(o.discount)}</b></div>` : ""}${o.stampDiscount ? `<div class="line dc"><span>🎟 스탬프 할인</span><b>−${won(o.stampDiscount)}</b></div>` : ""}${o.type === "delivery" && (o.deliveryTip != null || o.tipCheck) ? `<div class="line"><span>배달팁${o.distKm != null ? ` (약 ${o.distKm}km)` : ""}</span><b>${o.tipCheck ? "⚠ 주소 확인 후 안내" : o.deliveryTip ? "+" + won(o.deliveryTip) : "무료"}</b></div>` : ""}</div>` : ""}
+    ${o.discount || o.stampDiscount || o.baseFee || o.deliveryTip || o.tipCheck ? `<div class="money"><div class="line"><span>상품 금액</span><b>${won(o.subtotal)}</b></div>${o.discount ? `<div class="line dc"><span>할인</span><b>−${won(o.discount)}</b></div>` : ""}${o.stampDiscount ? `<div class="line dc"><span>🎟 스탬프 할인</span><b>−${won(o.stampDiscount)}</b></div>` : ""}${o.baseFee ? `<div class="line"><span>기본 배달비</span><b>+${won(o.baseFee)}</b></div>` : ""}${o.type === "delivery" && (o.deliveryTip != null || o.tipCheck) ? `<div class="line"><span>배달팁${o.distKm != null ? ` (약 ${o.distKm}km)` : ""}</span><b>${o.tipCheck ? "⚠ 주소 확인 후 안내" : o.deliveryTip ? "+" + won(o.deliveryTip) : "무료"}</b></div>` : ""}</div>` : ""}
     <div class="total">${o.discount || o.stampDiscount ? "결제 " : ""}${won(o.total)}</div>
     </div><div class="cr">
     ${o.type !== "table" ? `
@@ -1640,7 +1651,9 @@ $("modal").addEventListener("click", e => { if (e.target === $("modal")) closeEd
 const eSub = () => edit.items.reduce((s, i) => s + i.price * i.qty, 0);
 const eDisc = () => tierDiscount(S, eSub());
 const eSd = () => Math.max(0, Math.min(edit.sd || 0, eSub() - eDisc()));
-const eTotal = () => eSub() - eDisc() - eSd() + (edit.tip || 0);
+const baseFeeOf = sub => { let f = 0; (Array.isArray(S.baseFee) ? S.baseFee : DEFAULTS.baseFee).slice().sort((a, b) => a.min - b.min).forEach(t => { if (sub >= t.min) f = +t.fee || 0; }); return f; };
+const eBase = () => (edit.type === "table" ? 0 : val("eHow") === "delivery" ? baseFeeOf(eSub()) : 0);
+const eTotal = () => eSub() - eDisc() - eSd() + eBase() + (edit.tip || 0);
 function drawItems() {
   $("eItems").innerHTML = edit.items.map((i, k) => `<div class="erow"><span class="nm">${esc(i.name)}<small>${won(i.price)}</small></span>
     <div class="step"><button data-eq="${k}" data-d="-1" aria-label="빼기">−</button><b>${i.qty}</b><button data-eq="${k}" data-d="1" aria-label="더하기">+</button></div>
@@ -1677,7 +1690,7 @@ $("eSave").onclick = async () => {
   if (!edit) return;
   $("eErr").textContent = "";
   if (!edit.items.length) { $("eErr").textContent = "메뉴가 하나 이상 있어야 해요. 주문을 없애려면 취소를 누르세요."; return; }
-  const upd = { items: edit.items, subtotal: eSub(), discount: eDisc(), ...(edit.sd ? { stampDiscount: eSd() } : {}), total: eTotal(), memo: $("eMemo").value.trim().slice(0, 300), editedAt: serverTimestamp() };
+  const upd = { items: edit.items, subtotal: eSub(), discount: eDisc(), ...(edit.sd ? { stampDiscount: eSd() } : {}), baseFee: eBase(), total: eTotal(), memo: $("eMemo").value.trim().slice(0, 300), editedAt: serverTimestamp() };
   if (edit.type !== "table") {
     const type = val("eHow"), phone = digits($("ePhone").value), address = $("eAddr").value.trim();
     if (phone.length < 10 || phone.length > 11) { $("eErr").textContent = "전화번호를 확인해 주세요."; return; }
