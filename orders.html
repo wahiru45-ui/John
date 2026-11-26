@@ -231,6 +231,13 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
       <label class="field"><span>가게 주소 (거리 계산 기준)</span><input id="sShop"></label>
       <label class="field"><span>카카오 지도 JavaScript 키</span><input id="sKey" placeholder="카카오 개발자 사이트에서 복사해 붙여넣기" autocomplete="off"></label>
     </div>
+    <div class="box"><h4>🚦 지역·시간 배달 제한</h4>
+      <p style="font-size:13px;color:var(--soft);margin:0 0 6px">손님 주소에 지역 이름이 들어 있고 그 시간이면 배달 주문을 막아요. 포장은 가능해요. 체크를 끄면 꺼져요.</p>
+      <div class="trow" style="margin-top:8px;grid-template-columns:auto minmax(0,1.2fr) minmax(0,1fr) auto minmax(0,1fr)"><input type="checkbox" id="ab0on" aria-label="사용" style="width:22px;height:22px"><input id="ab0area" placeholder="지역 (예: 광산구)" aria-label="지역"><input id="ab0from" type="time" step="1800" aria-label="시작"><span>~</span><input id="ab0to" type="time" step="1800" aria-label="끝"></div>
+      <input id="ab0why" placeholder="손님에게 보일 이유 (예: 퇴근 시간 교통 혼잡)" aria-label="이유" style="margin-top:4px;width:100%;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;font:inherit;box-sizing:border-box">
+      <div class="trow" style="margin-top:8px;grid-template-columns:auto minmax(0,1.2fr) minmax(0,1fr) auto minmax(0,1fr)"><input type="checkbox" id="ab1on" aria-label="사용" style="width:22px;height:22px"><input id="ab1area" placeholder="지역 (예: 광산구)" aria-label="지역"><input id="ab1from" type="time" step="1800" aria-label="시작"><span>~</span><input id="ab1to" type="time" step="1800" aria-label="끝"></div>
+      <input id="ab1why" placeholder="손님에게 보일 이유 (예: 퇴근 시간 교통 혼잡)" aria-label="이유" style="margin-top:4px;width:100%;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;font:inherit;box-sizing:border-box">
+    </div>
     <div class="box"><h4>🛵 기본 배달비 (주문 금액별, 배달만)</h4>
       <p style="font-size:13px;color:var(--soft);margin:0 0 6px">상품 금액 기준이에요. 거리별 배달팁은 따로 더해져요.</p>
       <div class="trow" style="grid-template-columns:auto minmax(0,1fr) auto"><span>기본</span><input id="bf0" type="number" inputmode="numeric" step="100" aria-label="기본 배달비"><span>원</span></div>
@@ -1306,7 +1313,7 @@ onAuthStateChanged(auth, user => {
 // ===== 영업시간·할인 설정 =====
 const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const DEFAULTS = { hours: { 0: { closed: true, open: "10:00", close: "20:00" } }, paused: false, minOrder: 15000,
-  shopAddr: "광주 서구 쌍촌동 1325", kakaoKey: "", maxKm: 7, tips: [{ upto: 2, fee: 0, min: 0 }, { upto: 4, fee: 2000, min: 0 }, { upto: 7, fee: 4000, min: 30000 }], baseFee: [{ min: 0, fee: 1500 }, { min: 35000, fee: 900 }, { min: 50000, fee: 0 }], stamp: { on: true, need: 3, amount: 3000 }, tiers: [{ min: 15000, amount: 2000 }, { min: 35000, amount: 4000 }, { min: 50000, amount: 7000 }] };
+  shopAddr: "광주 서구 쌍촌동 1325", kakaoKey: "", maxKm: 7, tips: [{ upto: 2, fee: 0, min: 0 }, { upto: 4, fee: 2000, min: 0 }, { upto: 7, fee: 4000, min: 30000 }], areaBlocks: [{ on: true, area: "광산구", from: "17:00", to: "19:00", why: "퇴근 시간 교통 혼잡" }], baseFee: [{ min: 0, fee: 1500 }, { min: 35000, fee: 900 }, { min: 50000, fee: 0 }], stamp: { on: true, need: 3, amount: 3000 }, tiers: [{ min: 15000, amount: 2000 }, { min: 35000, amount: 4000 }, { min: 50000, amount: 7000 }] };
 let S = DEFAULTS, unsubS = null;
 // 결제 금액 구간별 할인: 상품 금액이 min 이상이면 amount 할인 (가장 큰 구간 하나만)
 const tiersOf = s => (Array.isArray(s.tiers) ? s.tiers : (s.discount ? [{ min: s.discountMin || 0, amount: s.discount }] : []))
@@ -1394,6 +1401,9 @@ $("setBtn").onclick = () => {
   drawTips(S.tips || DEFAULTS.tips);
   $("sMaxKm").value = S.maxKm ?? 7; $("sShop").value = S.shopAddr || DEFAULTS.shopAddr; $("sKey").value = S.kakaoKey || "";
   $("sMin").value = S.minOrder ?? 15000;
+  { const ab = Array.isArray(S.areaBlocks) ? S.areaBlocks : DEFAULTS.areaBlocks;
+    for (let i = 0; i < 2; i++) { const b = ab[i] || { on: false, area: "", from: "17:00", to: "19:00", why: "" };
+      $(`ab${i}on`).checked = !!b.on; $(`ab${i}area`).value = b.area || ""; $(`ab${i}from`).value = b.from || "17:00"; $(`ab${i}to`).value = b.to || "19:00"; $(`ab${i}why`).value = b.why || ""; } }
   { const b = (Array.isArray(S.baseFee) && S.baseFee.length ? S.baseFee : DEFAULTS.baseFee).slice().sort((a, b) => a.min - b.min);
     const at = i => b[i] || DEFAULTS.baseFee[i];
     $("bf0").value = at(0).fee; $("bm1").value = at(1).min; $("bf1").value = at(1).fee; $("bm2").value = at(2).min; $("bf2").value = at(2).fee; }
@@ -1438,6 +1448,7 @@ $("sSave").onclick = async () => {
   try { await setDoc(doc(db, "settings", "shop"), { hours, paused: $("sPause").checked, minOrder: Math.max(0, parseInt($("sMin").value, 10) || 0), tiers,
       tips: readTips().filter(t => t.upto > 0).sort((a, b) => a.upto - b.upto), maxKm: Math.max(0, +$("sMaxKm").value || 0) || 7,
       shopAddr: $("sShop").value.trim() || DEFAULTS.shopAddr, kakaoKey: $("sKey").value.trim(),
+      areaBlocks: [0, 1].map(i => ({ on: $(`ab${i}on`).checked && !!$(`ab${i}area`).value.trim(), area: $(`ab${i}area`).value.trim(), from: $(`ab${i}from`).value || "17:00", to: $(`ab${i}to`).value || "19:00", why: $(`ab${i}why`).value.trim() || "교통 혼잡" })).filter(b => b.area),
       baseFee: [{ min: 0, fee: Math.max(0, parseInt($("bf0").value, 10) || 0) }, { min: Math.max(0, parseInt($("bm1").value, 10) || 0), fee: Math.max(0, parseInt($("bf1").value, 10) || 0) }, { min: Math.max(0, parseInt($("bm2").value, 10) || 0), fee: Math.max(0, parseInt($("bf2").value, 10) || 0) }],
       stamp: { on: $("stOn").checked, need: Math.min(10, Math.max(1, parseInt($("stNeed").value, 10) || 3)), amount: Math.max(0, parseInt($("stAmt").value, 10) || 0) }, updatedAt: serverTimestamp() }); closeSet(); }
   catch (err) { console.error(err); $("sErr").textContent = "저장하지 못했어요. Firebase 규칙에 settings가 추가됐는지 확인해 주세요."; }

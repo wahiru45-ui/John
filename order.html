@@ -341,7 +341,7 @@ const SHOP = { name: "맛있는밥집 쌍촌본점", phone: "010-6572-5152", ban
 // 할인: 15,000원 이상 2,000원 / 35,000원 이상 4,000원 / 50,000원 이상 7,000원
 const DEFAULTS = { hours: { 0: { closed: true, open: "10:00", close: "20:00" } }, paused: false, minOrder: 15000,
   // 거리별 배달팁(손님 부담): upto km까지 fee원, 그 거리의 최소 주문금액 min원. maxKm 넘으면 배달 불가. 카카오 지도 키가 있어야 작동해요.
-  shopAddr: "광주 서구 쌍촌동 1325", kakaoKey: "", maxKm: 7, tips: [{ upto: 2, fee: 0, min: 0 }, { upto: 4, fee: 2000, min: 0 }, { upto: 7, fee: 4000, min: 30000 }], baseFee: [{ min: 0, fee: 1500 }, { min: 35000, fee: 900 }, { min: 50000, fee: 0 }], stamp: { on: true, need: 3, amount: 3000 }, tiers: [{ min: 15000, amount: 2000 }, { min: 35000, amount: 4000 }, { min: 50000, amount: 7000 }] };
+  shopAddr: "광주 서구 쌍촌동 1325", kakaoKey: "", maxKm: 7, tips: [{ upto: 2, fee: 0, min: 0 }, { upto: 4, fee: 2000, min: 0 }, { upto: 7, fee: 4000, min: 30000 }], areaBlocks: [{ on: true, area: "광산구", from: "17:00", to: "19:00", why: "퇴근 시간 교통 혼잡" }], baseFee: [{ min: 0, fee: 1500 }, { min: 35000, fee: 900 }, { min: 50000, fee: 0 }], stamp: { on: true, need: 3, amount: 3000 }, tiers: [{ min: 15000, amount: 2000 }, { min: 35000, amount: 4000 }, { min: 50000, amount: 7000 }] };
 // 주문 메뉴. 가격을 바꾸려면 숫자만 고치세요. [이름, 가격, 안내]
 const MENU = [
 {
@@ -1549,11 +1549,11 @@ async function geocode(addr) {
   for (let n = toks.length; n >= 4; n--) {
     const q = toks.slice(0, n).join(" ");
     const r = await new Promise(res => g.addressSearch(q, (d, st) => res(st === sv.Status.OK ? d[0] : null)));
-    if (r) return { lat: +r.y, lng: +r.x };
+    if (r) return { lat: +r.y, lng: +r.x, region: r.address_name || "" };
   }
   const p = new sv.Places();
   const r = await new Promise(res => p.keywordSearch(a, (d, st) => res(st === sv.Status.OK ? d[0] : null)));
-  return r ? { lat: +r.y, lng: +r.x } : null;
+  return r ? { lat: +r.y, lng: +r.x, region: r.address_name || "" } : null;
 }
 const distKm = (a, b) => { const t = x => x * Math.PI / 180, dLa = t(b.lat - a.lat), dLo = t(b.lng - a.lng);
   const h = Math.sin(dLa / 2) ** 2 + Math.cos(t(a.lat)) * Math.cos(t(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * 6371 * Math.asin(Math.sqrt(h)); };
@@ -1573,7 +1573,7 @@ function checkGeo(now) {
       if (!shopP || shopAddrUsed !== S.shopAddr) { shopAddrUsed = S.shopAddr; shopP = geocode(S.shopAddr); }
       const [sp, p] = await Promise.all([shopP, geocode(addr)]);
       let r;
-      if (sp && p) { const km = Math.round(distKm(sp, p) * 10) / 10; r = km > (S.maxKm || 99) ? { status: "far", km, tip: 0 } : { status: "ok", km, tip: tipFor(km) }; }
+      if (sp && p) { const km = Math.round(distKm(sp, p) * 10) / 10; r = km > (S.maxKm || 99) ? { status: "far", km, tip: 0, region: p.region } : { status: "ok", km, tip: tipFor(km), region: p.region }; }
       else r = { status: "fail", km: null, tip: 0 };
       geoCache[addr] = r;
       if ($("cAddr").value.trim() === addr) { G = { ...r, addr }; drawGeo(); }
@@ -1581,6 +1581,16 @@ function checkGeo(now) {
     done();
   }, now ? 0 : 700); });
 }
+// ===== 지역·시간 배달 제한 (예: 17:00~19:00 광산구, 퇴근 시간 교통 혼잡) =====
+function areaBlock() {
+  if (val("how") !== "delivery") return null;
+  const text = `${$("cAddr").value} ${G.addr === $("cAddr").value.trim() ? G.region || "" : ""}`.replace(/\s+/g, "");
+  if (!text) return null;
+  const hm = kstNow().hm;
+  return (Array.isArray(S.areaBlocks) ? S.areaBlocks : DEFAULTS.areaBlocks).find(b => b.on && b.area && text.includes(String(b.area).replace(/\s+/g, ""))
+    && (b.from <= b.to ? hm >= b.from && hm < b.to : hm >= b.from || hm < b.to)) || null;
+}
+const areaMsg = b => `⚠ ${b.why || "교통 혼잡"}으로 ${b.from}~${b.to}에는 ${b.area} 배달이 어려워요. 포장 주문은 가능해요.`;
 function drawGeo() {
   const el = $("geoInfo");
   el.className = "geo" + (G.status === "far" ? " far" : G.status === "fail" ? " fail" : "");
@@ -1588,7 +1598,9 @@ function drawGeo() {
     : G.status === "ok" ? `📍 가게에서 약 ${G.km}km · 배달팁 ${G.tip ? won(G.tip) : "무료"}${farMin() > (+S.minOrder || 0) ? ` · 최소 주문 ${won(farMin())}` : ""}`
     : G.status === "far" ? `⚠ 가게에서 약 ${G.km}km라 배달할 수 없어요 (최대 ${S.maxKm}km). 포장으로 주문해 주세요.`
     : G.status === "fail" ? "📍 주소 위치를 찾지 못했어요. 배달팁은 가게에서 전화로 안내해 드려요." : "";
-  el.classList.toggle("hide", G.status === "none");
+  const ab = areaBlock();
+  if (ab) { el.className = "geo far"; el.textContent = areaMsg(ab); }
+  el.classList.toggle("hide", G.status === "none" && !ab);
   if ($("checkout").classList.contains("on")) renderCart();
   updateBar();
 }
@@ -1619,9 +1631,9 @@ function renderCart() {
   $("mNudge").textContent = sh ? `${farMin() > (+S.minOrder || 0) ? `${G.km}km 배달은 ` : ""}최소 주문금액이 ${won(minOrder())}이에요. ${won(sh)} 더 담아주세요.` : nx ? `${won(nx.min - sub)} 더 담으면 ${won(nx.amount)} 할인돼요.` : "";
   $("mNudge").style.color = sh ? "var(--red)" : "";
   $("mNudge").classList.toggle("hide", !sh && !nx);
-  const far = val("how") === "delivery" && G.status === "far";
-  $("submit").disabled = !open || !!sh || far;
-  $("submit").textContent = !open ? "지금은 주문 시간이 아니에요" : sh ? `${won(minOrder())} 이상 주문할 수 있어요` : far ? "배달 가능 거리를 넘었어요" : `${won(sub - dc - sdc + base + tip)} 주문하기`;
+  const far = val("how") === "delivery" && G.status === "far", ab = areaBlock();
+  $("submit").disabled = !open || !!sh || far || !!ab;
+  $("submit").textContent = !open ? "지금은 주문 시간이 아니에요" : sh ? `${won(minOrder())} 이상 주문할 수 있어요` : far ? "배달 가능 거리를 넘었어요" : ab ? `${ab.to}부터 ${ab.area} 배달할 수 있어요` : `${won(sub - dc - sdc + base + tip)} 주문하기`;
 }
 // ===== 폰 뒤로가기: 열린 창(주문서·주소검색·완료·알림)을 하나씩 닫아요 =====
 // 창을 열 때 방문 기록에 한 칸을 남겨 두고, 뒤로가기를 누르면 그 창만 닫아요.
@@ -1763,6 +1775,7 @@ $("submit").onclick = async () => {
   applyHours();
   if (!open) { $("err").textContent = S.paused ? "지금은 주문을 잠시 받지 않아요." : "지금은 주문 시간이 아니에요. " + nextOpenText(); return; }
   if (val("how") === "delivery" && S.kakaoKey) { checkGeo(true); if (G.status === "loading" && geoRun) { $("submit").textContent = "배달 거리 확인 중…"; await geoRun; } }
+  { const ab = areaBlock(); if (ab) { $("err").textContent = areaMsg(ab).replace("⚠ ", ""); drawGeo(); return; } }
   if (val("how") === "delivery" && G.status === "far") { $("err").textContent = `배달 가능 거리(${S.maxKm}km)를 넘었어요. 포장으로 주문해 주세요.`; return; }
   const sub = subTotal(), dc = discountOf(sub), tip = tipNow(), sdc = stampOf(sub), base = baseNow(sub);
   if (short(sub)) { $("err").textContent = `최소 주문금액은 ${won(minOrder())}이에요. ${won(short(sub))} 더 담아주세요.`; return; }
