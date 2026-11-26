@@ -237,7 +237,15 @@ function buildWeek() {
   }
 }
 buildWeek();
-const canPick = s => s >= FIRST && !CLOSED.includes(new Date(s + "T00:00").getDay());
+// ===== 당일 주문 =====
+// 오늘 날짜는 저녁 도시락만, 아래 시간 전까지 신청 가능 (24시간 기준)
+const SAME_DAY_MEAL = "저녁";
+const SAME_DAY_UNTIL = 15;   // 15 = 오후 3시
+const TODAY_STR = ymd(new Date());
+let todayLocked = false;     // 오늘 아침·점심을 이미 신청한 손님은 오늘 칸을 못 고침
+const sameDayOpen = () => new Date().getHours() < SAME_DAY_UNTIL;
+const canPick = s => !CLOSED.includes(new Date(s + "T00:00").getDay())
+  && (s >= FIRST || (s === TODAY_STR && sameDayOpen() && !todayLocked));
 
 const cart = {};   // { "2026-11-24": {heat:1, warm:0, salad:2} }
 let loaded = [];   // 이 휴대폰에서 예전에 신청한 내역 (수정 가능)
@@ -251,7 +259,7 @@ const snapCart = () => JSON.stringify(Object.fromEntries(ALL.filter(canPick).map
 const isChanged = () => snapCart() !== orig;
 // 식사 시간 (아침/점심/저녁). 안 고르면 점심
 const MEALS = ["아침", "점심", "저녁"];
-const getMeal = d => (cart[d] && cart[d].meal) || "점심";
+const getMeal = d => (cart[d] && cart[d].meal) || (d === TODAY_STR ? SAME_DAY_MEAL : "점심");
 let active = null;
 let lastPicked = null;
 
@@ -317,7 +325,9 @@ function render() {
       ${owner[s] && n ? `<div class="st ${pendingDate[s] ? "wait" : "ok"}">${pendingDate[s] ? "확인 대기" : "✓ 확인됨"}</div>` : ""}
     </button>`;
   }).join("") + `<div class="mealbox">${active && canPick(active)
-      ? `<div class="mt">식사 시간</div>` + MEALS.map(m => `<button class="mbtn ${getMeal(active) === m ? "on" : ""}" data-meal="${m}">${m}</button>`).join("")
+      ? (active === TODAY_STR
+          ? `<div class="mt">오늘은 ${SAME_DAY_MEAL}만<br>(${SAME_DAY_UNTIL > 12 ? "오후 " + (SAME_DAY_UNTIL - 12) : "오전 " + SAME_DAY_UNTIL}시까지)</div><button class="mbtn on" data-meal="${SAME_DAY_MEAL}">${SAME_DAY_MEAL}</button>`
+          : `<div class="mt">식사 시간</div>` + MEALS.map(m => `<button class="mbtn ${getMeal(active) === m ? "on" : ""}" data-meal="${m}">${m}</button>`).join(""))
       : `<div class="mt">날짜를 고르면<br>아침·점심·저녁<br>선택</div>`}</div>`;
 
   const panel = document.getElementById("panel");
@@ -371,7 +381,10 @@ document.addEventListener("click", e => {
   const t = e.target.closest("button");
   if (!t) return;
   if (t.dataset.date) { active = t.dataset.date; render(); }
-  if (t.dataset.meal && active) { cart[active] = cart[active] || {}; cart[active].meal = t.dataset.meal; render(); }
+  if (t.dataset.meal && active) {
+    if (active === TODAY_STR && t.dataset.meal !== SAME_DAY_MEAL) return;
+    cart[active] = cart[active] || {}; cart[active].meal = t.dataset.meal; render();
+  }
   if (t.dataset.myedit) {
     const d = t.dataset.myedit;
     const w = Math.floor((new Date(d + "T00:00") - baseMon) / (7 * 86400000));
@@ -507,6 +520,13 @@ async function loadMine() {
       keep.push(id);
       loaded.push({ id, ...d });
       live[id] = d;
+    } catch (e) { keep.push(id); dbg.push(`${id.slice(0,6)}: 오류 ${e.code || e.message}`); }
+  }
+  // 오늘 아침·점심을 이미 신청했으면 오늘 칸은 잠금
+  todayLocked = loaded.some(L => (L.orders || []).some(o => o.date === TODAY_STR && (o.meal || "점심") !== SAME_DAY_MEAL));
+  for (const L of loaded) {
+    const id = L.id, d = L;
+    {
       (d.orders || []).forEach(o => {
         if (!ALL.includes(o.date) || !canPick(o.date)) return;
         owner[o.date] = owner[o.date] || id;
@@ -515,7 +535,7 @@ async function loadMine() {
         o.items.forEach(i => { const k = nameToId[i.name]; if (k) cart[o.date][k] = (cart[o.date][k] || 0) + i.qty; });
         if (o.meal) cart[o.date].meal = o.meal;
       });
-    } catch (e) { keep.push(id); dbg.push(`${id.slice(0,6)}: 오류 ${e.code || e.message}`); }
+    }
   }
   me.subs = keep;
   keep.forEach(listen);
@@ -532,6 +552,10 @@ document.getElementById("submit").addEventListener("click", async () => {
   const v = id => document.getElementById(id).value.trim();
   if (!v("name") || !v("phone") || !v("addr")) { alert("연락처, 이름을 입력하고 🔍 주소 찾기로 주소를 골라 주세요."); return; }
   const btn = document.getElementById("submit");
+  if (dayCount(TODAY_STR) && !owner[TODAY_STR] && !sameDayOpen()) {
+    alert(`오늘 ${SAME_DAY_MEAL} 신청은 ${SAME_DAY_UNTIL > 12 ? "오후 " + (SAME_DAY_UNTIL - 12) : "오전 " + SAME_DAY_UNTIL}시까지예요. 가게로 전화해 주세요.`);
+    delete cart[TODAY_STR]; render(); return;
+  }
   btn.disabled = true; btn.textContent = "보내는 중..."; btn.dataset.busy = "1";
   const mk = d => ({
     date: d,
