@@ -38,11 +38,7 @@ body.v .fc{min-height:0}
   <button class="lgo" id="lgo">로그인</button>
 </div>
 <div id="app" class="hide" style="display:contents">
-  <div class="tabs" role="tablist">
-    <button class="tab" role="tab" id="t-staff" aria-selected="true">직원용 (누르기)</button>
-    <button class="tab" role="tab" id="t-view" aria-selected="false">보기용 (손님/TV)</button>
-  </div>
-  <div class="st"><span><b id="net" class="err">연결 중…</b></span><span>버전 2</span></div>
+  <div class="st"><span><b id="net" class="err">연결 중…</b></span><span>직원용 · 누르면 주문 앱 손님 화면에 표시 · 버전 3</span></div>
   <div class="wrap" id="wrap"></div>
   <div class="all" id="all"><button id="rall" type="button">전체 0으로 되돌리기</button></div>
 </div>
@@ -74,12 +70,10 @@ function change(k,d){
 }
 $("wrap").addEventListener("click",function(e){var b=e.target.closest("[data-k]");if(!b)return;change(b.dataset.k,+b.dataset.d)});
 $("rall").onclick=function(){if(!confirm("전체를 0으로 되돌릴까요?"))return;FISH.forEach(function(f){cnt[f.k]=0});draw();ref().set({mack:0,sam:0,gal:0,gul:0,ts:Date.now()},{merge:true})};
-function setMode(m){mode=m;$("t-staff").setAttribute("aria-selected",m==="staff");$("t-view").setAttribute("aria-selected",m==="view");draw()}
-$("t-staff").onclick=function(){location.hash="staff";setMode("staff")};
-$("t-view").onclick=function(){location.hash="view";setMode("view")};
+function setMode(m){mode=m;draw()}
 function start(){
   $("login").classList.add("hide");$("app").classList.remove("hide");
-  setMode(location.hash==="#view"?"view":"staff");
+  setMode("staff");
   unsub=ref().onSnapshot(function(s){
     var d=s.exists?s.data():{};
     FISH.forEach(function(f){cnt[f.k]=Math.max(0,+d[f.k]||0)});
@@ -91,5 +85,4 @@ function doLogin(){$("lerr").textContent="";auth.signInWithEmailAndPassword($("e
 $("lgo").onclick=doLogin;$("pw").addEventListener("keydown",function(e){if(e.key==="Enter")doLogin()});
 firebase.initializeApp(FIREBASE_CONFIG);auth=firebase.auth();fs=firebase.firestore();
 auth.onAuthStateChanged(function(u){if(u)start();else{if(unsub){unsub();unsub=null}showLogin()}});
-window.addEventListener("hashchange",function(){setMode(location.hash==="#view"?"view":"staff")});
 </script></body></html>
