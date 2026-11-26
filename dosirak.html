@@ -238,12 +238,15 @@ function buildWeek() {
 }
 buildWeek();
 // ===== 당일 주문 =====
-// 오늘 날짜는 저녁 도시락만, 아래 시간 전까지 신청 가능 (24시간 기준)
-const SAME_DAY_MEAL = "저녁";
-const SAME_DAY_UNTIL = 15;   // 15 = 오후 3시
+// 오늘 주문 마감 시간 (여기 없는 식사는 당일 주문 안 됨)
+const SAME_DAY = { "점심": [8, 30], "저녁": [15, 0] };   // [시, 분] 24시간 기준
 const TODAY_STR = ymd(new Date());
-let todayLocked = false;     // 오늘 아침·점심을 이미 신청한 손님은 오늘 칸을 못 고침
-const sameDayOpen = () => new Date().getHours() < SAME_DAY_UNTIL;
+let todayLocked = false;     // 오늘 마감 지난 식사를 이미 신청한 손님은 오늘 칸을 못 고침
+const nowMin = () => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); };
+const isOpenToday = m => SAME_DAY[m] && nowMin() < SAME_DAY[m][0] * 60 + SAME_DAY[m][1];
+const openMealsToday = () => ["아침", "점심", "저녁"].filter(isOpenToday);
+const sameDayOpen = () => openMealsToday().length > 0;
+const fmtTime = ([h, m]) => `${h < 12 ? "오전" : "오후"} ${h > 12 ? h - 12 : h}시${m ? " " + m + "분" : ""}`;
 const canPick = s => !CLOSED.includes(new Date(s + "T00:00").getDay())
   && (s >= FIRST || (s === TODAY_STR && sameDayOpen() && !todayLocked));
 
@@ -259,7 +262,7 @@ const snapCart = () => JSON.stringify(Object.fromEntries(ALL.filter(canPick).map
 const isChanged = () => snapCart() !== orig;
 // 식사 시간 (아침/점심/저녁). 안 고르면 점심
 const MEALS = ["아침", "점심", "저녁"];
-const getMeal = d => (cart[d] && cart[d].meal) || (d === TODAY_STR ? SAME_DAY_MEAL : "점심");
+const getMeal = d => (cart[d] && cart[d].meal) || (d === TODAY_STR ? (openMealsToday()[0] || "점심") : "점심");
 let active = null;
 let lastPicked = null;
 
@@ -326,7 +329,7 @@ function render() {
     </button>`;
   }).join("") + `<div class="mealbox">${active && canPick(active)
       ? (active === TODAY_STR
-          ? `<div class="mt">오늘은 ${SAME_DAY_MEAL}만<br>(${SAME_DAY_UNTIL > 12 ? "오후 " + (SAME_DAY_UNTIL - 12) : "오전 " + SAME_DAY_UNTIL}시까지)</div><button class="mbtn on" data-meal="${SAME_DAY_MEAL}">${SAME_DAY_MEAL}</button>`
+          ? `<div class="mt">오늘 주문 마감</div>` + openMealsToday().map(m => `<button class="mbtn ${getMeal(active) === m ? "on" : ""}" data-meal="${m}">${m}<br><span style="font-size:10px">${fmtTime(SAME_DAY[m])}</span></button>`).join("")
           : `<div class="mt">식사 시간</div>` + MEALS.map(m => `<button class="mbtn ${getMeal(active) === m ? "on" : ""}" data-meal="${m}">${m}</button>`).join(""))
       : `<div class="mt">날짜를 고르면<br>아침·점심·저녁<br>선택</div>`}</div>`;
 
@@ -382,7 +385,7 @@ document.addEventListener("click", e => {
   if (!t) return;
   if (t.dataset.date) { active = t.dataset.date; render(); }
   if (t.dataset.meal && active) {
-    if (active === TODAY_STR && t.dataset.meal !== SAME_DAY_MEAL) return;
+    if (active === TODAY_STR && !isOpenToday(t.dataset.meal)) return;
     cart[active] = cart[active] || {}; cart[active].meal = t.dataset.meal; render();
   }
   if (t.dataset.myedit) {
@@ -523,7 +526,7 @@ async function loadMine() {
     } catch (e) { keep.push(id); dbg.push(`${id.slice(0,6)}: 오류 ${e.code || e.message}`); }
   }
   // 오늘 아침·점심을 이미 신청했으면 오늘 칸은 잠금
-  todayLocked = loaded.some(L => (L.orders || []).some(o => o.date === TODAY_STR && (o.meal || "점심") !== SAME_DAY_MEAL));
+  todayLocked = loaded.some(L => (L.orders || []).some(o => o.date === TODAY_STR && !isOpenToday(o.meal || "점심")));
   for (const L of loaded) {
     const id = L.id, d = L;
     {
@@ -552,9 +555,12 @@ document.getElementById("submit").addEventListener("click", async () => {
   const v = id => document.getElementById(id).value.trim();
   if (!v("name") || !v("phone") || !v("addr")) { alert("연락처, 이름을 입력하고 🔍 주소 찾기로 주소를 골라 주세요."); return; }
   const btn = document.getElementById("submit");
-  if (dayCount(TODAY_STR) && !owner[TODAY_STR] && !sameDayOpen()) {
-    alert(`오늘 ${SAME_DAY_MEAL} 신청은 ${SAME_DAY_UNTIL > 12 ? "오후 " + (SAME_DAY_UNTIL - 12) : "오전 " + SAME_DAY_UNTIL}시까지예요. 가게로 전화해 주세요.`);
-    delete cart[TODAY_STR]; render(); return;
+  const todayChanged = JSON.stringify(JSON.parse(orig)[TODAY_STR]) !== JSON.stringify(JSON.parse(snapCart())[TODAY_STR]);
+  if (todayChanged && dayCount(TODAY_STR) && !isOpenToday(getMeal(TODAY_STR))) {
+    const m = getMeal(TODAY_STR);
+    alert(SAME_DAY[m] ? `오늘 ${m} 신청은 ${fmtTime(SAME_DAY[m])}까지예요. 가게로 전화해 주세요.` : `오늘 ${m}은 당일 신청이 안 돼요. 가게로 전화해 주세요.`);
+    if (!owner[TODAY_STR]) delete cart[TODAY_STR];
+    render(); return;
   }
   btn.disabled = true; btn.textContent = "보내는 중..."; btn.dataset.busy = "1";
   const mk = d => ({
