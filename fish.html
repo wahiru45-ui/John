@@ -14,16 +14,16 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans KR",
 .st{font-size:13px;color:var(--muted);padding:6px 14px;display:flex;justify-content:space-between}
 .st b.ok{color:var(--accent)}.st b.err{color:var(--warn)}
 .wrap{flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;padding:10px 14px 20px}
-.fc{background:var(--card);border:2px solid var(--line);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px 10px;min-height:300px}
+.fc{background:var(--card);border:2px solid var(--line);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 10px;min-height:300px}
 .fn{font-size:clamp(30px,5vw,52px);font-weight:900}
-.fv{font-size:clamp(80px,18vw,170px);font-weight:900;line-height:1.05;color:var(--accent)}
+.fv{font-size:clamp(80px,16vw,150px);font-weight:900;line-height:1.05;color:var(--accent)}
 .fv.z{color:var(--muted)}
-.sb{display:flex;gap:10px;width:100%;margin-top:12px}
-.sb button{flex:1;height:130px;border-radius:20px;border:3px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:64px;font-weight:900;cursor:pointer;touch-action:manipulation}
-.sb .plus{flex:2;background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
-.rs{margin-top:8px;min-height:52px;padding:0 24px;border:0;background:none;color:var(--muted);font:inherit;font-size:20px;font-weight:700;text-decoration:underline;cursor:pointer}
+.sb{display:flex;gap:12px;width:100%;margin-top:14px}
+.sb button{flex:1;height:190px;border-radius:24px;border:4px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:100px;line-height:1;font-weight:900;cursor:pointer;touch-action:manipulation}
+.sb .plus{flex:1.4;background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.rs{margin-top:10px;min-height:64px;padding:0 28px;border:0;background:none;color:var(--muted);font:inherit;font-size:20px;font-weight:700;text-decoration:underline;cursor:pointer}
 .all{padding:0 14px 16px}
-.all button{width:100%;height:68px;border-radius:14px;border:2px solid var(--line);background:var(--card);color:var(--muted);font:inherit;font-size:22px;font-weight:800;cursor:pointer}
+.all button{width:100%;height:84px;border-radius:14px;border:2px solid var(--line);background:var(--card);color:var(--muted);font:inherit;font-size:26px;font-weight:800;cursor:pointer}
 body.v .fc{min-height:0}
 .login{max-width:360px;margin:12vh auto;padding:0 20px}
 .login h1{font-size:24px}.inp{width:100%;height:52px;margin:6px 0;border:2px solid var(--line);border-radius:10px;padding:0 12px;font:inherit;font-size:18px;background:var(--card);color:var(--text)}
@@ -38,7 +38,7 @@ body.v .fc{min-height:0}
   <button class="lgo" id="lgo">로그인</button>
 </div>
 <div id="app" class="hide" style="display:contents">
-  <div class="st"><span><b id="net" class="err">연결 중…</b></span><span>직원용 · 누르면 주문 앱 손님 화면에 표시 · 버전 5</span></div>
+  <div class="st"><span><b id="net" class="err">연결 중…</b></span><span>직원용 · 누르면 주문 앱 손님 화면에 표시 · 버전 6</span></div>
   <div class="wrap" id="wrap"></div>
   <div class="all" id="all"><button id="rall" type="button">전체 0으로 되돌리기</button></div>
 </div>
