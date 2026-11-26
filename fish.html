@@ -52,7 +52,7 @@ body.v .fc{min-height:0}
   <button class="lgo" id="lgo">로그인</button>
 </div>
 <div id="app" class="hide" style="display:contents">
-  <div class="st"><span><b id="net" class="err">연결 중…</b></span><span>직원용 · 누르면 주문 앱 손님 화면에 표시 · 버전 8</span></div>
+  <div class="st"><span><b id="net" class="err">연결 중…</b></span><span>직원용 · 누르면 주문 앱 손님 화면에 표시 · 버전 9</span></div>
   <div class="wrap" id="wrap"></div>
   <div class="all" id="all"><button id="rall" type="button">전체 0으로 되돌리기</button></div>
 </div>
@@ -62,14 +62,14 @@ body.v .fc{min-height:0}
 <script>
 var FIREBASE_CONFIG={apiKey:"AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",authDomain:"house-order-a689f.firebaseapp.com",projectId:"house-order-a689f",storageBucket:"house-order-a689f.firebasestorage.app",messagingSenderId:"621901289473",appId:"1:621901289473:web:952c5951744cd9f5b40800"};
 var FISH=[{k:"mack",n:"고등어"},{k:"sam",n:"삼치"},{k:"gal",n:"갈치"},{k:"gul",n:"영광굴비"}];
-var $=function(i){return document.getElementById(i)},auth,fs,cnt={mack:[],sam:[],gal:[],gul:[]},GRILL=15,EXP=7200000,mode="staff",unsub=null;
+var $=function(i){return document.getElementById(i)},auth,fs,cnt={mack:[],sam:[],gal:[],gul:[]},GT={mack:13,sam:15,gal:14,gul:15},EXP=7200000,mode="staff",unsub=null;
 function ref(){return fs.collection("orders").doc("fish_state")}
 function mark(o){o.time=Date.now();o.ts=o.time;o.closed=true;o.status="done";o.items=[];o.table="";return o}
 function net(t,c){$("net").textContent=t;$("net").className=c}
 function live(k){var now=Date.now();return(cnt[k]||[]).filter(function(t){return now-t<EXP}).sort(function(a,b){return a-b})}
 function etaText(k){
   var a=live(k);if(!a.length)return"";var now=Date.now(),done=0,rem=null;
-  a.forEach(function(t){var r=t+GRILL*60000-now;if(r<=0)done++;else if(rem===null||r<rem)rem=r});
+  a.forEach(function(t){var r=t+GT[k]*60000-now;if(r<=0)done++;else if(rem===null||r<rem)rem=r});
   var p=[];if(done)p.push("🔔 완료 "+done);if(rem!==null)p.push("약 "+Math.max(1,Math.round(rem/60000))+"분 후");return p.join(" · ");
 }
 function draw(){
