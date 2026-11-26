@@ -38,7 +38,7 @@ body.v .fc{min-height:0}
   <button class="lgo" id="lgo">로그인</button>
 </div>
 <div id="app" class="hide" style="display:contents">
-  <div class="st"><span><b id="net" class="err">연결 중…</b></span><span>직원용 · 누르면 주문 앱 손님 화면에 표시 · 버전 3</span></div>
+  <div class="st"><span><b id="net" class="err">연결 중…</b></span><span>직원용 · 누르면 주문 앱 손님 화면에 표시 · 버전 4</span></div>
   <div class="wrap" id="wrap"></div>
   <div class="all" id="all"><button id="rall" type="button">전체 0으로 되돌리기</button></div>
 </div>
@@ -49,7 +49,8 @@ body.v .fc{min-height:0}
 var FIREBASE_CONFIG={apiKey:"AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",authDomain:"house-order-a689f.firebaseapp.com",projectId:"house-order-a689f",storageBucket:"house-order-a689f.firebasestorage.app",messagingSenderId:"621901289473",appId:"1:621901289473:web:952c5951744cd9f5b40800"};
 var FISH=[{k:"mack",n:"고등어"},{k:"sam",n:"삼치"},{k:"gal",n:"갈치"},{k:"gul",n:"영광굴비"}];
 var $=function(i){return document.getElementById(i)},auth,fs,cnt={mack:0,sam:0,gal:0,gul:0},mode="staff",unsub=null;
-function ref(){return fs.collection("fish").doc("state")}
+function ref(){return fs.collection("orders").doc("fish_state")}
+function mark(o){o.time=Date.now();o.ts=o.time;o.closed=true;o.status="done";o.items=[];o.table="";return o}
 function net(t,c){$("net").textContent=t;$("net").className=c}
 function draw(){
   var v=mode==="view";document.body.classList.toggle("v",v);
@@ -65,11 +66,11 @@ function change(k,d){
   var next=d===0?0:Math.max(0,(cnt[k]||0)+d);
   cnt[k]=next;draw();
   upd[k]=d===0?0:firebase.firestore.FieldValue.increment(d);
-  upd.ts=Date.now();
+  mark(upd);
   ref().set(upd,{merge:true}).catch(function(){net("저장 실패 — 인터넷을 확인하세요","err")});
 }
 $("wrap").addEventListener("click",function(e){var b=e.target.closest("[data-k]");if(!b)return;change(b.dataset.k,+b.dataset.d)});
-$("rall").onclick=function(){if(!confirm("전체를 0으로 되돌릴까요?"))return;FISH.forEach(function(f){cnt[f.k]=0});draw();ref().set({mack:0,sam:0,gal:0,gul:0,ts:Date.now()},{merge:true})};
+$("rall").onclick=function(){if(!confirm("전체를 0으로 되돌릴까요?"))return;FISH.forEach(function(f){cnt[f.k]=0});draw();ref().set(mark({mack:0,sam:0,gal:0,gul:0}),{merge:true})};
 function setMode(m){mode=m;draw()}
 function start(){
   $("login").classList.add("hide");$("app").classList.remove("hide");
