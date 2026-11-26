@@ -58,7 +58,7 @@ body.v .fc{min-height:0}
   <button class="lgo" id="lgo">로그인</button>
 </div>
 <div id="app" class="hide" style="display:contents">
-  <div class="st"><span><b id="net" class="err">연결 중…</b></span><span><span class="snd" id="snd">🔇 화면을 한 번 터치하면 알람 소리가 켜져요</span> · 버전 11</span></div>
+  <div class="st"><span><b id="net" class="err">연결 중…</b></span><span><span class="snd" id="snd">🔇 화면을 한 번 터치하면 알람 소리가 켜져요</span> · 버전 12</span></div>
   <div id="alerts" aria-live="assertive"></div>
   <div class="wrap" id="wrap"></div>
   <div class="all" id="all"><button id="rall" type="button">전체 0으로 되돌리기</button></div>
@@ -117,14 +117,15 @@ function say(text){
   beep();
   try{if(window.speechSynthesis){var u=new SpeechSynthesisUtterance(text);u.lang="ko-KR";u.rate=.95;u.volume=1;speechSynthesis.speak(u)}}catch(e){}
 }
+function bb(){beep();setTimeout(beep,250)}
 function alarm(k,kind){
-  var msg=kind===1?"생선을 확인해주세요":"나갈 준비해주세요",text=nm(k)+", "+msg,n=0;
-  var d=document.createElement("div");d.className="al a"+kind;d.innerHTML=nm(k)+'<small>'+msg+' (터치하면 꺼져요)</small>';
+  var msg=kind===1?"생선을 확인해주세요":"나갈 준비해주세요",n=0;
+  var d=document.createElement("div");d.className="al a"+kind;d.innerHTML=nm(k)+'<small>'+msg+'</small>';
   $("alerts").appendChild(d);
   function stop(){clearInterval(iv);if(d.parentNode)d.remove()}
-  /* 첫 소리 후 3초 뒤부터 확인하라고 다시 알려줌 (최대 6번, 터치하면 멈춤) */
-  say(text);
-  var iv=setInterval(function(){n++;if(n>6||!d.parentNode){stop();return}beep();setTimeout(function(){if(d.parentNode)say(text)},400)},5000);
+  say(nm(k)+", "+msg);
+  /* 한글 음성 3초 뒤부터 삑삑 소리 3초마다 5번, 터치 안 해도 저절로 멈춤 */
+  var iv=setInterval(function(){n++;if(n>5||!d.parentNode){stop();return}bb()},3000);
   d.onclick=stop;
 }
 function checkAlarms(){
