@@ -256,7 +256,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 831</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 832</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -530,7 +530,7 @@ function renderBoard(){
 }
 function renderKitchen(){
   var live=orders.filter(function(o){return !o.closed});
-  var newN=live.filter(function(o){return o.status==="new"}).length;
+  var newN=live.filter(function(o){return o.status==="new"&&Date.now()-o.time<900000}).length;
   var bd=$("badge");bd.textContent=newN||"";bd.classList.toggle("zero",!newN);
   $("tickets").className=kview==="board"?"board":"board cards";
   if(kview==="board"){renderBoard();return}
@@ -567,7 +567,7 @@ function route(){show(location.hash==="#kitchen"?"kitchen":"cust")}
 $("t-cust").onclick=function(){location.hash="order";show("cust")};
 $("t-kitchen").onclick=function(){location.hash="kitchen";show("kitchen")};
 window.addEventListener("hashchange",route);
-setInterval(function(){if(!$("kitchen").classList.contains("hide"))renderKitchen()},30000);
+setInterval(renderKitchen,30000);
 
 function showLogin(msg){
   $("app").classList.add("hide");$("login").classList.remove("hide");$("lerr").textContent=msg||"";
