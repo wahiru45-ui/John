@@ -24,6 +24,19 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans KR",
 .rs{margin-top:10px;min-height:64px;padding:0 28px;border:0;background:none;color:var(--muted);font:inherit;font-size:20px;font-weight:700;text-decoration:underline;cursor:pointer}
 .all{padding:0 14px 16px}
 .all button{width:100%;height:84px;border-radius:14px;border:2px solid var(--line);background:var(--card);color:var(--muted);font:inherit;font-size:26px;font-weight:800;cursor:pointer}
+@media (min-width:700px) and (orientation:landscape){
+html,body{height:100%}
+body{height:100vh;height:100dvh;overflow:hidden}
+.wrap{grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:minmax(0,1fr);min-height:0;padding:6px 10px 6px;gap:10px}
+.fc{min-height:0;padding:6px 6px;overflow:hidden}
+.fn{font-size:clamp(22px,7vh,48px);line-height:1.1}
+.fv{font-size:clamp(46px,20vh,150px)}
+.sb{margin-top:6px;gap:8px}
+.sb button{height:clamp(64px,24vh,190px);font-size:clamp(44px,15vh,100px);border-radius:18px}
+.rs{min-height:40px;margin-top:4px;font-size:clamp(16px,3.5vh,24px)}
+.all{padding:0 10px 8px}.all button{height:clamp(44px,9vh,84px);font-size:clamp(18px,3.5vh,26px)}
+.st{padding:3px 12px}
+}
 body.v .fc{min-height:0}
 .login{max-width:360px;margin:12vh auto;padding:0 20px}
 .login h1{font-size:24px}.inp{width:100%;height:52px;margin:6px 0;border:2px solid var(--line);border-radius:10px;padding:0 12px;font:inherit;font-size:18px;background:var(--card);color:var(--text)}
@@ -38,7 +51,7 @@ body.v .fc{min-height:0}
   <button class="lgo" id="lgo">로그인</button>
 </div>
 <div id="app" class="hide" style="display:contents">
-  <div class="st"><span><b id="net" class="err">연결 중…</b></span><span>직원용 · 누르면 주문 앱 손님 화면에 표시 · 버전 6</span></div>
+  <div class="st"><span><b id="net" class="err">연결 중…</b></span><span>직원용 · 누르면 주문 앱 손님 화면에 표시 · 버전 7</span></div>
   <div class="wrap" id="wrap"></div>
   <div class="all" id="all"><button id="rall" type="button">전체 0으로 되돌리기</button></div>
 </div>
