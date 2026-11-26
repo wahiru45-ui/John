@@ -113,6 +113,25 @@ body.n .mt .mn span{word-break:keep-all;overflow-wrap:normal;text-wrap:balance}
 body.n .mt .mp{flex:none;margin-top:4px}
 .nr>span:first-child{word-break:keep-all;text-align:left}
 @media (max-height:700px){.nbig{height:104px;font-size:38px}.nrs{height:60px;font-size:24px}}
+#cam{padding:12px 14px 40px}
+.cs{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+.cs h2{margin:0 0 10px;font-size:22px}
+.cr{display:flex;flex-wrap:wrap;gap:8px}
+.cr input,.cr select{height:52px;border:2px solid var(--line);border-radius:10px;padding:0 12px;font:inherit;font-size:18px;background:var(--card);color:var(--text);min-width:0}
+.cr input{flex:1;min-width:150px}
+.cb{height:52px;padding:0 22px;border:0;border-radius:10px;background:var(--accent);color:var(--accent-text);font:inherit;font-size:20px;font-weight:800;cursor:pointer}
+.cb.off{background:var(--card);color:var(--text);border:2px solid var(--line)}
+.cm{margin:10px 0;color:var(--muted);font-weight:600;font-size:16px}
+.cpv{display:none;width:100%;max-width:420px;border-radius:12px;background:#000;aspect-ratio:16/9}
+.cpv.on{display:block}
+.cl{display:flex;flex-wrap:wrap;gap:8px}
+.cl .cb{height:60px;font-size:21px}
+.cv{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:12px}
+.ct{background:#111;border-radius:12px;overflow:hidden;position:relative}
+.ct video{display:block;width:100%;aspect-ratio:16/9;background:#000}
+.ct .tt{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:rgba(0,0,0,.55);color:#fff;font-weight:800;font-size:17px}
+.ct .tt button{border:0;border-radius:8px;background:#fff;color:#111;font:inherit;font-weight:800;padding:6px 12px;cursor:pointer}
+.ct .ts{position:absolute;left:8px;bottom:8px;color:#fff;font-size:15px;font-weight:700;background:rgba(0,0,0,.55);padding:3px 8px;border-radius:6px}
 .tile .tm{font-style:normal;font-weight:800;font-size:clamp(13px,2.2vmin,24px);line-height:1.15;text-align:center;padding:0 3px;max-width:100%;display:block;overflow:hidden;color:var(--text)}
 .cfr{display:flex;justify-content:space-between;gap:10px;font-size:24px;font-weight:700;padding:6px 2px;border-bottom:1px dashed var(--line)}
 .htot{font-weight:900;font-size:22px;text-align:right;padding:8px 4px 2px;border-top:2px solid var(--text);margin-top:6px}
@@ -255,8 +274,9 @@ body.o #history{flex:1;max-height:none}
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
+    <button class="tab" role="tab" id="t-cam" aria-selected="false">카메라</button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 832</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 833</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -288,6 +308,22 @@ body.o #history{flex:1;max-height:none}
     <div class="kl"><button class="back" id="prt">🖨 자동출력 꺼짐</button><button class="back" id="com">🔌 프린터1 연결</button><button class="back" id="com2">🔌 프린터2 연결</button><button class="back" id="prtest">시험출력</button><button class="back" id="snd">🔔 알림음 켜짐</button><button class="back hide" id="kv">카드로 보기</button></div>
   </div>
   <div id="tickets"></div>
+</main>
+
+<main id="cam" class="hide">
+  <section class="cs">
+    <h2>이 기기 카메라 보내기</h2>
+    <div class="cr"><input id="camname" type="text" maxlength="12" placeholder="카메라 이름 (예: 조리, 홀)" aria-label="카메라 이름">
+      <select id="camfac" aria-label="카메라 방향"><option value="environment">후면 카메라</option><option value="user">전면 카메라</option></select>
+      <button id="camgo" type="button" class="cb">송출 시작</button></div>
+    <div id="camst" class="cm">송출을 시작하면 같은 와이파이의 다른 기기에서 이 카메라를 볼 수 있어요. 화면을 켜 두고 충전기를 꽂아두세요.</div>
+    <video id="campv" class="cpv" muted playsinline autoplay></video>
+  </section>
+  <section class="cs">
+    <h2>카메라 보기</h2>
+    <div id="camlist" class="cl"></div>
+    <div id="camview" class="cv"></div>
+  </section>
 </main>
 </div>
 
@@ -558,12 +594,14 @@ $("tickets").addEventListener("click",function(e){
 });
 
 function show(which){
-  var k=which==="kitchen";
-  $("cust").classList.toggle("hide",k);$("kitchen").classList.toggle("hide",!k);document.body.classList.toggle("k",k);syncBody();if(k)wake();
-  $("t-cust").setAttribute("aria-selected",!k);$("t-kitchen").setAttribute("aria-selected",k);
+  var k=which==="kitchen",c=which==="cam";
+  $("cust").classList.toggle("hide",k||c);$("kitchen").classList.toggle("hide",!k);$("cam").classList.toggle("hide",!c);document.body.classList.toggle("k",k);syncBody();if(k)wake();
+  $("t-cust").setAttribute("aria-selected",which==="cust");$("t-kitchen").setAttribute("aria-selected",k);$("t-cam").setAttribute("aria-selected",c);
   if(k)renderKitchen();
+  if(c)cscan();
 }
-function route(){show(location.hash==="#kitchen"?"kitchen":"cust")}
+function route(){show(location.hash==="#kitchen"?"kitchen":location.hash==="#cam"?"cam":"cust")}
+$("t-cam").onclick=function(){location.hash="cam";show("cam")};
 $("t-cust").onclick=function(){location.hash="order";show("cust")};
 $("t-kitchen").onclick=function(){location.hash="kitchen";show("kitchen")};
 window.addEventListener("hashchange",route);
@@ -583,14 +621,106 @@ $("pw").addEventListener("keydown",function(e){if(e.key==="Enter")doLogin()});
 $("kv").onclick=function(){kview=kview==="board"?"list":"board";$("kv").textContent=kview==="board"?"카드로 보기":"테이블로 보기";renderKitchen()};
 $("lo").onclick=function(){if(auth)auth.signOut()};
 
+
+/* ===== 카메라 (같은 와이파이, WebRTC + Firestore 신호) ===== */
+var CAMQ="cam_",bstream=null,bpcs={},bhb=null,vpcs={},cdocs={},cme=(function(){try{var v=localStorage.getItem("camid");if(!v){v=Math.random().toString(36).slice(2,8);localStorage.setItem("camid",v)}return v}catch(err){return Math.random().toString(36).slice(2,8)}})();
+var ICE={iceServers:[{urls:"stun:stun.l.google.com:19302"}]};
+function cset(id,o){return fs.collection("orders").doc(CAMQ+id).set(o)}
+function cdel(id){return fs.collection("orders").doc(CAMQ+id).delete().catch(function(){})}
+function waitIce(pc){return new Promise(function(res){if(pc.iceGatheringState==="complete")return res();var t=setTimeout(res,4000);pc.addEventListener("icegatheringstatechange",function(){if(pc.iceGatheringState==="complete"){clearTimeout(t);res()}})})}
+function camSt(t){$("camst").textContent=t}
+try{$("camname").value=localStorage.getItem("camname")||""}catch(err){}
+async function bStart(){
+  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){camSt("이 브라우저는 카메라를 지원하지 않아요. https 주소의 크롬에서 열어주세요.");return}
+  var name=$("camname").value.trim()||"카메라";
+  try{localStorage.setItem("camname",name)}catch(err){}
+  try{bstream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:$("camfac").value},width:{ideal:1280},height:{ideal:720}},audio:false})}
+  catch(err){bstream=null;camSt("카메라를 켤 수 없어요. 카메라 권한을 '허용'으로 해주세요.");return}
+  var pv=$("campv");pv.srcObject=bstream;pv.classList.add("on");
+  function beat(){cset("reg_"+cme,{camReg:true,name:name,ts:Date.now()}).catch(function(){camSt("서버에 등록하지 못했어요. 인터넷을 확인해 주세요.")})}
+  beat();bhb=setInterval(beat,15000);
+  $("camgo").textContent="송출 중지";$("camgo").classList.add("off");
+  camSt("송출 중 · 이름: "+name+" · 이 화면을 켜 두세요.");
+  try{wake()}catch(err){}
+  cscan();
+}
+function bStop(){
+  clearInterval(bhb);bhb=null;
+  Object.keys(bpcs).forEach(function(k){try{bpcs[k].close()}catch(err){}});bpcs={};
+  if(bstream){bstream.getTracks().forEach(function(t){t.stop()});bstream=null}
+  cdel("reg_"+cme);
+  $("campv").classList.remove("on");$("campv").srcObject=null;
+  $("camgo").textContent="송출 시작";$("camgo").classList.remove("off");
+  camSt("송출을 시작하면 같은 와이파이의 다른 기기에서 이 카메라를 볼 수 있어요. 화면을 켜 두고 충전기를 꽂아두세요.");
+}
+$("camgo").onclick=function(){if(bstream)bStop();else bStart()};
+async function bAnswer(id,d){
+  var pc=new RTCPeerConnection(ICE);bpcs[id]=pc;
+  bstream.getTracks().forEach(function(t){pc.addTrack(t,bstream)});
+  pc.onconnectionstatechange=function(){if(pc.connectionState==="failed"||pc.connectionState==="closed"){try{pc.close()}catch(err){}if(bpcs[id]===pc)delete bpcs[id]}};
+  try{
+    await pc.setRemoteDescription({type:"offer",sdp:d.offer});
+    await pc.setLocalDescription(await pc.createAnswer());await waitIce(pc);
+    await cset(id,{to:d.to,from:d.from,offer:d.offer,answer:pc.localDescription.sdp,ts:Date.now()});
+  }catch(err){try{pc.close()}catch(e2){}delete bpcs[id]}
+}
+function vTile(target){
+  var el=document.getElementById("vt_"+target);if(el)return el;
+  el=document.createElement("div");el.className="ct";el.id="vt_"+target;
+  el.innerHTML='<div class="tt"><span></span><button type="button" data-x="'+target+'">닫기</button></div><video muted playsinline autoplay></video><div class="ts">연결 중…</div>';
+  $("camview").appendChild(el);return el;
+}
+async function vStart(target,name){
+  vStop(target,true);
+  var el=vTile(target);el.querySelector(".tt span").textContent=name||"카메라";
+  var pc=new RTCPeerConnection(ICE);vpcs[target]=pc;
+  pc.addTransceiver("video",{direction:"recvonly"});
+  pc.ontrack=function(e){var v=el.querySelector("video");v.srcObject=e.streams[0];v.play().catch(function(){});el.querySelector(".ts").textContent="실시간"};
+  pc.onconnectionstatechange=function(){var st=pc.connectionState;if(st==="failed"||st==="disconnected")el.querySelector(".ts").textContent="연결이 끊겼어요. 닫고 다시 눌러주세요."};
+  try{await pc.setLocalDescription(await pc.createOffer());await waitIce(pc);
+    await cset("ses_"+cme+"_"+target,{to:target,from:cme,offer:pc.localDescription.sdp,ts:Date.now()})}
+  catch(err){el.querySelector(".ts").textContent="연결하지 못했어요."}
+  setTimeout(function(){if(vpcs[target]===pc&&pc.signalingState==="have-local-offer"){var t=el.querySelector(".ts");if(t)t.textContent="응답이 없어요. 송출 기기와 같은 와이파이인지 확인해 주세요."}},12000);
+}
+function vStop(target,keep){
+  var pc=vpcs[target];if(pc){try{pc.close()}catch(err){}delete vpcs[target]}
+  cdel("ses_"+cme+"_"+target);
+  if(!keep){var el=document.getElementById("vt_"+target);if(el)el.remove()}
+}
+$("camview").addEventListener("click",function(e){var b=e.target.closest("[data-x]");if(b)vStop(b.dataset.x)});
+$("camlist").addEventListener("click",function(e){var b=e.target.closest("[data-v]");if(b)vStart(b.dataset.v,b.dataset.n)});
+function cscan(){
+  var now=Date.now(),h="",n=0;
+  Object.keys(cdocs).forEach(function(id){
+    var d=cdocs[id];
+    if(d.camReg&&id!=="reg_"+cme&&now-d.ts<45000){n++;h+='<button type="button" class="cb" data-v="'+id.slice(4)+'" data-n="'+esc(d.name||"카메라")+'">📹 '+esc(d.name||"카메라")+' 보기</button>'}
+  });
+  $("camlist").innerHTML=n?h:'<div class="cm">지금 송출 중인 카메라가 없어요. 다른 기기에서 "송출 시작"을 눌러주세요.</div>';
+}
+function camHandle(list){
+  cdocs={};list.forEach(function(x){cdocs[x.id.slice(4)]=x.data});
+  Object.keys(cdocs).forEach(function(id){
+    var d=cdocs[id];if(id.indexOf("ses_")!==0)return;
+    if(bstream&&d.to===cme&&d.offer&&!d.answer&&!bpcs[id])bAnswer(id,d);
+    var pc=d.from===cme&&vpcs[d.to];
+    if(pc&&d.answer&&pc.signalingState==="have-local-offer")pc.setRemoteDescription({type:"answer",sdp:d.answer}).catch(function(){});
+  });
+  Object.keys(bpcs).forEach(function(id){if(!cdocs[id]){try{bpcs[id].close()}catch(err){}delete bpcs[id]}});
+  cscan();
+}
+setInterval(cscan,15000);
+window.addEventListener("pagehide",function(){Object.keys(vpcs).forEach(function(t){cdel("ses_"+cme+"_"+t)});if(bstream)cdel("reg_"+cme)});
+
 function start(){
   $("login").classList.add("hide");$("app").classList.remove("hide");
   first=true;route();renderMenu();renderKitchen();net("off");
   unsub=fs.collection("orders").onSnapshot(function(snap){
     var freshN=0,freshL=[];
-    if(!first){snap.docChanges().forEach(function(c){if(c.type==="added"&&!snap.metadata.hasPendingWrites&&!c.doc.data().closed){freshN++;var fv=c.doc.data();fv.id=c.doc.id;freshL.push(fv)}})}
+    if(!first){snap.docChanges().forEach(function(c){if(c.type==="added"&&c.doc.id.indexOf(CAMQ)!==0&&!snap.metadata.hasPendingWrites&&!c.doc.data().closed){freshN++;var fv=c.doc.data();fv.id=c.doc.id;freshL.push(fv)}})}
     first=false;
-    orders=snap.docs.map(function(x){var v=x.data();v.id=x.id;return v}).sort(function(a,b){return a.time-b.time});
+    var cl=[];
+    orders=snap.docs.filter(function(x){if(x.id.indexOf(CAMQ)===0){cl.push({id:x.id,data:x.data()});return false}return true}).map(function(x){var v=x.data();v.id=x.id;return v}).sort(function(a,b){return a.time-b.time});
+    camHandle(cl);
     if(!pruned&&!snap.metadata.fromCache){pruned=true;orders.forEach(function(o){if(o.closed&&Date.now()-o.time>172800000)drop(o)})}
     net(snap.metadata.fromCache?"off":"ok");
     renderKitchen();
