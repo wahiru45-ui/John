@@ -262,7 +262,7 @@ body.o #history{flex:1;max-height:none}
     <button class="tab" role="tab" id="t-cust" aria-selected="true">손님 화면</button>
     <button class="tab" role="tab" id="t-kitchen" aria-selected="false">주방 화면<span class="badge zero" id="badge"></span></button>
   </div>
-  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 835</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
+  <div class="top"><div class="net off" id="net">연결 중…</div><span style="font-size:12px;color:var(--muted);margin-right:8px">버전 836</span><button id="prt2" type="button" style="font:inherit;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:2px 8px;margin-right:8px;cursor:pointer">🖨 출력 꺼짐</button><button class="lo" id="lo">로그아웃</button></div>
 </header>
 
 <main id="cust">
@@ -590,7 +590,7 @@ $("pw").addEventListener("keydown",function(e){if(e.key==="Enter")doLogin()});
 $("kv").onclick=function(){kview=kview==="board"?"list":"board";$("kv").textContent=kview==="board"?"카드로 보기":"테이블로 보기";renderKitchen()};
 $("lo").onclick=function(){if(auth)auth.signOut()};
 
-var FISHN=[["mack","고등어"],["sam","삼치"],["gal","갈치"]],funsub=null;
+var FISHN=[["mack","고등어"],["sam","삼치"],["gal","갈치"],["gul","영광굴비"]],funsub=null;
 function fishDraw(d){
   var b=$("fbar");if(!d){b.classList.add("hide");return}
   b.innerHTML='<span class="fl">🔥 굽는 중</span>'+FISHN.map(function(f){var n=Math.max(0,+d[f[0]]||0);return '<span class="fi'+(n?' on':'')+'">'+f[1]+'<b>'+n+'</b></span>'}).join("");

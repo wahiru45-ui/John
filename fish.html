@@ -13,10 +13,10 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans KR",
 .tab[aria-selected="true"]{color:var(--text);border-color:var(--accent)}
 .st{font-size:13px;color:var(--muted);padding:6px 14px;display:flex;justify-content:space-between}
 .st b.ok{color:var(--accent)}.st b.err{color:var(--warn)}
-.wrap{flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;padding:10px 14px 20px}
+.wrap{flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;padding:10px 14px 20px}
 .fc{background:var(--card);border:2px solid var(--line);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px 10px;min-height:300px}
-.fn{font-size:clamp(34px,6vw,60px);font-weight:900}
-.fv{font-size:clamp(90px,22vw,200px);font-weight:900;line-height:1.05;color:var(--accent)}
+.fn{font-size:clamp(30px,5vw,52px);font-weight:900}
+.fv{font-size:clamp(80px,18vw,170px);font-weight:900;line-height:1.05;color:var(--accent)}
 .fv.z{color:var(--muted)}
 .sb{display:flex;gap:10px;width:100%;margin-top:12px}
 .sb button{flex:1;height:84px;border-radius:16px;border:3px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:40px;font-weight:900;cursor:pointer;touch-action:manipulation}
@@ -42,7 +42,7 @@ body.v .fc{min-height:0}
     <button class="tab" role="tab" id="t-staff" aria-selected="true">직원용 (누르기)</button>
     <button class="tab" role="tab" id="t-view" aria-selected="false">보기용 (손님/TV)</button>
   </div>
-  <div class="st"><span><b id="net" class="err">연결 중…</b></span><span>버전 1</span></div>
+  <div class="st"><span><b id="net" class="err">연결 중…</b></span><span>버전 2</span></div>
   <div class="wrap" id="wrap"></div>
   <div class="all" id="all"><button id="rall" type="button">전체 0으로 되돌리기</button></div>
 </div>
@@ -51,8 +51,8 @@ body.v .fc{min-height:0}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 var FIREBASE_CONFIG={apiKey:"AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",authDomain:"house-order-a689f.firebaseapp.com",projectId:"house-order-a689f",storageBucket:"house-order-a689f.firebasestorage.app",messagingSenderId:"621901289473",appId:"1:621901289473:web:952c5951744cd9f5b40800"};
-var FISH=[{k:"mack",n:"고등어"},{k:"sam",n:"삼치"},{k:"gal",n:"갈치"}];
-var $=function(i){return document.getElementById(i)},auth,fs,cnt={mack:0,sam:0,gal:0},mode="staff",unsub=null;
+var FISH=[{k:"mack",n:"고등어"},{k:"sam",n:"삼치"},{k:"gal",n:"갈치"},{k:"gul",n:"영광굴비"}];
+var $=function(i){return document.getElementById(i)},auth,fs,cnt={mack:0,sam:0,gal:0,gul:0},mode="staff",unsub=null;
 function ref(){return fs.collection("fish").doc("state")}
 function net(t,c){$("net").textContent=t;$("net").className=c}
 function draw(){
@@ -73,7 +73,7 @@ function change(k,d){
   ref().set(upd,{merge:true}).catch(function(){net("저장 실패 — 인터넷을 확인하세요","err")});
 }
 $("wrap").addEventListener("click",function(e){var b=e.target.closest("[data-k]");if(!b)return;change(b.dataset.k,+b.dataset.d)});
-$("rall").onclick=function(){if(!confirm("전체를 0으로 되돌릴까요?"))return;FISH.forEach(function(f){cnt[f.k]=0});draw();ref().set({mack:0,sam:0,gal:0,ts:Date.now()},{merge:true})};
+$("rall").onclick=function(){if(!confirm("전체를 0으로 되돌릴까요?"))return;FISH.forEach(function(f){cnt[f.k]=0});draw();ref().set({mack:0,sam:0,gal:0,gul:0,ts:Date.now()},{merge:true})};
 function setMode(m){mode=m;$("t-staff").setAttribute("aria-selected",m==="staff");$("t-view").setAttribute("aria-selected",m==="view");draw()}
 $("t-staff").onclick=function(){location.hash="staff";setMode("staff")};
 $("t-view").onclick=function(){location.hash="view";setMode("view")};
