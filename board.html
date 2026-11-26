@@ -285,7 +285,7 @@ body.o #history{flex:1;max-height:none}
 <main id="kitchen" class="hide">
   <div class="kbar">
     <div class="kl"><button class="back" id="fsm" aria-label="글자 작게">A−</button><span id="fsv">글자크기</span><button class="back" id="fsp" aria-label="글자 크게">A+</button></div>
-    <div class="kl"><button class="back" id="prt">🖨 자동출력 꺼짐</button><button class="back" id="com">🔌 COM 연결</button><button class="back" id="prtest">시험출력</button><button class="back" id="snd">🔔 알림음 켜짐</button><button class="back hide" id="kv">카드로 보기</button></div>
+    <div class="kl"><button class="back" id="prt">🖨 자동출력 꺼짐</button><button class="back" id="com">🔌 프린터1 연결</button><button class="back" id="com2">🔌 프린터2 연결</button><button class="back" id="prtest">시험출력</button><button class="back" id="snd">🔔 알림음 켜짐</button><button class="back hide" id="kv">카드로 보기</button></div>
   </div>
   <div id="tickets"></div>
 </main>
@@ -390,7 +390,7 @@ setFs(kfs);setSound(soundOn);
 var prtOn=false;try{prtOn=localStorage.getItem("kprt")==="1"}catch(err){}
 function setPrt(on){prtOn=on;try{localStorage.setItem("kprt",on?"1":"0")}catch(err){}$("prt").textContent=on?"🖨 자동출력 켜짐":"🖨 자동출력 꺼짐";$("prt2").textContent=on?"🖨 출력 켜짐":"🖨 출력 꺼짐";$("prt2").style.background=on?"var(--accent)":"var(--card)";$("prt2").style.color=on?"var(--accent-text)":"var(--text)"}
 $("prt2").onclick=function(){setPrt(!prtOn)};
-var sport=null,cpMap=null;
+var slots=[null,null],cpMap=null;
 function kmap(){
   if(cpMap)return cpMap;cpMap={};var d=new TextDecoder("euc-kr");
   for(var a=0xA1;a<=0xC8;a++)for(var b=0xA1;b<=0xFE;b++){var ch=d.decode(new Uint8Array([a,b]));if(ch.length===1&&ch!=="\ufffd"&&!cpMap[ch])cpMap[ch]=[a,b]}
@@ -411,11 +411,12 @@ function escJob(list){
   });
   return new Uint8Array(b);
 }
-function comUi(){$("com").textContent=sport?"🔌 COM 등록됨":"🔌 COM 연결"}
-var comQ=Promise.resolve();
+function comUi(bad){
+  [0,1].forEach(function(i){var b=$(i?"com2":"com");b.textContent=bad&&bad[i]?"⚠ 프린터"+(i+1)+" 오류":(slots[i]?"🔌 프린터"+(i+1)+" 등록됨":"🔌 프린터"+(i+1)+" 연결")});
+}
 function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
-async function comSend(bytes){
-  var p=sport,ok=false,i;
+async function comSend(p,bytes){
+  var ok=false,i;
   for(i=0;i<5&&!ok;i++){
     try{await p.open({baudRate:9600});ok=true}catch(err){await sleep(800)}
   }
@@ -423,17 +424,33 @@ async function comSend(bytes){
   try{var w=p.writable.getWriter();try{await w.write(bytes)}finally{w.releaseLock()}await sleep(400)}
   finally{try{await p.close()}catch(err){}}
 }
-function comWrite(bytes){var r=comQ.catch(function(){}).then(function(){return comSend(bytes)});comQ=r;return r}
-async function comOpen(p){sport=p;comUi()}
-$("com").onclick=function(){
-  if(!navigator.serial){alert("이 브라우저는 COM 연결을 지원하지 않아요. 포스기의 크롬에서 열어주세요.");return}
-  navigator.serial.requestPort().then(comOpen).catch(function(){})
-};
-try{if(navigator.serial)navigator.serial.getPorts().then(function(ps){if(ps[0])comOpen(ps[0]).catch(function(){})})}catch(err){}
+function comWrite(i,bytes){var sl=slots[i];var r=sl.q.catch(function(){}).then(function(){return comSend(sl.port,bytes)});sl.q=r;return r}
+function setSlot(i,p){
+  var old=slots[i];if(old&&old.port!==p&&old.port.forget)try{old.port.forget()}catch(err){}
+  slots[i]={port:p,q:Promise.resolve()};comUi();
+}
+[0,1].forEach(function(i){
+  $(i?"com2":"com").onclick=function(){
+    if(!navigator.serial){alert("이 브라우저는 COM 연결을 지원하지 않아요. 포스기의 크롬에서 열어주세요.");return}
+    navigator.serial.requestPort().then(function(p){
+      var o=slots[1-i];if(o&&o.port===p){alert("이미 다른 프린터로 등록된 포트예요. 다른 COM 포트를 골라주세요.");return}
+      setSlot(i,p);
+    }).catch(function(){})
+  };
+});
+try{if(navigator.serial)navigator.serial.getPorts().then(function(ps){ps.slice(0,2).forEach(function(p,i){setSlot(i,p)})})}catch(err){}
 function printOrders(list){
   if(!list.length)return;
-  if(sport){comWrite(escJob(list)).catch(function(){printHtml(list)});return}
-  printHtml(list);
+  var act=[0,1].filter(function(i){return slots[i]});
+  if(!act.length){printHtml(list);return}
+  var job=escJob(list),bad=[false,false],n=0;
+  act.forEach(function(i){
+    comWrite(i,job).catch(function(){bad[i]=true}).then(function(){
+      if(++n<act.length)return;
+      if(bad.some(function(x){return x})){comUi(bad);setTimeout(function(){comUi()},8000)}
+      if(act.every(function(k){return bad[k]}))printHtml(list);
+    });
+  });
 }
 function printHtml(list){
   $("printarea").innerHTML=list.map(function(o){
@@ -513,7 +530,7 @@ function renderBoard(){
 }
 function renderKitchen(){
   var live=orders.filter(function(o){return !o.closed});
-  var newN=live.filter(function(o){return o.status==="new"&&(kview==="board"||Date.now()-o.time<900000)}).length;
+  var newN=live.filter(function(o){return o.status==="new"}).length;
   var bd=$("badge");bd.textContent=newN||"";bd.classList.toggle("zero",!newN);
   $("tickets").className=kview==="board"?"board":"board cards";
   if(kview==="board"){renderBoard();return}
@@ -550,7 +567,7 @@ function route(){show(location.hash==="#kitchen"?"kitchen":"cust")}
 $("t-cust").onclick=function(){location.hash="order";show("cust")};
 $("t-kitchen").onclick=function(){location.hash="kitchen";show("kitchen")};
 window.addEventListener("hashchange",route);
-setInterval(function(){renderKitchen()},30000);
+setInterval(function(){if(!$("kitchen").classList.contains("hide"))renderKitchen()},30000);
 
 function showLogin(msg){
   $("app").classList.add("hide");$("login").classList.remove("hide");$("lerr").textContent=msg||"";
