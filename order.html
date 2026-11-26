@@ -1623,8 +1623,43 @@ function renderCart() {
   $("submit").disabled = !open || !!sh || far;
   $("submit").textContent = !open ? "지금은 주문 시간이 아니에요" : sh ? `${won(minOrder())} 이상 주문할 수 있어요` : far ? "배달 가능 거리를 넘었어요" : `${won(sub - dc - sdc + base + tip)} 주문하기`;
 }
-function openPanel(id) { $(id).classList.add("on"); $(id).scrollTop = 0; document.body.style.overflow = "hidden"; }
-function closePanel() { $("checkout").classList.remove("on"); document.body.style.overflow = ""; }
+// ===== 폰 뒤로가기: 열린 창(주문서·주소검색·완료·알림)을 하나씩 닫아요 =====
+// 창을 열 때 방문 기록에 한 칸을 남겨 두고, 뒤로가기를 누르면 그 창만 닫아요.
+const layers = []; let skipPop = 0;
+const RAW_CLOSE = {
+  checkout: () => { $("checkout").classList.remove("on"); if (!$("donePanel").classList.contains("on")) document.body.style.overflow = ""; },
+  post: () => { $("postBox").classList.remove("on"); $("postWrap").innerHTML = ""; },
+  done: () => { $("donePanel").classList.remove("on"); document.body.style.overflow = ""; doneId = null; payPanel({}, false); window.scrollTo({ top: 0, behavior: "smooth" }); },
+  alert: () => $("alertBox").classList.remove("on")
+};
+function pushLayer(name) {
+  if (layers[layers.length - 1] === name) return;
+  layers.push(name);
+  try { history.pushState({ mbjLayer: name }, ""); } catch {}
+}
+// 버튼으로 닫을 때: 창을 닫고, 남겨 둔 기록 한 칸도 지워요
+function popLayer(name) {
+  const i = layers.lastIndexOf(name);
+  RAW_CLOSE[name]();
+  if (i < 0) return;
+  layers.splice(i, 1);
+  skipPop++; try { history.back(); } catch { skipPop--; }
+}
+// 주문서 → 완료 화면처럼 바로 바뀔 때는 기록 칸을 그대로 재사용해요
+function swapLayer(from, to) {
+  const i = layers.lastIndexOf(from);
+  RAW_CLOSE[from]();
+  if (i < 0) return pushLayer(to);
+  layers[i] = to;
+  try { history.replaceState({ mbjLayer: to }, ""); } catch {}
+}
+addEventListener("popstate", () => {
+  if (skipPop) { skipPop--; return; }
+  const top = layers.pop();
+  if (top) RAW_CLOSE[top]();
+});
+function openPanel(id) { $(id).classList.add("on"); $(id).scrollTop = 0; document.body.style.overflow = "hidden"; pushLayer(id === "checkout" ? "checkout" : "done"); }
+function closePanel() { if ($("checkout").classList.contains("on")) popLayer("checkout"); }
 $("openCart").onclick = () => { renderCart(); $("err").textContent = ""; editing = false; showInfo(); openPanel("checkout"); checkGeo(true); };
 $("cAddr").addEventListener("input", () => checkGeo());
 // ===== 주소 검색 버튼: 다음(카카오) 우편번호 서비스 =====
@@ -1634,11 +1669,11 @@ function loadPostcode() {
   postP = postP || new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"; sc.onload = res; sc.onerror = () => { postP = null; rej(); }; document.head.appendChild(sc); });
   return postP;
 }
-const closePost = () => { $("postBox").classList.remove("on"); $("postWrap").innerHTML = ""; };
+const closePost = () => { if ($("postBox").classList.contains("on")) popLayer("post"); };
 $("postClose").onclick = closePost;
 $("addrBtn").onclick = async () => {
   try { await loadPostcode(); } catch { toast("주소 검색을 열 수 없어요. 직접 입력해 주세요."); return; }
-  $("postBox").classList.add("on");
+  $("postBox").classList.add("on"); pushLayer("post");
   new daum.Postcode({
     width: "100%", height: "100%",
     oncomplete: d => {
@@ -1808,12 +1843,12 @@ function bigAlert(rec, st) {
   const a = ALERT[st]; if (!a) return;
   $("alertIcon").textContent = a.icon; $("alertTitle").textContent = a.title;
   $("alertText").textContent = `주문번호 ${rec.code} · ${st === "canceled" && rec.why ? rec.why + ". " : ""}${a.text}`;
-  $("alertBox").classList.add("on");
+  if (!$("alertBox").classList.contains("on")) { $("alertBox").classList.add("on"); pushLayer("alert"); }
   chime(); setTimeout(() => say(a.voice), 900);
   try { navigator.vibrate && navigator.vibrate([400, 150, 400, 150, 400]); } catch {}
   let i = 0; const f = setInterval(() => { document.title = i++ % 2 ? `${a.icon} ${a.title}` : "맛있는밥집 주문하기"; if (i > 16) { clearInterval(f); document.title = "맛있는밥집 주문하기"; } }, 800);
 }
-$("alertOk").onclick = () => $("alertBox").classList.remove("on");
+$("alertOk").onclick = () => popLayer("alert");
 function renderTrack() {
   const act = mine.filter(r => live[r.id] && live[r.id] !== "done" || !live[r.id]);
   $("trackBar").innerHTML = mine.map(r => {
@@ -1822,7 +1857,7 @@ function renderTrack() {
   }).join("");
   $("trackBar").classList.toggle("hide", !mine.length);
 }
-function backToMenu() { $("donePanel").classList.remove("on"); document.body.style.overflow = ""; doneId = null; window.scrollTo({ top: 0, behavior: "smooth" }); }
+function backToMenu() { if ($("donePanel").classList.contains("on")) popLayer("done"); }
 function track(rec) {
   if (watchers.has(rec.id)) return;
   watchers.set(rec.id, onSnapshot(doc(db, "onlineOrders", rec.id), s => {
@@ -1881,7 +1916,7 @@ document.addEventListener("click", async e => {
 });
 function showDone(id, order) {
   const ids = [...cart.keys()];
-  closePanel(); cart.clear(); ids.forEach(updateRow); updateBar(); $("memo").value = "";
+  swapLayer("checkout", "done"); cart.clear(); ids.forEach(updateRow); updateBar(); $("memo").value = "";
   $("doneCode").textContent = order.code;
   $("doneStatus").textContent = TRACK.new; $("doneStatus").classList.remove("ok");
   $("doneInfo").textContent = `${order.type === "delivery" ? "배달" : "포장"} · 결제 금액 ${won(order.total)}${order.discount || order.stampDiscount ? ` (${won((order.discount || 0) + (order.stampDiscount || 0))} 할인${order.stampDiscount ? " · 스탬프 포함" : ""})` : ""}${order.baseFee ? ` · 기본 배달비 ${won(order.baseFee)}` : ""}${order.deliveryTip ? ` · 배달팁 ${won(order.deliveryTip)}` : ""}${order.tipCheck ? " · 배달팁은 가게에서 안내" : ""} · ${PAYNAME[order.payment.method]}${order.payment.receipt ? " · 현금영수증 신청" : ""}`;
@@ -1895,7 +1930,7 @@ function showDone(id, order) {
   $("doneHead").textContent = order.payWait ? "입금하면 주문이 들어가요" : "주문이 들어갔어요";
   if (order.payWait) { $("doneStatus").textContent = "입금을 기다리고 있어요 (3분 안에)"; }
   mine.unshift(rec); saveMine(mine);
-  doneId = id; openPanel("donePanel");
+  doneId = id; $("donePanel").classList.add("on"); $("donePanel").scrollTop = 0; document.body.style.overflow = "hidden";
   payPanel(rec, !!order.payWait);
   track(rec); renderTrack();
 }
