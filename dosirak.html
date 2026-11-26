@@ -241,34 +241,49 @@ buildWeek();
 // 오늘 주문 마감 시간 (여기 없는 식사는 당일 주문 안 됨)
 const SAME_DAY = { "점심": [8, 30], "저녁": [15, 0] };   // [시, 분] 24시간 기준
 const TODAY_STR = ymd(new Date());
-let todayLocked = false;     // 오늘 마감 지난 식사를 이미 신청한 손님은 오늘 칸을 못 고침
 const nowMin = () => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); };
 const isOpenToday = m => SAME_DAY[m] && nowMin() < SAME_DAY[m][0] * 60 + SAME_DAY[m][1];
 const openMealsToday = () => ["아침", "점심", "저녁"].filter(isOpenToday);
 const sameDayOpen = () => openMealsToday().length > 0;
 const fmtTime = ([h, m]) => `${h < 12 ? "오전" : "오후"} ${h > 12 ? h - 12 : h}시${m ? " " + m + "분" : ""}`;
-const canPick = s => !CLOSED.includes(new Date(s + "T00:00").getDay())
-  && (s >= FIRST || (s === TODAY_STR && sameDayOpen() && !todayLocked));
+// ===== 날짜 + 식사 시간 = "칸" =====
+// 날짜 하나에 아침·점심·저녁을 따로 담을 수 있어요. 칸 이름은 "2026-11-27|저녁"
+const MEALS = ["아침", "점심", "저녁"];
+const mealOf = o => o.meal || "점심";
+const slot = (d, m) => d + "|" + m;
+const slotDate = k => k.split("|")[0];
+const slotMeal = k => k.split("|")[1];
+const isClosedDay = d => CLOSED.includes(new Date(d + "T00:00").getDay());
+const canSlot = (d, m) => !isClosedDay(d) && (d >= FIRST || (d === TODAY_STR && isOpenToday(m)));
+const canPick = d => MEALS.some(m => canSlot(d, m));     // 날짜 칸을 누를 수 있나
+const mealsFor = d => MEALS.filter(m => canSlot(d, m));
+const ALL_SLOTS = () => ALL.flatMap(d => MEALS.map(m => slot(d, m)));
+const orderSort = (a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : MEALS.indexOf(mealOf(a)) - MEALS.indexOf(mealOf(b));
 
-const cart = {};   // { "2026-11-24": {heat:1, warm:0, salad:2} }
+const cart = {};   // { "2026-11-27|점심": {heat:1, warm:0} }
 let loaded = [];   // 이 휴대폰에서 예전에 신청한 내역 (수정 가능)
 let menus = {};    // 날짜 → {main, soup} (가게에서 입력한 식단)
 const live = {};   // 신청서 번호 → 최신 내용 (실시간)
-const owner = {};
-const pendingDate = {}; // 아직 가게에서 확인 안 한 날짜  // 날짜 → 그 날짜가 들어있는 신청서 번호
+const owner = {};  // 칸 → 그 칸이 들어있는 신청서 번호
+const pendingSlot = {}; // 아직 가게에서 확인 안 한 칸
 let orig = "{}";   // 불러온 직후 상태 (바뀐 게 있는지 비교용)
 const nameToId = Object.fromEntries(MENUS.map(m => [m.name, m.id]));
-const snapCart = () => JSON.stringify(Object.fromEntries(ALL.filter(canPick).map(d => [d, [...MENUS.map(m => (cart[d] && cart[d][m.id]) || 0), (cart[d] && cart[d].meal) || "점심"]]).filter(([, v]) => v.some(x => typeof x === "number" && x))));
+const slotCount = k => cart[k] ? MENUS.reduce((a, m) => a + (cart[k][m.id] || 0), 0) : 0;
+const slotMoney = k => cart[k] ? MENUS.reduce((a, m) => a + m.price * (cart[k][m.id] || 0), 0) : 0;
+const dateCount = d => MEALS.reduce((a, m) => a + slotCount(slot(d, m)), 0);
+const pickedSlots = () => ALL_SLOTS().filter(k => slotCount(k) > 0);
+const snapCart = () => JSON.stringify(Object.fromEntries(ALL_SLOTS().filter(k => canSlot(slotDate(k), slotMeal(k)))
+  .map(k => [k, MENUS.map(m => (cart[k] && cart[k][m.id]) || 0)]).filter(([, v]) => v.some(x => x))));
 const isChanged = () => snapCart() !== orig;
-// 식사 시간 (아침/점심/저녁). 안 고르면 점심
-const MEALS = ["아침", "점심", "저녁"];
-const getMeal = d => (cart[d] && cart[d].meal) || (d === TODAY_STR ? (openMealsToday()[0] || "점심") : "점심");
-let active = null;
-let lastPicked = null;
-
-const dayCount = s => cart[s] ? MENUS.reduce((a, m) => a + (cart[s][m.id] || 0), 0) : 0;
-const dayMoney = s => cart[s] ? MENUS.reduce((a, m) => a + m.price * (cart[s][m.id] || 0), 0) : 0;
-const pickedDates = () => ALL.filter(s => dayCount(s) > 0);
+let active = null;       // 고른 날짜
+let activeMeal = "점심";  // 고른 식사 시간
+let lastPicked = null;   // 마지막으로 담은 칸 (똑같이 담기용)
+const activeSlot = () => slot(active, activeMeal);
+function pickDate(d, m) {
+  active = d;
+  const ok = mealsFor(d);
+  activeMeal = m && ok.includes(m) ? m : (ok.find(x => slotCount(slot(d, x))) || (ok.includes("점심") ? "점심" : ok[0]) || "점심");
+}
 
 function renderMine() {
   const rows = [];
@@ -279,22 +294,23 @@ function renderMine() {
   const box = document.getElementById("myBox");
   box.style.display = rows.length ? "block" : "none";
   if (!rows.length) return;
-  rows.sort((a, b) => a.o.date < b.o.date ? -1 : 1);
+  rows.sort((a, b) => orderSort(a.o, b.o));
   const today = ymd(new Date());
   const up = rows.filter(r => r.o.date >= today), past = rows.filter(r => r.o.date < today).reverse();
   const card = ({ o, st }) => {
     const tag = o.delivered ? `<span class="tag done">배달 완료</span>` : st === "신청" ? `<span class="tag wait">확인 대기</span>` : `<span class="tag ok">✓ 확인됨</span>`;
-    const can = ALL.includes(o.date) && canPick(o.date) && !o.delivered;
+    const k = slot(o.date, mealOf(o));
+    const can = ALL.includes(o.date) && canSlot(o.date, mealOf(o)) && !o.delivered;
     return `<div class="my">
-      <div class="mh"><span class="md">${label(o.date)} <span class="meal-tag">${o.meal || "점심"}</span></span>${tag}</div>
+      <div class="mh"><span class="md">${label(o.date)} <span class="meal-tag">${mealOf(o)}</span></span>${tag}</div>
       <div class="mi">${o.items.map(i => `${i.name} ${i.qty}개`).join(", ")} · <b>${won(o.amount)}</b></div>
-      ${can ? `<div class="mb"><button data-myedit="${o.date}">✏️ 개수 수정</button><button class="cx" data-mycancel="${o.date}">이 날 취소</button></div>`
-            : (o.date >= today && !o.delivered ? `<div class="mi" style="font-size:12px;color:#999">당일·지난 주문은 가게로 연락해 주세요</div>` : "")}
+      ${can ? `<div class="mb"><button data-myedit="${k}">✏️ 개수 수정</button><button class="cx" data-mycancel="${k}">이 식사 취소</button></div>`
+            : (o.date >= today && !o.delivered ? `<div class="mi" style="font-size:12px;color:#999">마감·지난 주문은 가게로 연락해 주세요</div>` : "")}
     </div>`;
   };
   document.getElementById("myList").innerHTML =
     (up.map(card).join("") || `<p class="sub">앞으로 받을 도시락이 없어요</p>`) +
-    (up.length ? `<div class="mysum"><span>앞으로 ${up.length}일</span><span>${won(up.reduce((a, r) => a + r.o.amount, 0))}</span></div>` : "") +
+    (up.length ? `<div class="mysum"><span>앞으로 ${up.length}건</span><span>${won(up.reduce((a, r) => a + r.o.amount, 0))}</span></div>` : "") +
     (past.length ? `<details class="mypast"><summary>지난 내역 ${past.length}개 보기</summary>${past.map(card).join("")}</details>` : "");
 }
 
@@ -309,6 +325,7 @@ function renderMenus() {
   }).join("");
 }
 const escH = x => String(x ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const short = { "아침": "아", "점심": "점", "저녁": "저" };
 
 function render() {
   renderMine();
@@ -316,36 +333,39 @@ function render() {
   document.getElementById("wTitle").textContent = `${label(DATES[0])} ~ ${label(DATES[6])}`;
   document.getElementById("wPrev").disabled = weekIdx === 0;
   document.getElementById("wNext").disabled = weekIdx >= MAX_WEEK;
-  document.getElementById("dates").innerHTML = DATES.map(s => {
-    const d = new Date(s + "T00:00");
-    const n = dayCount(s);
-    const done = false;
-    const cls = ["date", n ? "has" : "", s === active ? "on" : "", done && !n ? "done" : ""].join(" ");
-    return `<button class="${cls}" data-date="${s}" ${canPick(s) ? "" : "disabled"}>
-      <div class="d">${d.getMonth() + 1}/${d.getDate()}</div>
-      <div class="w">${WD[d.getDay()]}</div>
-      <div class="c">${n ? n + "개" : done ? "신청됨" : ""}</div>
-      ${owner[s] && n ? `<div class="st ${pendingDate[s] ? "wait" : "ok"}">${pendingDate[s] ? "확인 대기" : "✓ 확인됨"}</div>` : ""}
+  document.getElementById("dates").innerHTML = DATES.map(d => {
+    const dt = new Date(d + "T00:00");
+    const n = dateCount(d);
+    const parts = MEALS.filter(m => slotCount(slot(d, m))).map(m => `${short[m]}${slotCount(slot(d, m))}`).join("·");
+    const mine = MEALS.filter(m => owner[slot(d, m)] && slotCount(slot(d, m)));
+    const wait = mine.some(m => pendingSlot[slot(d, m)]);
+    const cls = ["date", n ? "has" : "", d === active ? "on" : ""].join(" ");
+    return `<button class="${cls}" data-date="${d}" ${canPick(d) ? "" : "disabled"}>
+      <div class="d">${dt.getMonth() + 1}/${dt.getDate()}</div>
+      <div class="w">${WD[dt.getDay()]}</div>
+      <div class="c">${n ? parts : ""}</div>
+      ${mine.length ? `<div class="st ${wait ? "wait" : "ok"}">${wait ? "확인 대기" : "✓ 확인됨"}</div>` : ""}
     </button>`;
   }).join("") + `<div class="mealbox">${active && canPick(active)
-      ? (active === TODAY_STR
-          ? `<div class="mt">오늘 주문 마감</div>` + openMealsToday().map(m => `<button class="mbtn ${getMeal(active) === m ? "on" : ""}" data-meal="${m}">${m}<br><span style="font-size:10px">${fmtTime(SAME_DAY[m])}</span></button>`).join("")
-          : `<div class="mt">식사 시간</div>` + MEALS.map(m => `<button class="mbtn ${getMeal(active) === m ? "on" : ""}" data-meal="${m}">${m}</button>`).join(""))
+      ? `<div class="mt">${active === TODAY_STR ? "오늘 마감 전" : "식사 시간"}</div>` + mealsFor(active).map(m => {
+          const c = slotCount(slot(active, m));
+          return `<button class="mbtn ${activeMeal === m ? "on" : ""}" data-meal="${m}">${m}${c ? ` ${c}` : ""}${active === TODAY_STR ? `<br><span style="font-size:10px">${fmtTime(SAME_DAY[m])}까지</span>` : ""}</button>`;
+        }).join("")
       : `<div class="mt">날짜를 고르면<br>아침·점심·저녁<br>선택</div>`}</div>`;
 
   const panel = document.getElementById("panel");
   if (!active) {
     panel.innerHTML = `<p class="sub" style="margin:0">↑ 위에서 날짜를 눌러 주세요</p>`;
   } else {
-    const c = cart[active] || {};
-    const done = false;
+    const k = activeSlot();
+    const c = cart[k] || {};
     const am = menus[active];
     panel.innerHTML = `
-      <div class="ptitle">${label(active)} <span class="meal-tag">${getMeal(active)}</span> 도시락</div>
+      <div class="ptitle">${label(active)} <span class="meal-tag">${activeMeal}</span> 도시락</div>
+      <p class="sub" style="margin:0 0 6px">같은 날 다른 식사도 받으려면 옆 칸에서 아침·점심·저녁을 바꿔서 담아 주세요</p>
       ${am && (am.main || am.soup) ? `<div class="mcards"><div class="mcard"><div class="k">메인</div><div class="v">${escH(am.main || "-")}</div></div><div class="mcard"><div class="k">국</div><div class="v">${escH(am.soup || "-")}</div></div></div>` : `<p class="sub" style="margin:4px 0">이 날 식단은 준비 중이에요</p>`}
-      ${owner[active] ? `<p class="sub" style="margin:0 0 4px;color:${pendingDate[active] ? "#d9532b" : "#2a8a4a"};font-weight:700">${pendingDate[active] ? "⏳ 가게에서 확인 중이에요" : "✅ 가게에서 주문을 확인했어요"}</p>` : ""}
-      ${owner[active] ? `<p class="sub" style="margin:0 0 4px">이미 신청한 날이에요. 개수를 바꾸고 아래 버튼을 누르면 수정돼요. 0개로 만들면 이 날은 취소돼요.</p>` : ""}
-      ${done ? `<p class="sub" style="margin:0 0 4px">이 날짜는 이미 신청하셨어요. 더 고르면 추가로 신청돼요.</p>` : ""}
+      ${owner[k] ? `<p class="sub" style="margin:0 0 4px;color:${pendingSlot[k] ? "#d9532b" : "#2a8a4a"};font-weight:700">${pendingSlot[k] ? "⏳ 가게에서 확인 중이에요" : "✅ 가게에서 주문을 확인했어요"}</p>` : ""}
+      ${owner[k] ? `<p class="sub" style="margin:0 0 4px">이미 신청한 ${activeMeal}이에요. 개수를 바꾸고 아래 버튼을 누르면 수정돼요. 0개로 만들면 취소돼요.</p>` : ""}
       ${MENUS.map(m => `
         <div class="menu">
           <div><div class="name">${m.name}</div><div class="price">${won(m.price)}</div></div>
@@ -356,62 +376,63 @@ function render() {
           </div>
         </div>`).join("")}
       <div class="tools">
-        ${lastPicked && lastPicked !== active && dayCount(lastPicked) ? `<button data-copy="1">${label(lastPicked)}과 똑같이</button>` : ""}
-        ${dayCount(active) ? `<button data-clear="1">이 날 비우기</button>` : ""}
+        ${lastPicked && lastPicked !== k && slotCount(lastPicked) ? `<button data-copy="1">${label(slotDate(lastPicked))} ${slotMeal(lastPicked)}과 똑같이</button>` : ""}
+        ${slotCount(k) ? `<button data-clear="1">이 식사 비우기</button>` : ""}
       </div>`;
   }
 
-  const ps = pickedDates();
+  const ps = pickedSlots();
   document.getElementById("pickedBox").style.display = ps.length ? "block" : "none";
-  document.getElementById("picked").innerHTML = ps.map(s => {
-    const txt = MENUS.filter(m => cart[s][m.id]).map(m => `${m.name} ${cart[s][m.id]}`).join(", ");
-    return `<div class="pick"><span>${label(s)} <span class="meal-tag">${getMeal(s)}</span> ${txt}</span><b>${won(dayMoney(s))}</b></div>`;
+  document.getElementById("picked").innerHTML = ps.map(k => {
+    const txt = MENUS.filter(m => cart[k][m.id]).map(m => `${m.name} ${cart[k][m.id]}`).join(", ");
+    return `<div class="pick"><span>${label(slotDate(k))} <span class="meal-tag">${slotMeal(k)}</span> ${txt}</span><b>${won(slotMoney(k))}</b></div>`;
   }).join("");
 
-  const total = ps.reduce((a, s) => a + dayMoney(s), 0);
-  const boxes = ps.reduce((a, s) => a + dayCount(s), 0);
+  const total = ps.reduce((a, k) => a + slotMoney(k), 0);
+  const boxes = ps.reduce((a, k) => a + slotCount(k), 0);
   document.getElementById("sumText").innerHTML = ps.length
-    ? `${ps.length}일 · 도시락 ${boxes}개 = <b>${won(total)}</b>`
-    : (loaded.length ? "모든 날을 취소하려면 아래 버튼을 눌러 주세요" : "날짜와 도시락을 골라주세요");
+    ? `${ps.length}건 · 도시락 ${boxes}개 = <b>${won(total)}</b>`
+    : (loaded.length ? "모두 취소하려면 아래 버튼을 눌러 주세요" : "날짜와 도시락을 골라주세요");
   const btn = document.getElementById("submit");
   if (btn.dataset.busy) return;
   btn.disabled = !isChanged();
   btn.textContent = loaded.length ? "신청 / 수정하기" : "신청하기";
-  if (loaded.length && ps.length && !isChanged()) document.getElementById("sumText").innerHTML += `<br><span style="font-size:12px">개수를 바꾸거나 날짜를 추가하면 버튼이 켜져요</span>`;
+  if (loaded.length && ps.length && !isChanged()) document.getElementById("sumText").innerHTML += `<br><span style="font-size:12px">개수를 바꾸거나 식사를 추가하면 버튼이 켜져요</span>`;
 }
 
 document.addEventListener("click", e => {
   const t = e.target.closest("button");
   if (!t) return;
-  if (t.dataset.date) { active = t.dataset.date; render(); }
+  if (t.dataset.date) { pickDate(t.dataset.date); render(); }
   if (t.dataset.meal && active) {
-    if (active === TODAY_STR && !isOpenToday(t.dataset.meal)) return;
-    cart[active] = cart[active] || {}; cart[active].meal = t.dataset.meal; render();
+    if (!canSlot(active, t.dataset.meal)) return;
+    activeMeal = t.dataset.meal; render();
   }
   if (t.dataset.myedit) {
-    const d = t.dataset.myedit;
+    const d = slotDate(t.dataset.myedit), m = slotMeal(t.dataset.myedit);
     const w = Math.floor((new Date(d + "T00:00") - baseMon) / (7 * 86400000));
     if (w !== weekIdx) { weekIdx = w; buildWeek(); }
-    active = d; render();
+    pickDate(d, m); render();
     document.getElementById("panel").scrollIntoView({ behavior: "smooth", block: "start" });
   }
   if (t.dataset.mycancel) {
-    const d = t.dataset.mycancel;
-    if (!confirm(`${label(d)} 주문을 취소할까요?`)) return;
-    delete cart[d]; render();
+    const k = t.dataset.mycancel;
+    if (!confirm(`${label(slotDate(k))} ${slotMeal(k)} 주문을 취소할까요?`)) return;
+    delete cart[k]; render();
     document.getElementById("submit").click();
   }
   if (t.id === "wPrev" && weekIdx > 0) { weekIdx--; buildWeek(); active = null; render(); }
   if (t.id === "wNext" && weekIdx < MAX_WEEK) { weekIdx++; buildWeek(); active = null; render(); }
   if (t.id === "editInfo") { document.getElementById("infoForm").style.display = "block"; document.getElementById("savedBox").style.display = "none"; }
-  if (t.dataset.m) {
-    cart[active] = cart[active] || {};
-    cart[active][t.dataset.m] = Math.max(0, (cart[active][t.dataset.m] || 0) + Number(t.dataset.d));
-    if (dayCount(active)) lastPicked = active;
+  if (t.dataset.m && active) {
+    const k = activeSlot();
+    cart[k] = cart[k] || {};
+    cart[k][t.dataset.m] = Math.max(0, (cart[k][t.dataset.m] || 0) + Number(t.dataset.d));
+    if (slotCount(k)) lastPicked = k;
     render();
   }
-  if (t.dataset.copy) { cart[active] = { ...cart[lastPicked] }; render(); }
-  if (t.dataset.clear) { delete cart[active]; render(); }
+  if (t.dataset.copy && active) { cart[activeSlot()] = { ...cart[lastPicked] }; render(); }
+  if (t.dataset.clear && active) { delete cart[activeSlot()]; render(); }
 });
 
 // ===== 카카오(다음) 주소 찾기 =====
@@ -498,7 +519,7 @@ function listen(id) {
     const d = snap.data();
     live[id] = d;
     // 확인됨/대기 표시 실시간 반영
-    (d.orders || []).forEach(o => { if (owner[o.date] === id) { if (d.status === "신청") pendingDate[o.date] = true; else delete pendingDate[o.date]; } });
+    (d.orders || []).forEach(o => { const k = slot(o.date, mealOf(o)); if (owner[k] === id) { if (d.status === "신청") pendingSlot[k] = true; else delete pendingSlot[k]; } });
     render();
     // 새 알림이 있으면 띄우기 (안 본 것만)
     const a = d.alarm;
@@ -525,20 +546,15 @@ async function loadMine() {
       live[id] = d;
     } catch (e) { keep.push(id); dbg.push(`${id.slice(0,6)}: 오류 ${e.code || e.message}`); }
   }
-  // 오늘 아침·점심을 이미 신청했으면 오늘 칸은 잠금
-  todayLocked = loaded.some(L => (L.orders || []).some(o => o.date === TODAY_STR && !isOpenToday(o.meal || "점심")));
   for (const L of loaded) {
-    const id = L.id, d = L;
-    {
-      (d.orders || []).forEach(o => {
-        if (!ALL.includes(o.date) || !canPick(o.date)) return;
-        owner[o.date] = owner[o.date] || id;
-        if (d.status === "신청") pendingDate[o.date] = true;
-        cart[o.date] = cart[o.date] || {};
-        o.items.forEach(i => { const k = nameToId[i.name]; if (k) cart[o.date][k] = (cart[o.date][k] || 0) + i.qty; });
-        if (o.meal) cart[o.date].meal = o.meal;
-      });
-    }
+    (L.orders || []).forEach(o => {
+      const m = mealOf(o), k = slot(o.date, m);
+      if (!ALL.includes(o.date) || !canSlot(o.date, m)) return;
+      owner[k] = owner[k] || L.id;
+      if (L.status === "신청") pendingSlot[k] = true;
+      cart[k] = cart[k] || {};
+      o.items.forEach(i => { const id = nameToId[i.name]; if (id) cart[k][id] = (cart[k][id] || 0) + i.qty; });
+    });
   }
   me.subs = keep;
   keep.forEach(listen);
@@ -555,44 +571,45 @@ document.getElementById("submit").addEventListener("click", async () => {
   const v = id => document.getElementById(id).value.trim();
   if (!v("name") || !v("phone") || !v("addr")) { alert("연락처, 이름을 입력하고 🔍 주소 찾기로 주소를 골라 주세요."); return; }
   const btn = document.getElementById("submit");
-  const todayChanged = JSON.stringify(JSON.parse(orig)[TODAY_STR]) !== JSON.stringify(JSON.parse(snapCart())[TODAY_STR]);
-  if (todayChanged && dayCount(TODAY_STR) && !isOpenToday(getMeal(TODAY_STR))) {
-    const m = getMeal(TODAY_STR);
+  // 오늘 마감이 지난 식사를 새로 담았으면 막기 (화면을 오래 켜 둔 경우)
+  const late = pickedSlots().filter(k => slotDate(k) === TODAY_STR && !owner[k] && !isOpenToday(slotMeal(k)));
+  if (late.length) {
+    const m = slotMeal(late[0]);
     alert(SAME_DAY[m] ? `오늘 ${m} 신청은 ${fmtTime(SAME_DAY[m])}까지예요. 가게로 전화해 주세요.` : `오늘 ${m}은 당일 신청이 안 돼요. 가게로 전화해 주세요.`);
-    if (!owner[TODAY_STR]) delete cart[TODAY_STR];
+    late.forEach(k => delete cart[k]);
     render(); return;
   }
   btn.disabled = true; btn.textContent = "보내는 중..."; btn.dataset.busy = "1";
-  const mk = d => ({
-    date: d,
-    items: MENUS.filter(m => cart[d] && cart[d][m.id]).map(m => ({ name: m.name, price: m.price, qty: cart[d][m.id] })),
-    amount: dayMoney(d),
-    ...(getMeal(d) !== "점심" ? { meal: getMeal(d) } : {})
+  const mk = k => ({
+    date: slotDate(k),
+    items: MENUS.filter(m => cart[k] && cart[k][m.id]).map(m => ({ name: m.name, price: m.price, qty: cart[k][m.id] })),
+    amount: slotMoney(k),
+    ...(slotMeal(k) !== "점심" ? { meal: slotMeal(k) } : {})
   });
-  const editable = d => ALL.includes(d) && canPick(d);
+  const editable = o => ALL.includes(o.date) && canSlot(o.date, mealOf(o));
   const used = new Set();
   const info = { name: v("name"), addr: v("addr"), memo: v("memo") };
   try {
     // 1) 예전 신청서 수정
     for (const L of loaded) {
       const before = L.orders || [];
-      const keepOld = before.filter(o => !editable(o.date));
-      const mine = [...new Set(before.filter(o => editable(o.date)).map(o => o.date))]
-        .filter(d => owner[d] === L.id && !used.has(d));
-      mine.forEach(d => used.add(d));
-      const future = mine.filter(d => dayCount(d)).map(mk);
-      const orders = [...keepOld, ...future].sort((a, b) => a.date < b.date ? -1 : 1);
-      if (JSON.stringify(orders) === JSON.stringify(before)) continue;
+      const keepOld = before.filter(o => !editable(o));
+      const mine = [...new Set(before.filter(editable).map(o => slot(o.date, mealOf(o))))]
+        .filter(k => owner[k] === L.id && !used.has(k));
+      mine.forEach(k => used.add(k));
+      const future = mine.filter(k => slotCount(k)).map(mk);
+      const orders = [...keepOld, ...future].sort(orderSort);
+      if (JSON.stringify(orders) === JSON.stringify([...before].sort(orderSort))) continue;
       const sum = list => list.reduce((a, o) => a + o.amount, 0);
       if (!keepOld.length) {
-        // 지난 날짜가 없으면 그대로 고치고 다시 확인 대기로
+        // 지난 주문이 없으면 그대로 고치고 다시 확인 대기로
         await updateDoc(doc(db, "subscriptions", L.id), {
           ...info, orders, total: sum(orders),
           status: orders.length ? "신청" : "종료", editedAt: serverTimestamp()
         });
         if (!orders.length) me.subs = me.subs.filter(x => x !== L.id);
       } else {
-        // 지난 날짜(이미 확인·배달된 것)는 그대로 두고, 바뀐 앞날짜만 새 신청으로 다시 확인받기
+        // 지난 주문(이미 확인·배달된 것)은 그대로 두고, 바뀐 것만 새 신청으로 다시 확인받기
         await updateDoc(doc(db, "subscriptions", L.id), { orders: keepOld, total: sum(keepOld), status: L.status });
         me.subs = me.subs.filter(x => x !== L.id);
         if (future.length) {
@@ -604,10 +621,10 @@ document.getElementById("submit").addEventListener("click", async () => {
         }
       }
     }
-    // 2) 새로 고른 날짜는 새 신청서로
-    const fresh = pickedDates().filter(d => !used.has(d) && !owner[d]);
+    // 2) 새로 고른 칸은 새 신청서로
+    const fresh = pickedSlots().filter(k => !used.has(k) && !owner[k]);
     if (fresh.length) {
-      const orders = fresh.map(mk);
+      const orders = fresh.map(mk).sort(orderSort);
       const ref = await addDoc(collection(db, "subscriptions"), {
         orders, phone: v("phone"), ...info,
         total: orders.reduce((a, o) => a + o.amount, 0),
@@ -617,7 +634,7 @@ document.getElementById("submit").addEventListener("click", async () => {
       listen(ref.id);
     }
     me = { ...me, phone: v("phone"), ...info, addrMain: v("addrMain"), addrDetail: v("addrDetail"),
-           booked: [...new Set([...me.booked, ...pickedDates()])].filter(d => d >= ymd(new Date())) };
+           booked: [...new Set([...me.booked, ...pickedSlots().map(slotDate)])].filter(d => d >= ymd(new Date())) };
     try { localStorage.setItem(LS, JSON.stringify(me)); } catch {}
     document.getElementById("form").style.display = "none";
     document.getElementById("bar").style.display = "none";
