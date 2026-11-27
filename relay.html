@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>영수증 중계기 · 맛있는밥집</title>
+<title>주방 주문지 공유 · 맛있는밥집</title>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; font-family: -apple-system, "Malgun Gothic", "Noto Sans KR", sans-serif; background: #f2f2f2; color: #222; }
@@ -13,26 +13,34 @@
   .box { background: #fff; border-radius: 14px; margin: 12px; padding: 16px; }
   .login { max-width: 360px; margin: 60px auto; }
   .login input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; }
-  .login button, .big { width: 100%; padding: 14px; background: #d9532b; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; }
+  .login button { width: 100%; padding: 14px; background: #d9532b; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; }
   h2 { font-size: 17px; margin: 0 0 10px; }
   .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
-  .row button { padding: 12px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-size: 15px; font-weight: 700; flex: 1; min-width: 180px; }
-  .row button.ok { background: #e8f5e9; border-color: #2e8b57; color: #1e6b3f; }
-  .row select { padding: 9px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; }
-  .state { font-size: 22px; font-weight: 800; padding: 14px; border-radius: 12px; text-align: center; }
+  .row button, .btn { padding: 12px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-size: 15px; font-weight: 700; }
+  .ok { background: #e8f5e9 !important; border-color: #2e8b57 !important; color: #1e6b3f !important; }
+  select { padding: 9px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; }
+  .posbtns button { flex: 1; font-size: 18px; }
+  .posbtns button.on { background: #333; color: #fff; border-color: #333; }
+  .state { font-size: 20px; font-weight: 800; padding: 14px; border-radius: 12px; text-align: center; }
   .state.on { background: #e8f5e9; color: #1e6b3f; }
   .state.off { background: #fdecea; color: #b3261e; }
-  .note { font-size: 13px; color: #777; line-height: 1.6; }
-  .log { font-family: Consolas, monospace; font-size: 12px; color: #555; max-height: 140px; overflow: auto; background: #fafafa; border-radius: 8px; padding: 8px; white-space: pre-wrap; }
+  .peers { display: flex; gap: 8px; margin-top: 10px; }
+  .peers div { flex: 1; text-align: center; padding: 8px; border-radius: 10px; background: #f5f5f5; font-weight: 700; font-size: 14px; }
+  .note { font-size: 13px; color: #777; line-height: 1.7; }
+  .prt { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid #eee; border-radius: 10px; margin: 6px 0; flex-wrap: wrap; }
+  .prt b { flex: 1; }
+  .log { font-family: Consolas, monospace; font-size: 12px; color: #555; max-height: 150px; overflow: auto; background: #fafafa; border-radius: 8px; padding: 8px; white-space: pre-wrap; margin-top: 10px; }
   .rc { border: 1px solid #eee; border-radius: 10px; padding: 10px; margin: 8px 0; }
-  .rc .h { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; }
-  .rc pre { margin: 0; font-family: Consolas, "Malgun Gothic", monospace; font-size: 12px; white-space: pre-wrap; max-height: 260px; overflow: auto; background: #fafafa; padding: 8px; border-radius: 8px; }
-  .src { font-size: 12px; padding: 2px 8px; border-radius: 6px; color: #fff; background: #888; margin-right: 6px; }
-  .src.쿠팡이츠 { background: #00a5e5; } .src.배달의민족 { background: #2ac1bc; } .src.요기요 { background: #fa0050; } .src.도시락합계 { background: #333; }
+  .rc .h { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 6px; flex-wrap: wrap; }
+  .rc pre { margin: 0; font-family: Consolas, "Malgun Gothic", monospace; font-size: 12px; white-space: pre-wrap; max-height: 200px; overflow: auto; background: #fafafa; padding: 8px; border-radius: 8px; }
+  .tag { font-size: 12px; padding: 2px 8px; border-radius: 6px; color: #fff; background: #888; margin-right: 4px; }
+  .tag.쿠팡이츠 { background: #00a5e5; } .tag.배달의민족 { background: #2ac1bc; } .tag.요기요 { background: #fa0050; }
+  .pp { font-size: 12px; font-weight: 400; color: #666; }
+  .rc button { padding: 6px 10px; font-size: 13px; border-radius: 8px; border: 1px solid #ccc; background: #fff; }
 </style>
 </head>
 <body>
-<header><h1>🧾 영수증 중계기</h1><button id="logout" style="display:none">로그아웃</button></header>
+<header><h1>🧾 주방 주문지 공유</h1><button id="logout" style="display:none">로그아웃</button></header>
 
 <div class="box login" id="login">
   <input id="email" type="email" placeholder="관리자 이메일">
@@ -43,31 +51,44 @@
 
 <div id="app" style="display:none">
   <div class="box">
-    <div class="state off" id="state">⏹ 중계 꺼짐</div>
-    <div class="row">
-      <button id="pickIn">① 배달앱 쪽 가상 포트 고르기 (예: COM10)</button>
-      <button id="pickOut">② 진짜 프린터 포트 고르기 (예: COM1)</button>
+    <div class="state off" id="state">⏹ 꺼짐</div>
+    <div class="peers" id="peers"></div>
+  </div>
+
+  <div class="box">
+    <h2>① 이 컴퓨터는 몇 번 포스인가요?</h2>
+    <div class="row posbtns">
+      <button data-pos="1">1번 포스</button><button data-pos="2">2번 포스</button><button data-pos="3">3번 포스</button>
     </div>
+
+    <h2 style="margin-top:16px">② 배달앱 주문 받는 가상 포트 <span class="pp">(배달앱이 있는 1·2번 포스만)</span></h2>
     <div class="row">
-      <span>프린터 속도</span><select id="baud"></select>
-      <button id="startBtn" class="ok">▶ 중계 시작</button>
+      <button id="pickIn" style="flex:1">가상 포트 고르기 (COM11)</button>
+      <button id="noIn">없음 (3번 포스)</button>
     </div>
+
+    <h2 style="margin-top:16px">③ 이 컴퓨터의 주방 프린터</h2>
+    <div id="prtList"></div>
+    <div class="row"><button id="addPrt" style="flex:1">➕ 프린터 포트 추가 (COM1 등)</button></div>
+
+    <div class="row" style="margin-top:14px"><button id="startBtn" style="flex:1;font-size:17px">▶ 시작</button></div>
     <div class="note">
-      · 배달앱(쿠팡이츠·배민·요기요) 프린터 설정은 <b>가상 포트(COM10)</b>로 바꿔 두세요.<br>
-      · 이 창은 <b>항상 켜 두세요</b>. 닫으면 배달앱 영수증이 안 나와요. (켜 두기만 하면 다음에 열 때 자동으로 다시 시작해요)<br>
+      · 1·2번 포스: 배달앱 프린터 포트를 <b>COM10</b>으로 바꿔 두고, 여기 ②에서 <b>COM11</b>을 고르세요.<br>
+      · 이 창은 <b>항상 켜 두세요</b>. 다음부터는 열기만 하면 자동으로 시작해요.<br>
+      · 다른 포스에 들어온 주문이 이 컴퓨터 프린터에서 <b>그대로</b> 나와요.
     </div>
     <div class="log" id="log"></div>
   </div>
 
   <div class="box">
-    <h2>📥 받은 영수증 <span id="rcCount" style="font-weight:400;color:#888"></span></h2>
+    <h2>📥 최근 주문지 <span id="rcCount" class="pp"></span></h2>
     <div id="rcList"></div>
   </div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, addDoc, doc, setDoc, updateDoc, onSnapshot, query, orderBy, limit, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, addDoc, doc, setDoc, updateDoc, onSnapshot, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const app = initializeApp({
@@ -82,13 +103,15 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const $ = id => document.getElementById(id);
 const esc = x => String(x ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const hm = t => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
 
 // ---------- 로그 ----------
 const logLines = [];
 function log(t) {
   const n = new Date();
   logLines.unshift(`${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}:${String(n.getSeconds()).padStart(2, "0")} ${t}`);
-  logLines.length = Math.min(logLines.length, 60);
+  logLines.length = Math.min(logLines.length, 80);
   $("log").textContent = logLines.join("\n");
 }
 
@@ -97,207 +120,313 @@ $("loginBtn").onclick = async () => {
   try { await signInWithEmailAndPassword(auth, $("email").value.trim(), $("pw").value); }
   catch (e) { $("loginMsg").textContent = "로그인 실패 (" + (e.code || e.message) + ")"; }
 };
+$("pw").addEventListener("keydown", e => { if (e.key === "Enter") $("loginBtn").click(); });
 $("logout").onclick = () => signOut(auth);
-let started = false;
+let booted = false;
 onAuthStateChanged(auth, user => {
   $("login").style.display = user ? "none" : "block";
   $("app").style.display = user ? "block" : "none";
   $("logout").style.display = user ? "block" : "none";
-  if (user && !started) { started = true; boot(); }
+  if (user && !booted) { booted = true; boot(); }
 });
 
-// ---------- 설정 ----------
-const KEY = "relay_cfg";
+// ---------- 설정 (이 컴퓨터에 저장) ----------
+const KEY = "kitchen_relay_cfg";
 let cfg = {};
 try { cfg = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch {}
+cfg.outs = cfg.outs || [];          // [{idx, info, baud, name}]
 const saveCfg = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch {} };
-$("baud").innerHTML = [9600, 19200, 38400, 57600, 115200].map(b => `<option>${b}</option>`).join("");
-$("baud").value = String(cfg.baud || 9600);
-$("baud").onchange = () => { cfg.baud = Number($("baud").value); saveCfg(); if (running) { stopRelay().then(startRelay); } };
+const myPos = () => cfg.pos ? "pos" + cfg.pos : null;
+
+document.querySelectorAll(".posbtns button").forEach(b => b.onclick = () => {
+  cfg.pos = Number(b.dataset.pos); saveCfg(); updUI(); heartbeat();
+});
 
 // ---------- 포트 ----------
-let inPort = null, outPort = null;   // in: 배달앱 쪽 가상 포트, out: 진짜 프린터
+const BAUDS = [9600, 19200, 38400, 57600, 115200];
 const infoKey = p => JSON.stringify(p.getInfo ? p.getInfo() : {});
+let allPorts = [];
+let inPort = null;
+let outs = [];          // [{port, baud, name, writer, reader, chain}]
 async function restorePorts() {
   if (!("serial" in navigator)) return;
-  const ps = await navigator.serial.getPorts();
-  // 고른 순서(번호)와 장치 정보로 다시 찾기
-  if (cfg.inIdx != null && ps[cfg.inIdx] && infoKey(ps[cfg.inIdx]) === cfg.inInfo) inPort = ps[cfg.inIdx];
-  if (cfg.outIdx != null && ps[cfg.outIdx] && infoKey(ps[cfg.outIdx]) === cfg.outInfo) outPort = ps[cfg.outIdx];
-  updBtns();
+  allPorts = await navigator.serial.getPorts();
+  const find = (idx, info) => (allPorts[idx] && infoKey(allPorts[idx]) === info) ? allPorts[idx] : null;
+  inPort = cfg.inIdx != null ? find(cfg.inIdx, cfg.inInfo) : null;
+  outs = cfg.outs.map(o => ({ port: find(o.idx, o.info), baud: o.baud || 9600, name: o.name })).filter(o => o.port);
+  if (outs.length !== cfg.outs.length) log("⚠️ 기억해 둔 프린터 포트 중 못 찾은 게 있어요. 다시 추가해 주세요.");
 }
-async function pick(role) {
-  if (!("serial" in navigator)) { alert("이 브라우저는 COM 포트를 못 써요. 윈도우 컴퓨터의 크롬이나 엣지로 열어 주세요."); return; }
+async function choosePort() {
+  if (!("serial" in navigator)) { alert("이 브라우저는 COM 포트를 못 써요. 윈도우 크롬이나 엣지로 열어 주세요."); return null; }
   try {
     const p = await navigator.serial.requestPort();
-    const ps = await navigator.serial.getPorts();
-    const idx = ps.indexOf(p);
-    if (role === "in") { inPort = p; cfg.inIdx = idx; cfg.inInfo = infoKey(p); }
-    else { outPort = p; cfg.outIdx = idx; cfg.outInfo = infoKey(p); }
-    if (inPort && inPort === outPort) { alert("두 포트가 같아요. ①은 가상 포트(COM10), ②는 진짜 프린터(COM1)로 따로 골라 주세요."); if (role === "in") inPort = null; else outPort = null; }
-    saveCfg(); updBtns();
-  } catch (e) { if (e.name !== "NotFoundError") alert("포트 선택 실패: " + e.message); }
+    allPorts = await navigator.serial.getPorts();
+    return p;
+  } catch (e) { if (e.name !== "NotFoundError") alert("포트 선택 실패: " + e.message); return null; }
 }
-$("pickIn").onclick = () => pick("in");
-$("pickOut").onclick = () => pick("out");
-function updBtns() {
-  $("pickIn").classList.toggle("ok", !!inPort);
-  $("pickOut").classList.toggle("ok", !!outPort);
-  $("pickIn").textContent = inPort ? "✅ ① 배달앱 쪽 가상 포트 선택됨" : "① 배달앱 쪽 가상 포트 고르기 (예: COM10)";
-  $("pickOut").textContent = outPort ? "✅ ② 프린터 포트 선택됨" : "② 진짜 프린터 포트 고르기 (예: COM1)";
+$("pickIn").onclick = async () => {
+  if (running) { alert("먼저 ⏸ 멈추고 바꿔 주세요."); return; }
+  const p = await choosePort(); if (!p) return;
+  if (outs.some(o => o.port === p)) { alert("이 포트는 프린터로 이미 골랐어요. 가상 포트(COM11)를 골라 주세요."); return; }
+  inPort = p; cfg.inIdx = allPorts.indexOf(p); cfg.inInfo = infoKey(p); cfg.noIn = false; saveCfg(); updUI();
+};
+$("noIn").onclick = () => {
+  if (running) { alert("먼저 ⏸ 멈추고 바꿔 주세요."); return; }
+  inPort = null; delete cfg.inIdx; cfg.noIn = true; saveCfg(); updUI();
+};
+$("addPrt").onclick = async () => {
+  if (running) { alert("먼저 ⏸ 멈추고 바꿔 주세요."); return; }
+  const p = await choosePort(); if (!p) return;
+  if (p === inPort) { alert("이 포트는 가상 포트로 골랐어요. 프린터 포트(COM1 등)를 골라 주세요."); return; }
+  if (outs.some(o => o.port === p)) { alert("이미 추가한 프린터예요."); return; }
+  const name = prompt("이 프린터 이름 (예: 주방1, 튀김)", `프린터${outs.length + 1}`) || `프린터${outs.length + 1}`;
+  outs.push({ port: p, baud: 9600, name });
+  syncOutsCfg(); updUI();
+};
+function syncOutsCfg() {
+  cfg.outs = outs.map(o => ({ idx: allPorts.indexOf(o.port), info: infoKey(o.port), baud: o.baud, name: o.name }));
+  saveCfg();
+}
+function renderPrts() {
+  $("prtList").innerHTML = outs.map((o, i) => `<div class="prt">
+      <b>🖨️ ${esc(o.name)}</b>
+      <span>속도</span><select data-baud="${i}">${BAUDS.map(b => `<option ${b === o.baud ? "selected" : ""}>${b}</option>`).join("")}</select>
+      <button class="btn" data-test="${i}">시험 출력</button>
+      <button class="btn" data-rm="${i}">빼기</button>
+    </div>`).join("") || `<div class="note">아직 추가한 프린터가 없어요.</div>`;
+}
+document.addEventListener("change", e => {
+  const i = e.target.dataset.baud;
+  if (i != null) { if (running) { alert("먼저 ⏸ 멈추고 바꿔 주세요."); renderPrts(); return; } outs[i].baud = Number(e.target.value); syncOutsCfg(); }
+});
+document.addEventListener("click", async e => {
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.rm != null) {
+    if (running) { alert("먼저 ⏸ 멈추고 바꿔 주세요."); return; }
+    outs.splice(Number(t.dataset.rm), 1); syncOutsCfg(); updUI();
+  }
+  if (t.dataset.test != null) {
+    const o = outs[Number(t.dataset.test)];
+    const txt = `${cfg.pos || "?"}번 포스 · ${o.name} 시험 출력\n${hm(Date.now())}\n\n\n\n`;
+    const bytes = new Uint8Array([0x1B, 0x40, ...encKR(txt), 0x1D, 0x56, 0x42, 0x00]);
+    if (running) await writeOut(o, bytes);
+    else {
+      try { await o.port.open({ baudRate: o.baud }); const w = o.port.writable.getWriter(); await w.write(bytes); w.releaseLock(); await sleep(500); await o.port.close(); log(`${o.name} 시험 출력함`); }
+      catch (err) { alert("시험 출력 실패: " + err.message); try { await o.port.close(); } catch {} }
+    }
+  }
+  if (t.dataset.reprint) reprint(t.dataset.reprint);
+});
+
+// 한글 → EUC-KR (시험 출력용)
+let EUC = null;
+function encKR(str) {
+  if (!EUC) { EUC = new Map(); const dec = new TextDecoder("euc-kr"); for (let a = 0x81; a <= 0xFE; a++) for (let b = 0x41; b <= 0xFE; b++) { const ch = dec.decode(new Uint8Array([a, b])); if (ch.length === 1 && ch !== "�" && !EUC.has(ch)) EUC.set(ch, [a, b]); } }
+  const out = []; for (const ch of str) { const c = ch.codePointAt(0); if (c < 0x80) out.push(c); else if (EUC.has(ch)) out.push(...EUC.get(ch)); else out.push(0x3F); } return out;
 }
 
-// ---------- 중계 ----------
-let running = false, inReader = null, outReader = null, outWriter = null, inWriter = null;
-let lastIn = 0;               // 배달앱에서 마지막으로 데이터 온 시각
-let job = [];                 // 지금 받는 영수증 바이트
-let jobTimer = null;
-let writeChain = Promise.resolve();   // 프린터로 보내는 순서 지키기
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-function toPrinter(bytes) {
-  writeChain = writeChain.then(async () => {
-    if (!outWriter) return;
-    const baud = Number(cfg.baud || 9600), CH = 64, wait = Math.ceil(CH * 10 * 1000 / baud * 1.3);
-    for (let i = 0; i < bytes.length; i += CH) { await outWriter.write(bytes.slice(i, i + CH)); await sleep(wait); }
-  }).catch(e => log("프린터 쓰기 오류: " + e.message));
-  return writeChain;
+// ---------- 시작 / 멈춤 ----------
+let running = false, inReader = null, inWriter = null;
+let lastIn = 0;
+const isOpenErr = e => String(e.message).includes("already open");
+function writeOut(o, bytes) {
+  o.chain = (o.chain || Promise.resolve()).then(async () => {
+    if (!o.writer) return;
+    const CH = 64, wait = Math.ceil(CH * 10 * 1000 / o.baud * 1.3);
+    for (let i = 0; i < bytes.length; i += CH) { await o.writer.write(bytes.slice(i, i + CH)); await sleep(wait); }
+  }).catch(e => log(`${o.name} 쓰기 오류: ${e.message}`));
+  return o.chain;
 }
 async function pump(reader, onData) {
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      if (value && value.length) onData(value);
-    }
-  } catch (e) { if (running) log("읽기 오류: " + e.message); }
+  try { while (true) { const { value, done } = await reader.read(); if (done) break; if (value?.length) onData(value); } }
+  catch (e) { if (running) log("읽기 오류: " + e.message); }
 }
-async function startRelay() {
+async function start() {
   if (running) return;
-  if (!inPort || !outPort) { alert("①, ② 포트를 먼저 골라 주세요."); return; }
-  const baud = Number(cfg.baud || 9600);
-  try { await inPort.open({ baudRate: baud }); } catch (e) { if (!String(e.message).includes("already open")) { log("가상 포트 열기 실패: " + e.message); alert("가상 포트를 못 열었어요: " + e.message); return; } }
-  try { await outPort.open({ baudRate: baud }); } catch (e) {
-    if (!String(e.message).includes("already open")) {
-      log("프린터 포트 열기 실패: " + e.message);
-      alert("프린터 포트를 못 열었어요.\n배달앱이나 다른 창이 아직 COM1을 쓰고 있을 수 있어요. 배달앱 프린터 포트를 가상 포트로 바꾼 뒤 배달앱을 다시 켜 주세요.\n(" + e.message + ")");
-      try { await inPort.close(); } catch {}
-      return;
+  if (!cfg.pos) { alert("① 몇 번 포스인지 먼저 골라 주세요."); return; }
+  if (!outs.length) { alert("③ 프린터 포트를 하나 이상 추가해 주세요."); return; }
+  const opened = [];
+  try {
+    for (const o of outs) {
+      try { await o.port.open({ baudRate: o.baud }); } catch (e) { if (!isOpenErr(e)) throw new Error(`${o.name}: ${e.message}`); }
+      opened.push(o.port);
+      o.writer = o.port.writable.getWriter();
+      o.reader = o.port.readable.getReader();
     }
+    if (inPort) {
+      try { await inPort.open({ baudRate: 9600 }); } catch (e) { if (!isOpenErr(e)) throw new Error(`가상 포트: ${e.message}`); }
+      opened.push(inPort);
+      inWriter = inPort.writable.getWriter();
+      inReader = inPort.readable.getReader();
+    }
+  } catch (e) {
+    log("열기 실패: " + e.message);
+    alert("포트를 못 열었어요.\n배달앱이 아직 COM1을 쓰고 있으면, 배달앱 프린터 포트를 COM10으로 바꾸고 배달앱을 다시 켜 주세요.\n(" + e.message + ")");
+    for (const o of outs) { try { o.writer?.releaseLock(); o.reader?.releaseLock(); } catch {} o.writer = o.reader = null; }
+    try { inWriter?.releaseLock(); inReader?.releaseLock(); } catch {} inWriter = inReader = null;
+    for (const p of opened) { try { await p.close(); } catch {} }
+    return;
   }
   running = true; cfg.auto = true; saveCfg();
-  outWriter = outPort.writable.getWriter();
-  inWriter = inPort.writable.getWriter();
-  inReader = inPort.readable.getReader();
-  outReader = outPort.readable.getReader();
-  // 배달앱 → 프린터 (영수증 저장도 같이)
-  pump(inReader, v => { lastIn = Date.now(); toPrinter(v); captureBytes(v); });
-  // 프린터 → 배달앱 (용지 없음 같은 상태 응답)
-  pump(outReader, v => { inWriter?.write(v).catch(() => {}); });
-  setState(true);
-  log("중계 시작");
+  // 프린터 → 배달앱: 첫 번째 프린터의 상태 응답만 배달앱에 돌려줌
+  outs.forEach((o, i) => pump(o.reader, v => { if (i === 0 && inWriter) inWriter.write(v).catch(() => {}); }));
+  // 배달앱 → 이 컴퓨터 프린터 + 다른 포스로 공유
+  if (inReader) pump(inReader, v => { lastIn = Date.now(); outs.forEach(o => writeOut(o, v)); capture(v); });
+  updUI(); heartbeat();
+  log(`시작 (${cfg.pos}번 포스, 프린터 ${outs.length}대${inPort ? ", 배달앱 받음" : ""})`);
+  catchUp();
 }
-async function stopRelay() {
+async function stop() {
   running = false;
-  for (const r of [inReader, outReader]) { try { await r?.cancel(); r?.releaseLock(); } catch {} }
-  for (const w of [inWriter, outWriter]) { try { w?.releaseLock(); } catch {} }
-  inReader = outReader = inWriter = outWriter = null;
-  for (const p of [inPort, outPort]) { try { await p?.close(); } catch {} }
-  setState(false);
-  log("중계 멈춤");
+  for (const r of [inReader, ...outs.map(o => o.reader)]) { try { await r?.cancel(); r?.releaseLock(); } catch {} }
+  for (const w of [inWriter, ...outs.map(o => o.writer)]) { try { w?.releaseLock(); } catch {} }
+  inReader = inWriter = null; outs.forEach(o => { o.reader = o.writer = null; o.chain = null; });
+  for (const p of [inPort, ...outs.map(o => o.port)]) { try { await p?.close(); } catch {} }
+  updUI(); heartbeat(); log("멈춤");
 }
-$("startBtn").onclick = () => running ? (cfg.auto = false, saveCfg(), stopRelay()) : startRelay();
-function setState(on) {
-  $("state").className = "state " + (on ? "on" : "off");
-  $("state").textContent = on ? "🟢 중계 중 · 배달앱 영수증이 프린터로 나가요" : "⏹ 중계 꺼짐 · 배달앱 영수증이 안 나와요!";
-  $("startBtn").textContent = on ? "⏸ 중계 멈추기" : "▶ 중계 시작";
-  document.title = (on ? "🟢" : "🔴") + " 영수증 중계기";
-  heartbeat();
-}
-if ("serial" in navigator) navigator.serial.addEventListener("disconnect", () => { log("포트가 빠졌어요"); if (running) stopRelay(); });
+$("startBtn").onclick = () => running ? (cfg.auto = false, saveCfg(), stop()) : start();
+if ("serial" in navigator) navigator.serial.addEventListener("disconnect", () => { log("⚠️ 포트 연결이 빠졌어요"); if (running) stop(); });
 
-// ---------- 영수증 저장 ----------
-function captureBytes(v) {
+// ---------- 배달앱 주문지 한 장 모으기 → 공유 ----------
+let job = [], jobTimer = null;
+function capture(v) {
   for (const b of v) job.push(b);
   clearTimeout(jobTimer);
-  // 1.5초 동안 더 안 오면 영수증 한 장 끝
-  jobTimer = setTimeout(finishJob, 1500);
+  jobTimer = setTimeout(finishJob, 1500);     // 1.5초 조용하면 한 장 끝
 }
-// ESC/POS 명령을 빼고 글자만 남기기
+const b64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = s => { const bin = atob(s || ""); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return u8; };
+async function finishJob() {
+  if (!job.length) return;
+  const bytes = new Uint8Array(job); job = [];
+  if (bytes.length < 20) return;                     // 상태 확인 같은 짧은 신호는 공유 안 함
+  const text = escposToText(bytes);
+  const src = guessSrc(text);
+  if (bytes.length > 700000) { log("⚠️ 주문지가 너무 커서 공유 못 함"); return; }
+  try {
+    await addDoc(collection(db, "receipts"), {
+      from: myPos(), src, text: text.slice(0, 4000), raw: b64(bytes), size: bytes.length,
+      at: Date.now(), createdAt: serverTimestamp(), printed: { [myPos()]: true }
+    });
+    log(`주문지 공유함 (${src}, ${bytes.length}B)`);
+  } catch (e) { log("공유 실패: " + e.message); }
+}
 function escposToText(bytes) {
-  const out = [];
-  let i = 0;
-  const n = bytes.length;
+  const out = []; let i = 0; const n = bytes.length;
   while (i < n) {
     const b = bytes[i];
-    if (b === 0x1B) {               // ESC
-      const c = bytes[i + 1];
-      if (c === 0x40) i += 2;                                   // 초기화
-      else if (c === 0x64 || c === 0x4A) { out.push(0x0A); i += 3; } // 줄 띄움
-      else if (c === 0x2A) { const nL = bytes[i + 3] || 0, nH = bytes[i + 4] || 0, m = bytes[i + 2]; i += 5 + (nL + nH * 256) * (m >= 32 ? 3 : 1); } // 비트 이미지
-      else if (c === 0x70) i += 5;                              // 금전함
-      else if (c === 0x44) { i += 2; while (i < n && bytes[i] !== 0) i++; i++; }
-      else i += 3;                                              // 나머지는 값 1개짜리
-    } else if (b === 0x1D) {        // GS
-      const c = bytes[i + 1];
-      if (c === 0x56) i += (bytes[i + 2] >= 65 ? 4 : 3);        // 자르기
-      else if (c === 0x76 && bytes[i + 2] === 0x30) { const xL = bytes[i + 4], xH = bytes[i + 5], yL = bytes[i + 6], yH = bytes[i + 7]; i += 8 + (xL + xH * 256) * (yL + yH * 256); } // 그림
-      else if (c === 0x28) { const pL = bytes[i + 3] || 0, pH = bytes[i + 4] || 0; i += 5 + pL + pH * 256; } // QR 등
-      else if (c === 0x6B) { const m = bytes[i + 2]; if (m <= 6) { i += 3; while (i < n && bytes[i] !== 0) i++; i++; } else i += 4 + (bytes[i + 3] || 0); } // 바코드
+    if (b === 0x1B) { const c = bytes[i + 1];
+      if (c === 0x40) i += 2; else if (c === 0x64 || c === 0x4A) { out.push(0x0A); i += 3; }
+      else if (c === 0x2A) { const m = bytes[i + 2], nL = bytes[i + 3] || 0, nH = bytes[i + 4] || 0; i += 5 + (nL + nH * 256) * (m >= 32 ? 3 : 1); }
+      else if (c === 0x70) i += 5; else if (c === 0x44) { i += 2; while (i < n && bytes[i] !== 0) i++; i++; } else i += 3;
+    } else if (b === 0x1D) { const c = bytes[i + 1];
+      if (c === 0x56) i += (bytes[i + 2] >= 65 ? 4 : 3);
+      else if (c === 0x76 && bytes[i + 2] === 0x30) i += 8 + ((bytes[i + 4] || 0) + (bytes[i + 5] || 0) * 256) * ((bytes[i + 6] || 0) + (bytes[i + 7] || 0) * 256);
+      else if (c === 0x28) i += 5 + (bytes[i + 3] || 0) + (bytes[i + 4] || 0) * 256;
+      else if (c === 0x6B) { const m = bytes[i + 2]; if (m <= 6) { i += 3; while (i < n && bytes[i] !== 0) i++; i++; } else i += 4 + (bytes[i + 3] || 0); }
       else i += 3;
-    } else if (b === 0x1C) {        // FS (한글 모드 등)
-      const c = bytes[i + 1];
-      i += (c === 0x26 || c === 0x2E) ? 2 : 3;
-    } else if (b === 0x10 || b === 0x0C) { i += (b === 0x10 ? 3 : 1); }
-    else { if (b === 0x0A || b === 0x0D || b === 0x09 || b >= 0x20) out.push(b); i++; }
+    } else if (b === 0x1C) { const c = bytes[i + 1]; i += (c === 0x26 || c === 0x2E) ? 2 : 3; }
+    else if (b === 0x10) i += 3;
+    else { if (b === 0x0A || b === 0x09 || b >= 0x20) out.push(b); i++; }
   }
-  let t = new TextDecoder("euc-kr").decode(new Uint8Array(out));
-  return t.replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim();
+  return new TextDecoder("euc-kr").decode(new Uint8Array(out)).replace(/\n{3,}/g, "\n\n").trim();
 }
 function guessSrc(t) {
   if (/쿠팡\s*이츠|coupang/i.test(t)) return "쿠팡이츠";
   if (/배달의\s*민족|배민|baemin/i.test(t)) return "배달의민족";
   if (/요기요|yogiyo/i.test(t)) return "요기요";
-  return "기타";
+  return "주문지";
 }
-const b64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s); };
-async function finishJob() {
-  if (!job.length) return;
-  const bytes = new Uint8Array(job); job = [];
-  const text = escposToText(bytes);
-  const src = guessSrc(text);
-  log(`영수증 받음 (${src}, ${bytes.length}바이트)`);
-  if (!text) return;
+
+// ---------- 다른 포스 주문지 받아서 찍기 ----------
+const done = new Set();
+const bootAt = Date.now();
+async function printShared(id, r) {
+  if (!running || done.has(id)) return;
+  done.add(id);
   try {
-    await addDoc(collection(db, "receipts"), {
-      src, text, raw: bytes.length <= 200000 ? b64(bytes) : "", size: bytes.length,
-      at: Date.now(), createdAt: serverTimestamp(), parsed: false
-    });
-  } catch (e) { log("영수증 저장 실패: " + e.message); }
+    while (Date.now() - lastIn < 2000) await sleep(500);   // 내 배달앱 주문지 나오는 중이면 기다림
+    const bytes = unb64(r.raw);
+    for (const o of outs) await writeOut(o, bytes);
+    await updateDoc(doc(db, "receipts", id), { ["printed." + myPos()]: true });
+    log(`${String(r.from || "").replace("pos", "")}번 포스 주문지 출력함 (${r.src})`);
+  } catch (e) { done.delete(id); log("출력 실패: " + e.message); }
 }
-
-// ---------- 살아있음 표시 (관리자 화면이 이걸 보고 이 창으로 출력을 보냄) ----------
-function heartbeat() {
-  setDoc(doc(db, "settings", "relay"), { at: Date.now(), running }, { merge: true }).catch(() => {});
+async function reprint(id) {
+  const r = recent.find(x => x.id === id); if (!r) return;
+  if (!running) { alert("먼저 ▶ 시작을 눌러 주세요."); return; }
+  if (!confirm("이 주문지를 이 컴퓨터 프린터로 다시 출력할까요?")) return;
+  for (const o of outs) await writeOut(o, unb64(r.raw));
+  log("다시 출력함");
 }
-
-// ---------- 받은 영수증 목록 ----------
+let recent = [];
+// 아직 안 찍은 다른 포스 주문지 찍기 (최근 10분 안에 들어온 것만 — 늦게 켜도 옛날 주문이 쏟아지지 않게)
+function catchUp() {
+  const me = myPos(); if (!me || !running) return;
+  recent.slice().reverse().forEach(r => {
+    if (r.from && r.from !== me && !(r.printed || {})[me] && r.at > Date.now() - 10 * 60000) printShared(r.id, r);
+  });
+}
 function watchReceipts() {
-  onSnapshot(query(collection(db, "receipts"), orderBy("at", "desc"), limit(20)), snap => {
-    $("rcCount").textContent = snap.size ? `(최근 ${snap.size}장)` : "";
-    $("rcList").innerHTML = snap.docs.map(d => {
-      const r = d.data(), t = new Date(r.at || 0);
-      return `<div class="rc"><div class="h"><span><span class="src ${esc(r.src)}">${esc(r.src)}</span>${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}</span><span style="color:#999;font-weight:400">${r.size || 0}B</span></div><pre>${esc(r.text)}</pre></div>`;
-    }).join("") || `<div class="note">아직 받은 영수증이 없어요. 배달앱에서 '테스트 출력'을 해 보세요.</div>`;
-  }, e => { $("rcList").innerHTML = `<div class="note">불러오기 실패: ${esc(e.message)}</div>`; });
+  onSnapshot(query(collection(db, "receipts"), orderBy("at", "desc"), limit(30)), snap => {
+    recent = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderRecent();
+    catchUp();
+  }, e => log("주문지 목록 오류: " + e.message));
+}
+function renderRecent() {
+  $("rcCount").textContent = recent.length ? `(최근 ${recent.length}장)` : "";
+  $("rcList").innerHTML = recent.map(r => {
+    const p = r.printed || {};
+    const marks = [1, 2, 3].map(n => `${n}번${p["pos" + n] ? "✅" : "⬜"}`).join(" ");
+    return `<div class="rc"><div class="h">
+      <span><span class="tag ${esc(r.src)}">${esc(r.src)}</span>${esc(String(r.from || "").replace("pos", ""))}번 포스 · ${hm(r.at)}</span>
+      <span class="pp">${marks}</span>
+      <button data-reprint="${r.id}">다시 출력</button></div>
+      <pre>${esc(r.text || "(글자 없음)")}</pre></div>`;
+  }).join("") || `<div class="note">아직 주문지가 없어요. 배달앱에서 '테스트 출력'을 해 보세요.</div>`;
+}
+
+// ---------- 다른 포스 상태 ----------
+const peers = {};
+function heartbeat() {
+  const me = myPos(); if (!me) return;
+  setDoc(doc(db, "settings", "relay-" + me), { at: Date.now(), running, printers: outs.length, hasIn: !!inPort }, { merge: true }).catch(() => {});
+}
+function watchPeers() {
+  [1, 2, 3].forEach(n => onSnapshot(doc(db, "settings", "relay-pos" + n), s => { peers[n] = s.exists() ? s.data() : null; renderPeers(); }, () => {}));
+  setInterval(renderPeers, 15000);
+}
+function renderPeers() {
+  $("peers").innerHTML = [1, 2, 3].map(n => {
+    const p = peers[n], on = p && p.running && Date.now() - (p.at || 0) < 90000;
+    return `<div>${on ? "🟢" : "🔴"} ${n}번 포스${n === cfg.pos ? " (여기)" : ""}${on ? ` · 프린터 ${p.printers}대` : ""}</div>`;
+  }).join("");
+}
+
+// ---------- 화면 ----------
+function updUI() {
+  document.querySelectorAll(".posbtns button").forEach(b => b.classList.toggle("on", Number(b.dataset.pos) === cfg.pos));
+  $("pickIn").classList.toggle("ok", !!inPort);
+  $("pickIn").textContent = inPort ? "✅ 가상 포트 선택됨" : "가상 포트 고르기 (COM11)";
+  $("noIn").classList.toggle("ok", !inPort && !!cfg.noIn);
+  renderPrts();
+  $("state").className = "state " + (running ? "on" : "off");
+  $("state").textContent = running ? `🟢 ${cfg.pos}번 포스 · 작동 중` : "⏹ 꺼짐 · 다른 포스 주문지가 안 나와요!";
+  $("startBtn").textContent = running ? "⏸ 멈추기" : "▶ 시작";
+  $("startBtn").classList.toggle("ok", running);
+  document.title = (running ? "🟢" : "🔴") + " 주방 주문지 공유";
+  renderPeers();
 }
 
 async function boot() {
   await restorePorts();
+  updUI();
+  watchPeers();
   watchReceipts();
-  heartbeat(); setInterval(heartbeat, 30000);
-  if (cfg.auto && inPort && outPort) startRelay();
+  setInterval(heartbeat, 30000); heartbeat();
   if (!("serial" in navigator)) log("⚠️ 이 브라우저는 COM 포트를 못 써요 (윈도우 크롬/엣지 필요)");
+  if (cfg.auto && cfg.pos && outs.length) start();
 }
 window.addEventListener("beforeunload", e => { if (running) { e.preventDefault(); e.returnValue = ""; } });
 </script>
