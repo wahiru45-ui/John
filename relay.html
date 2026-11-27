@@ -55,7 +55,6 @@
     <div class="note">
       · 배달앱(쿠팡이츠·배민·요기요) 프린터 설정은 <b>가상 포트(COM10)</b>로 바꿔 두세요.<br>
       · 이 창은 <b>항상 켜 두세요</b>. 닫으면 배달앱 영수증이 안 나와요. (켜 두기만 하면 다음에 열 때 자동으로 다시 시작해요)<br>
-      · 관리자 화면의 도시락 합계 출력도 이 창을 통해 프린터로 나가요.
     </div>
     <div class="log" id="log"></div>
   </div>
@@ -259,7 +258,6 @@ function guessSrc(t) {
   if (/쿠팡\s*이츠|coupang/i.test(t)) return "쿠팡이츠";
   if (/배달의\s*민족|배민|baemin/i.test(t)) return "배달의민족";
   if (/요기요|yogiyo/i.test(t)) return "요기요";
-  if (/배달 · 전체 \d+곳/.test(t)) return "도시락합계";
   return "기타";
 }
 const b64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s); };
@@ -269,7 +267,7 @@ async function finishJob() {
   const text = escposToText(bytes);
   const src = guessSrc(text);
   log(`영수증 받음 (${src}, ${bytes.length}바이트)`);
-  if (src === "도시락합계" || !text) return;
+  if (!text) return;
   try {
     await addDoc(collection(db, "receipts"), {
       src, text, raw: bytes.length <= 200000 ? b64(bytes) : "", size: bytes.length,
@@ -277,27 +275,6 @@ async function finishJob() {
     });
   } catch (e) { log("영수증 저장 실패: " + e.message); }
 }
-
-// ---------- 관리자 화면에서 보낸 출력 (도시락 합계) ----------
-function watchJobs() {
-  onSnapshot(query(collection(db, "printJobs"), where("done", "==", false)), snap => {
-    snap.docs.sort((a, b) => (a.data().at || 0) - (b.data().at || 0)).forEach(async d => {
-      if (busyJobs.has(d.id)) return;
-      if (!running) return;
-      busyJobs.add(d.id);
-      try {
-        // 배달앱 영수증이 나오는 중이면 끝날 때까지 기다림
-        while (Date.now() - lastIn < 2000) await sleep(500);
-        const bin = atob(d.data().data || ""); const u8 = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-        await toPrinter(u8);
-        await updateDoc(doc(db, "printJobs", d.id), { done: true, doneAt: Date.now() });
-        log("도시락 합계 출력함");
-      } catch (e) { log("출력 작업 실패: " + e.message); busyJobs.delete(d.id); }
-    });
-  }, e => log("출력 대기열 오류: " + e.message));
-}
-const busyJobs = new Set();
 
 // ---------- 살아있음 표시 (관리자 화면이 이걸 보고 이 창으로 출력을 보냄) ----------
 function heartbeat() {
@@ -318,7 +295,6 @@ function watchReceipts() {
 async function boot() {
   await restorePorts();
   watchReceipts();
-  watchJobs();
   heartbeat(); setInterval(heartbeat, 30000);
   if (cfg.auto && inPort && outPort) startRelay();
   if (!("serial" in navigator)) log("⚠️ 이 브라우저는 COM 포트를 못 써요 (윈도우 크롬/엣지 필요)");

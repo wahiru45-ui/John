@@ -179,7 +179,7 @@
       <label class="prsw"><input type="checkbox" id="prRep"> 매일</label>
       <label class="prsw"><input type="checkbox" id="prOn"> 켜기</label>
     </div>
-    <div class="prrow"><button id="prCom" class="prcom">🔌 프린터(COM) 연결</button><a class="prcom" style="text-align:center;text-decoration:none;color:#333" href="relay.html" target="_blank">🧾 영수증 중계기</a></div>
+    <div class="prrow"><button id="prCom" class="prcom">🔌 프린터(COM) 연결</button></div>
     <details class="prset"><summary>프린터 설정</summary>
       <div class="prrow">
         <span>속도</span><select id="prBaud"></select>
@@ -355,7 +355,6 @@ onAuthStateChanged(auth, user => {
   document.getElementById("logout").style.display = user ? "block" : "none";
   if (user && !unsub) {
     watchAuto();
-    watchRelay();
     watchMenus();
     unsub = onSnapshot(query(collection(db, "subscriptions"), orderBy("createdAt", "desc")), snap => {
       subs = snap.docs.map(d => normalize({ id: d.id, ...d.data() }));
@@ -672,16 +671,7 @@ if ("serial" in navigator) {
   navigator.serial.addEventListener("disconnect", () => { comPort = null; updCom(); });
 }
 
-// 영수증 중계기(relay.html)가 켜져 있으면 그쪽으로 출력을 보냄 (프린터를 중계기가 잡고 있으므로)
-let relayInfo = null;
-const relayAlive = () => relayInfo && relayInfo.running && Date.now() - (relayInfo.at || 0) < 90000;
-function watchRelay() { onSnapshot(doc(db, "settings", "relay"), s => { relayInfo = s.exists() ? s.data() : null; prNote(); }, () => {}); }
-const toB64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s); };
 async function printDay(d) {
-  if (relayAlive()) {
-    try { await addDoc(collection(db, "printJobs"), { data: toB64(escposBytes(d)), date: d, at: Date.now(), done: false }); return; }
-    catch (e) { alert("중계기로 출력 보내기 실패: " + e.message); }
-  }
   if (comPort) {
     try { await comPrint(d); return; }
     catch (e) { alert("COM 프린터 출력 실패: " + e.message + "\n일반 인쇄 창으로 대신 열게요."); }
@@ -757,7 +747,7 @@ function prNote() {
   document.getElementById("prNote").textContent = (prOn.checked
     ? `${m}월 ${d}일 ${hh}시에 ${m}/${d} 배달 합계를 자동 출력해요${prRep.checked ? " (그다음부터 매일 같은 시각에 그날 것)" : " (한 번만)"}. 이 화면이 켜져(로그인돼) 있어야 해요.`
     : "자동 출력이 꺼져 있어요.")
-    + (relayAlive() ? " · 🟢 영수증 중계기로 출력" : comPort ? " · COM 프린터로 바로 출력" : " · 프린터 미연결: 인쇄 창이 떠요");
+    + (comPort ? " · COM 프린터로 바로 출력" : " · 프린터 미연결: 인쇄 창이 떠요");
 }
 const prSave = () => {
   prSet = { ...prSet, hour: Number(prHour.value), on: prOn.checked, rep: prRep.checked, adate: readMD(paM, paD), baud: Number(prBaud.value), cols: Number(prCols.value) };
