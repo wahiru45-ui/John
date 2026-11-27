@@ -355,6 +355,7 @@ onAuthStateChanged(auth, user => {
   document.getElementById("logout").style.display = user ? "block" : "none";
   if (user && !unsub) {
     watchAuto();
+    watchRelay();
     watchMenus();
     unsub = onSnapshot(query(collection(db, "subscriptions"), orderBy("createdAt", "desc")), snap => {
       subs = snap.docs.map(d => normalize({ id: d.id, ...d.data() }));
@@ -671,7 +672,18 @@ if ("serial" in navigator) {
   navigator.serial.addEventListener("disconnect", () => { comPort = null; updCom(); });
 }
 
+// 1번 포스 '주방 주문지 공유'(relay.html)가 켜져 있으면 그쪽 주방 프린터로 보냄
+let relay1 = null;
+const relayAlive = () => relay1 && relay1.running && Date.now() - (relay1.at || 0) < 90000;
+function watchRelay() { onSnapshot(doc(db, "settings", "relay-pos1"), s => { relay1 = s.exists() ? s.data() : null; prNote(); }, () => {}); }
+const toB64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s); };
 async function printDay(d) {
+  if (relayAlive()) {
+    try {
+      await addDoc(collection(db, "printJobs"), { target: "pos1", data: toB64(escposBytes(d)), what: "도시락 합계 " + d, at: Date.now(), done: false });
+      return;
+    } catch (e) { alert("1번 포스로 출력 보내기 실패: " + e.message); }
+  }
   if (comPort) {
     try { await comPrint(d); return; }
     catch (e) { alert("COM 프린터 출력 실패: " + e.message + "\n일반 인쇄 창으로 대신 열게요."); }
@@ -747,7 +759,7 @@ function prNote() {
   document.getElementById("prNote").textContent = (prOn.checked
     ? `${m}월 ${d}일 ${hh}시에 ${m}/${d} 배달 합계를 자동 출력해요${prRep.checked ? " (그다음부터 매일 같은 시각에 그날 것)" : " (한 번만)"}. 이 화면이 켜져(로그인돼) 있어야 해요.`
     : "자동 출력이 꺼져 있어요.")
-    + (comPort ? " · COM 프린터로 바로 출력" : " · 프린터 미연결: 인쇄 창이 떠요");
+    + (relayAlive() ? " · 1번 포스 주방 프린터로 출력" : comPort ? " · COM 프린터로 바로 출력" : " · 1번 포스 중계기 꺼짐: 인쇄 창이 떠요");
 }
 const prSave = () => {
   prSet = { ...prSet, hour: Number(prHour.value), on: prOn.checked, rep: prRep.checked, adate: readMD(paM, paD), baud: Number(prBaud.value), cols: Number(prCols.value) };

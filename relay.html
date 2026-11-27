@@ -309,6 +309,7 @@ async function start() {
   updUI(); heartbeat();
   log(`시작 (${cfg.pos}번 포스, 프린터 ${outs.length}대${ins.length ? `, 배달앱 ${ins.length}개` : ""})`);
   catchUp();
+  processJobs();
 }
 async function stop() {
   running = false;
@@ -452,6 +453,29 @@ function renderRecent() {
   }).join("") || `<div class="note">아직 주문지가 없어요. 배달앱에서 '테스트 출력'을 해 보세요.</div>`;
 }
 
+// ---------- 관리자 화면(정기도시락 등)에서 보낸 출력 ----------
+const jobsDone = new Set();
+function watchJobs() {
+  onSnapshot(query(collection(db, "printJobs"), orderBy("at", "desc"), limit(20)), snap => { jobDocs = snap.docs; processJobs(); },
+    e => log("출력 대기열 오류: " + e.message));
+}
+let jobDocs = [];
+function processJobs() {
+    const me = myPos(); if (!me || !running) return;
+    jobDocs.slice().reverse().forEach(async d => {
+      const j = d.data();
+      if (j.done || j.target !== me || jobsDone.has(d.id) || Date.now() - (j.at || 0) > 30 * 60000) return;
+      jobsDone.add(d.id);
+      try {
+        while (owner || Date.now() - lastIn < 1500) await sleep(500);   // 배달앱 주문지 찍는 중이면 기다림
+        const bytes = unb64(j.data);
+        for (const o of outs) await writeOut(o, bytes);
+        await updateDoc(doc(db, "printJobs", d.id), { done: true, doneAt: Date.now() });
+        log(`출력함: ${j.what || "관리자 출력"}`);
+      } catch (e) { jobsDone.delete(d.id); log("관리자 출력 실패: " + e.message); }
+    });
+}
+
 // ---------- 다른 포스 상태 ----------
 const peers = {};
 function heartbeat() {
@@ -487,6 +511,7 @@ async function boot() {
   updUI();
   watchPeers();
   watchReceipts();
+  watchJobs();
   setInterval(heartbeat, 30000); heartbeat();
   if (!("serial" in navigator)) log("⚠️ 이 브라우저는 COM 포트를 못 써요 (윈도우 크롬/엣지 필요)");
   if (cfg.auto && cfg.pos && outs.length) start();
