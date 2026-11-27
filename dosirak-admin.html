@@ -163,7 +163,6 @@
       <div class="prrow">
         <span>속도</span><select id="prBaud"></select>
         <span>용지</span><select id="prCols"><option value="42">80mm</option><option value="48">80mm(넓게)</option><option value="32">58mm</option></select>
-        <span>방식</span><select id="prMode"><option value="img">그림 (화면과 똑같이)</option><option value="txt">글자 (빠름)</option></select>
       </div>
     </details>
     <textarea id="prMemo" class="prmemo" rows="2" placeholder="✏️ 출력 메모 (합계 아래 네모 칸에 인쇄돼요 · 비워 두면 빈 칸으로 나와 손으로 쓸 수 있어요)"></textarea>
@@ -496,9 +495,9 @@ function printSummaryHtml(d) {
   const now = new Date();
   const mm = menus[d];
   const menuP = mm && (mm.main || mm.soup)
-    ? `<div class="pmenu">🍖 ${esc(mm.main || "-")}<br>🍲 ${esc(mm.soup || "-")}</div>`
+    ? `<div class="pmenu">${esc(mm.main || "-")}<br>${esc(mm.soup || "-")}</div>`
     : `<div class="pmenu">식단 미입력</div>`;
-  return `<h2>📦 ${label(d)} 배달 · 전체 ${rows.length}곳</h2>
+  return `<h2>${label(d)} 배달 · 전체 ${rows.length}곳</h2>
     ${menuP}
     ${byMeal ? `<div class="pm">${byMeal}</div>` : ""}
     ${lines(r)}
@@ -555,114 +554,42 @@ function escposBytes(d) {
   raw(0x1B, 0x40);                               // 초기화
   raw(0x1C, 0x26);                               // 한글 모드 (일부 기종)
   align(0);
-  // 화면 출력 모양 그대로: 제목 → 식단 칸 → 식사별 개수 → 메뉴별 개수 → 합계 → 출력 시각
+  // 화면 출력 모양 그대로 (글자로): 제목 → 식단 네모 → 식사별 → 메뉴별 → 합계 → 메모 네모 → 출력 시각
+  const boxTop = () => text("+" + "-".repeat(cols - 2) + "+");
+  const boxLine = t => text("| " + t + " ".repeat(Math.max(0, cols - 4 - dispW(t))) + " |");
   size(0x01); bold(1); text(`${label(d)} 배달 · 전체 ${rows.length}곳`); bold(0); size(0);
-  line("-");
+  boxTop();
   size(0x01); bold(1);
-  if (mm && (mm.main || mm.soup)) { if (mm.main) text(mm.main); if (mm.soup) text(mm.soup); }
-  else text("식단 미입력");
+  if (mm && (mm.main || mm.soup)) { boxLine(mm.main || "-"); boxLine(mm.soup || "-"); }
+  else boxLine("식단 미입력");
   bold(0); size(0);
-  line("-");
+  boxTop();
   if (byMeal) text(byMeal);
   const ent = Object.entries(r.count);
   if (!ent.length) text("주문 없음");
-  ent.forEach(([k, v], i) => {
+  ent.forEach(([k, v]) => {
     size(0x01); text(lr(k, v + "개", cols)); size(0);
     text(". ".repeat(Math.floor(cols / 2)).trimEnd());
   });
   line("=");
   size(0x01); bold(1); text(lr("합계", `${r.boxes}개 · ${won(r.money)}`, cols)); bold(0); size(0);
-  line("-");
+  text("");
+  boxTop();
   const memo = memoOf(d);
-  if (memo) memo.split("\n").forEach(t => text(t)); else { text(""); text(""); text(""); }
-  line("-");
+  const memoLines = [];
+  (memo || "").split("\n").forEach(par => {
+    let cur = "";
+    for (const ch of par) { if (dispW(cur + ch) > cols - 4) { memoLines.push(cur); cur = ch; } else cur += ch; }
+    memoLines.push(cur);
+  });
+  while (memoLines.length < 4) memoLines.push("");
+  memoLines.forEach(t => boxLine(t));
+  boxTop();
   text(`출력 ${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
   raw(0x0A, 0x0A, 0x0A, 0x0A, 0x0A);             // 자르지 않고 여유 있게 밀어 올림 (손으로 뜯기)
   return new Uint8Array(B);
 }
 
-// ----- 그림 방식: 화면 출력과 똑같은 모양을 그려서 프린터로 보냄 -----
-function drawSummary(d) {
-  const W = { 42: 512, 48: 576, 32: 384 }[Number(prSet.cols || 42)] || 512;
-  const k = W / 340;
-  const F = `"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans KR",sans-serif`;
-  const rows = [];
-  subs.forEach(s => s.status === "진행중" && s.orders.filter(o => o.date === d).forEach(o => rows.push({ s, o })));
-  const r = countUp(rows.map(x => x.o));
-  const byMeal = MEALS.map(m => {
-    const n = rows.filter(x => mealOf(x.o) === m).reduce((a, x) => a + x.o.items.reduce((b, i) => b + i.qty, 0), 0);
-    return n ? `${m} ${n}개` : "";
-  }).filter(Boolean).join(" · ");
-  const mm = menus[d], now = new Date(), memo = memoOf(d);
-  const cv = document.createElement("canvas");
-  cv.width = W; cv.height = Math.round(1400 * k);
-  const c = cv.getContext("2d");
-  c.fillStyle = "#fff"; c.fillRect(0, 0, cv.width, cv.height);
-  c.fillStyle = "#000"; c.strokeStyle = "#000"; c.textBaseline = "alphabetic";
-  const m = 4 * k, R = W - 4 * k;
-  let y = 0;
-  const font = (px, b) => { c.font = `${b ? "bold " : ""}${Math.round(px * k)}px ${F}`; };
-  const txt = (t, px, b, x = m) => { font(px, b); y += px * k * 1.25; c.fillText(t, x, y); };
-  const rtxt = (t, px, b) => { font(px, b); c.fillText(t, R - c.measureText(t).width, y); };
-  // 제목
-  txt(`📦 ${label(d)} 배달 · 전체 ${rows.length}곳`, 19, true);
-  // 식단 네모
-  y += 8 * k; const bt = y; y += 4 * k;
-  if (mm && (mm.main || mm.soup)) { txt(`🍖 ${mm.main || "-"}`, 17, true, m + 8 * k); y += 4 * k; txt(`🍲 ${mm.soup || "-"}`, 17, true, m + 8 * k); }
-  else txt("식단 미입력", 17, true, m + 8 * k);
-  y += 9 * k; c.lineWidth = 2 * k; c.strokeRect(m + k, bt, R - m - 2 * k, y - bt);
-  // 식사별
-  y += 6 * k; if (byMeal) txt(byMeal, 14, false);
-  // 메뉴별
-  y += 6 * k;
-  const ent = Object.entries(r.count);
-  if (!ent.length) { txt("주문 없음", 16, false); }
-  ent.forEach(([n, v]) => {
-    y += 6 * k; txt(n, 16, false); rtxt(v + "개", 16, true);
-    y += 8 * k; c.lineWidth = 1 * k; c.setLineDash([2 * k, 2 * k]);
-    c.beginPath(); c.moveTo(m, y); c.lineTo(R, y); c.stroke(); c.setLineDash([]);
-  });
-  // 합계
-  y += 6 * k; c.lineWidth = 2.5 * k; c.beginPath(); c.moveTo(m, y); c.lineTo(R, y); c.stroke();
-  y += 6 * k; txt("합계", 17, true); rtxt(`${r.boxes}개 · ${won(r.money)}`, 17, true);
-  // 메모 네모
-  y += 12 * k; const mt = y; y += 4 * k;
-  font(15, false);
-  const wrapLines = [];
-  memo.split("\n").forEach(par => {
-    let cur = "";
-    for (const ch of par) { if (c.measureText(cur + ch).width > R - m - 18 * k) { wrapLines.push(cur); cur = ch; } else cur += ch; }
-    wrapLines.push(cur);
-  });
-  if (memo) wrapLines.forEach(t => txt(t, 15, false, m + 8 * k));
-  y = Math.max(y + 8 * k, mt + 90 * k);
-  c.lineWidth = 2 * k; c.strokeRect(m + k, mt, R - m - 2 * k, y - mt);
-  // 출력 시각
-  y += 4 * k; txt(`출력 ${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`, 11, false);
-  y += 6 * k;
-  return { cv, h: Math.ceil(y) };
-}
-function rasterBytes(d) {
-  const { cv, h } = drawSummary(d);
-  const W = cv.width, bw = Math.ceil(W / 8);
-  const px = cv.getContext("2d").getImageData(0, 0, W, h).data;
-  const B = [0x1B, 0x40];
-  const BAND = 64;
-  for (let y0 = 0; y0 < h; y0 += BAND) {
-    const bh = Math.min(BAND, h - y0);
-    B.push(0x1D, 0x76, 0x30, 0x00, bw & 255, bw >> 8, bh & 255, bh >> 8);
-    for (let y = y0; y < y0 + bh; y++) for (let xb = 0; xb < bw; xb++) {
-      let v = 0;
-      for (let bit = 0; bit < 8; bit++) {
-        const x = xb * 8 + bit;
-        if (x < W) { const i = (y * W + x) * 4; if (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11 < 150) v |= 0x80 >> bit; }
-      }
-      B.push(v);
-    }
-  }
-  B.push(0x0A, 0x0A, 0x0A, 0x0A, 0x0A);   // 자르지 않고 밀어 올림
-  return new Uint8Array(B);
-}
 async function openCom(port) {
   try { await port.open({ baudRate: Number(prSet.baud || 9600) }); }
   catch (e) { if (!String(e.message).includes("already open")) throw e; }
@@ -671,7 +598,7 @@ async function openCom(port) {
 }
 async function comPrint(d) {
   const w = comPort.writable.getWriter();
-  try { await w.write((prSet.mode || "img") === "img" ? rasterBytes(d) : escposBytes(d)); } finally { w.releaseLock(); }
+  try { await w.write(escposBytes(d)); } finally { w.releaseLock(); }
 }
 function updCom() {
   const b = document.getElementById("prCom");
@@ -708,7 +635,7 @@ document.getElementById("prNow").onclick = () => printDay(day);
 
 // ----- 자동 출력 (시 단위) -----
 const prHour = document.getElementById("prHour"), prWhich = document.getElementById("prWhich"), prOn = document.getElementById("prOn");
-const prBaud = document.getElementById("prBaud"), prCols = document.getElementById("prCols"), prMode = document.getElementById("prMode");
+const prBaud = document.getElementById("prBaud"), prCols = document.getElementById("prCols");
 const prMemo = document.getElementById("prMemo");
 prMemo.oninput = () => {
   const d = prMemo.dataset.day || day;
@@ -719,7 +646,6 @@ prHour.innerHTML = [...Array(24)].map((_, h) => `<option value="${h}">${h < 12 ?
 prBaud.innerHTML = [9600, 19200, 38400, 57600, 115200].map(b => `<option>${b}</option>`).join("");
 if (prSet.hour == null && prSet.time) prSet.hour = Number(prSet.time.split(":")[0]);
 prHour.value = String(prSet.hour ?? 18); prWhich.value = prSet.which ?? "1"; prOn.checked = !!prSet.on;
-prMode.value = prSet.mode || "img";
 prBaud.value = String(prSet.baud || 9600); prCols.value = String(prSet.cols || 42);
 function prNote() {
   const h = Number(prHour.value);
@@ -729,11 +655,11 @@ function prNote() {
     + (comPort ? " · COM 프린터로 바로 출력" : " · 프린터 미연결: 인쇄 창이 떠요");
 }
 const prSave = () => {
-  prSet = { ...prSet, hour: Number(prHour.value), which: prWhich.value, on: prOn.checked, baud: Number(prBaud.value), cols: Number(prCols.value), mode: prMode.value };
+  prSet = { ...prSet, hour: Number(prHour.value), which: prWhich.value, on: prOn.checked, baud: Number(prBaud.value), cols: Number(prCols.value) };
   delete prSet.time;
   prSaveSet(); prNote();
 };
-[prHour, prWhich, prOn, prCols, prMode].forEach(el => el.onchange = prSave);
+[prHour, prWhich, prOn, prCols].forEach(el => el.onchange = prSave);
 prBaud.onchange = async () => {
   prSave();
   if (comPort) { const p = comPort; try { await p.close(); } catch {} comPort = null; await openCom(p).catch(e => alert("다시 연결 실패: " + e.message)); }
