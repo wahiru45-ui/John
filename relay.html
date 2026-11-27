@@ -38,6 +38,12 @@
   .tag.쿠팡이츠 { background: #00a5e5; } .tag.배달의민족 { background: #2ac1bc; } .tag.요기요 { background: #fa0050; }
   .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
   .dot.g { background: #2e8b57; } .dot.y { background: #e6a700; }
+  .peers .ph { font-size: 13px; margin-bottom: 6px; }
+  .peers .pst { font-weight: 400; color: #888; }
+  .pill { display: flex; margin: 4px 0; }
+  .pill .pl { flex: 1; padding: 8px 6px; border: 1px solid #ccc; border-right: 0; border-radius: 999px 0 0 999px; background: #fff; font-size: 14px; white-space: nowrap; }
+  .pill .pz { padding: 8px 10px; border: 1px solid #ccc; border-radius: 0 999px 999px 0; background: #fff; font-weight: 700; font-size: 14px; white-space: nowrap; }
+  .pill .pz.on { background: #fff4d6; border-color: #e6a700; color: #8a6200; }
   .pbtn { display: block; width: 100%; margin-top: 6px; padding: 6px; border-radius: 8px; border: 1px solid #ccc; background: #fff; font-size: 13px; font-weight: 700; }
   .pbtn.on { background: #fff4d6; border-color: #e6a700; color: #8a6200; } .dot.r { background: #d93025; }
   .pp { font-size: 12px; font-weight: 400; color: #666; }
@@ -597,16 +603,19 @@ function watchCtrl() {
 function watchPeers() {
   watchCtrl();
   [1, 2, 3].forEach(n => onSnapshot(doc(db, "settings", "relay-pos" + n), s => { peers[n] = s.exists() ? s.data() : null; renderPeers(); }, () => {}));
-  setInterval(renderPeers, 15000);
+  setInterval(renderPeers, 5000);
 }
 function renderPeers() {
+  // 프린터마다 [●이름][⏸] 버튼 · 점: 초록 켜짐 / 노랑 일시중지 / 빨강 꺼짐
+  const pill = (on, paused, label, attrs) =>
+    `<span class="pill"><span class="pl"><span class="dot ${on ? (paused ? "y" : "g") : "r"}"></span>${label}</span><button class="pz ${paused ? "on" : ""}" ${attrs}>${paused ? "⏸ 중지됨" : "⏸"}</button></span>`;
   $("peers").innerHTML = [1, 2, 3].map(n => {
-    const p = peers[n], on = p && p.running && Date.now() - (p.at || 0) < 90000;
+    const p = peers[n], on = !!(p && p.running && Date.now() - (p.at || 0) < 90000);
     const ps = !!ctrl["pos" + n];
-    return `<div><span class="dot ${on ? (ps ? "y" : "g") : "r"}"></span>${n}번 포스${n === cfg.pos ? " (여기)" : ""}${on ? ` · 프린터 ${p.printers}대` : ""}
-      ${n === 3
-        ? ((p && p.names && p.names.length) ? p.names : ["주방1", "주방2"]).map(nm => { const q = !!ctrl[prtKey(n, nm)]; return `<button class="pbtn ${q ? "on" : ""}" data-pprt="${n}" data-pname="${esc(nm)}">${esc(nm)} · ${q ? "⏸ 중지됨" : "일시중지"}</button>`; }).join("")
-        : `<button class="pbtn ${ps ? "on" : ""}" data-ppause="${n}">${ps ? "⏸ 중지됨 · 누르면 다시 출력" : "일시중지"}</button>`}</div>`;
+    const body = n === 3
+      ? ((p && p.names && p.names.length) ? p.names : ["주방1", "주방2"]).map(nm => pill(on, ps || !!ctrl[prtKey(n, nm)], esc(nm), `data-pprt="${n}" data-pname="${esc(nm)}"`)).join("")
+      : pill(on, ps, `${n}번 포스`, `data-ppause="${n}"`);
+    return `<div><div class="ph">${n}번 포스${n === cfg.pos ? " (여기)" : ""} <span class="pst">${on ? "켜짐" : "꺼짐"}</span></div>${body}</div>`;
   }).join("");
 }
 
