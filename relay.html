@@ -105,7 +105,15 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const $ = id => document.getElementById(id);
 const esc = x => String(x ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+// 창이 뒤로 가려져도 느려지지 않게, 기다리기는 별도 작업자(Worker)로 셈
+const sleep = (() => {
+  try {
+    const w = new Worker(URL.createObjectURL(new Blob(["onmessage=e=>setTimeout(()=>postMessage(e.data.id),e.data.ms)"], { type: "text/javascript" })));
+    const waits = new Map(); let seq = 0;
+    w.onmessage = e => { const r = waits.get(e.data); waits.delete(e.data); r && r(); };
+    return ms => new Promise(r => { const id = ++seq; waits.set(id, r); w.postMessage({ id, ms }); });
+  } catch { return ms => new Promise(r => setTimeout(r, ms)); }
+})();
 const hm = t => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
 
 // ---------- 로그 ----------
@@ -313,7 +321,7 @@ async function start() {
 }
 async function stop() {
   running = false;
-  for (const o of ins) { if (o.timer) { clearTimeout(o.timer); await finishJob(o); } }
+  for (const o of ins) { if (o.timer) await finishJob(o); }
   for (const r of [...ins, ...outs].map(o => o.reader)) { try { await r?.cancel(); r?.releaseLock(); } catch {} }
   for (const w of [...ins, ...outs].map(o => o.writer)) { try { w?.releaseLock(); } catch {} }
   [...ins, ...outs].forEach(o => { o.reader = o.writer = null; o.chain = null; });
@@ -355,8 +363,10 @@ function capture(o, v) {
   localPrint(o, v);
   o.ended = false;
   for (const b of v) o.job.push(b);
-  clearTimeout(o.timer);
-  o.timer = setTimeout(() => finishJob(o), 800);      // 0.8초 조용하면 한 장 끝
+  // 0.8초 조용하면 한 장 끝
+  const token = (o.tok = (o.tok || 0) + 1);
+  o.timer = true;
+  sleep(800).then(() => { if (o.tok === token && o.timer) finishJob(o); });
 }
 const b64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s); };
 const unb64 = s => { const bin = atob(s || ""); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return u8; };
