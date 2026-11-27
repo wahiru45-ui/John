@@ -173,7 +173,7 @@ async function restorePorts() {
   if (cfg.inIdx != null && !cfg.ins) cfg.ins = [{ idx: cfg.inIdx, info: cfg.inInfo, name: "배달앱" }];   // 예전 설정 옮기기
   cfg.ins = cfg.ins || [];
   ins = cfg.ins.map(o => ({ port: find(o.idx, o.info), name: o.name, onlyCust: o.onlyCust ?? /쿠팡/.test(o.name || "") })).filter(o => o.port);
-  outs = cfg.outs.map(o => ({ port: find(o.idx, o.info), baud: o.baud || 9600, name: o.name, paused: !!o.paused })).filter(o => o.port);
+  outs = cfg.outs.map(o => ({ port: find(o.idx, o.info), baud: o.baud || 9600, name: o.name, paused: false })).filter(o => o.port);
   if (outs.length !== cfg.outs.length) log("⚠️ 기억해 둔 프린터 포트 중 못 찾은 게 있어요. 다시 추가해 주세요.");
 }
 async function choosePort() {
@@ -221,7 +221,7 @@ function renderPrts() {
   $("prtList").innerHTML = outs.map((o, i) => `<div class="prt">
       <b>${o.down ? "⚠ " : "✔ "}${esc(o.name)}${o.down ? " (못 엶 · 다시 시도 중)" : ""}</b>
       <span>속도</span><select data-baud="${i}">${BAUDS.map(b => `<option ${b === o.baud ? "selected" : ""}>${b}</option>`).join("")}</select>
-      <button class="btn ${o.paused ? "" : "ok"}" data-pause="${i}">${o.paused ? "⏸ 일시중지됨 (누르면 다시 출력)" : "▶ 출력 중 (누르면 일시중지)"}</button>
+      <button class="btn ${prtPaused(o) ? "" : "ok"}" data-pause="${i}">${prtPaused(o) ? "⏸ 일시중지됨 (누르면 다시 출력)" : "▶ 출력 중 (누르면 일시중지)"}</button>
       <button class="btn" data-test="${i}">시험 출력</button>
       <button class="btn" data-rm="${i}">빼기</button>
     </div>`).join("") || `<div class="note">아직 추가한 프린터가 없어요.</div>`;
@@ -239,8 +239,7 @@ document.addEventListener("click", async e => {
   }
   if (t.dataset.pause != null) {
     const o = outs[Number(t.dataset.pause)];
-    o.paused = !o.paused; syncOutsCfg(); renderPrts();
-    log(`${o.name}: ${o.paused ? "일시중지" : "다시 출력"}`);
+    await togglePrt(cfg.pos, o.name);
     return;
   }
   if (t.dataset.rm != null) {
@@ -257,6 +256,7 @@ document.addEventListener("click", async e => {
       catch (err) { alert("시험 출력 실패: " + err.message); try { await o.port.close(); } catch {} }
     }
   }
+  if (t.dataset.pprt) { await togglePrt(Number(t.dataset.pprt), t.dataset.pname); return; }
   if (t.dataset.ppause) {
     const n = t.dataset.ppause, ps = !!ctrl["pos" + n];
     if (!ps && !confirm(`${n}번 포스 주방 프린터를 일시중지할까요?\n(다시 누를 때까지 그 포스 프린터에서 주문지가 안 나와요)`)) return;
@@ -279,7 +279,7 @@ let running = false;
 let lastIn = 0;
 const isOpenErr = e => String(e.message).includes("already open");
 function writeOut(o, bytes, force) {
-  if ((o.paused || posPaused()) && !force) return o.chain || Promise.resolve();   // 일시중지된 프린터는 건너뜀
+  if ((prtPaused(o) || posPaused()) && !force) return o.chain || Promise.resolve();   // 일시중지된 프린터는 건너뜀
   o.chain = (o.chain || Promise.resolve()).then(async () => {
     if (!o.writer) return;
     // 선 속도에 맞춰 보내기 (너무 빨리 보내면 프린터가 뒷부분을 놓침)
@@ -475,7 +475,7 @@ const bootAt = Date.now();
 async function printShared(id, r) {
   if (!running || done.has(id)) return;
   done.add(id);
-  if (posPaused()) {   // 이 포스가 일시중지면 찍지 않고 '중지'로 표시
+  if (posPaused() || (outs.length && outs.every(prtPaused))) {   // 이 포스(프린터 전부)가 일시중지면 찍지 않고 '중지'로 표시
     updateDoc(doc(db, "receipts", id), { ["printed." + myPos()]: "중지" }).catch(() => {});
     log(`일시중지 중이라 ${String(r.from || "").replace("pos", "")}번 포스 주문지 건너뜀`);
     return;
@@ -559,17 +559,25 @@ function processJobs() {
 const peers = {};
 function heartbeat() {
   const me = myPos(); if (!me) return;
-  setDoc(doc(db, "settings", "relay-" + me), { at: Date.now(), running, printers: outs.length, hasIn: ins.length > 0 }, { merge: true }).catch(() => {});
+  setDoc(doc(db, "settings", "relay-" + me), { at: Date.now(), running, printers: outs.length, names: outs.map(o => o.name), hasIn: ins.length > 0 }, { merge: true }).catch(() => {});
 }
 // 포스별 일시중지 (어느 포스에서든 켜고 끌 수 있음)
 let ctrl = {};
+const prtKey = (n, name) => `pos${n}:${name}`;
+const prtPaused = o => !!(o.paused || (cfg.pos && ctrl[prtKey(cfg.pos, o.name)]));
+async function togglePrt(n, name) {
+  const k = prtKey(n, name), ps = !!ctrl[k];
+  if (!ps && !confirm(`${n}번 포스 '${name}' 프린터를 일시중지할까요?`)) return;
+  try { await setDoc(doc(db, "settings", "relay-control"), { [k]: !ps }, { merge: true }); }
+  catch (e) { alert("바꾸기 실패: " + e.message); }
+}
 const posPaused = () => !!(cfg.pos && ctrl["pos" + cfg.pos]);
 function watchCtrl() {
   onSnapshot(doc(db, "settings", "relay-control"), s => {
     const was = posPaused();
     ctrl = s.exists() ? s.data() : {};
     if (was !== posPaused()) log(posPaused() ? "⏸ 이 포스 일시중지됨 (주문지 안 찍음)" : "▶ 이 포스 다시 출력");
-    renderPeers(); updUI();
+    renderPeers(); updUI(); heartbeat();
   }, () => {});
 }
 function watchPeers() {
@@ -582,7 +590,9 @@ function renderPeers() {
     const p = peers[n], on = p && p.running && Date.now() - (p.at || 0) < 90000;
     const ps = !!ctrl["pos" + n];
     return `<div><span class="dot ${on ? (ps ? "y" : "g") : "r"}"></span>${n}번 포스${n === cfg.pos ? " (여기)" : ""}${on ? ` · 프린터 ${p.printers}대` : ""}
-      <button class="pbtn ${ps ? "on" : ""}" data-ppause="${n}">${ps ? "⏸ 중지됨 · 누르면 다시 출력" : "일시중지"}</button></div>`;
+      ${p && (p.names || []).length > 1
+        ? p.names.map(nm => { const q = !!ctrl[prtKey(n, nm)]; return `<button class="pbtn ${q ? "on" : ""}" data-pprt="${n}" data-pname="${esc(nm)}">${esc(nm)} · ${q ? "⏸ 중지됨" : "일시중지"}</button>`; }).join("")
+        : `<button class="pbtn ${ps ? "on" : ""}" data-ppause="${n}">${ps ? "⏸ 중지됨 · 누르면 다시 출력" : "일시중지"}</button>`}</div>`;
   }).join("");
 }
 
