@@ -104,6 +104,23 @@
   .mealsum { display: flex; gap: 6px; margin: 6px 0 2px; flex-wrap: wrap; font-size: 14px; }
   .ed select.msel { width: auto; padding: 4px 6px; font-size: 13px; margin-left: 6px; }
   .empty { text-align: center; color: #999; padding: 40px; }
+  .prbox { padding: 12px 14px; }
+  .prrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .prrow button#prNow { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-size: 16px; font-weight: 700; }
+  .prrow input[type=time], .prrow select { padding: 8px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; }
+  .prsw { display: flex; align-items: center; gap: 4px; font-size: 15px; }
+  .prnote { font-size: 12px; color: #888; line-height: 1.5; }
+  #printArea { display: none; }
+  @media print {
+    body > *:not(#printArea) { display: none !important; }
+    #printArea { display: block !important; font-family: sans-serif; color: #000; width: 72mm; }
+    #printArea h2 { font-size: 18px; margin: 0 0 6px; }
+    #printArea .pm { font-size: 15px; margin: 4px 0 8px; }
+    #printArea .sline { display: flex; justify-content: space-between; font-size: 16px; padding: 4px 0; border-bottom: 1px dotted #999; }
+    #printArea .total2 { font-weight: 700; border-top: 2px solid #000; border-bottom: none; margin-top: 4px; }
+    #printArea .pt { font-size: 11px; margin-top: 8px; }
+    @page { margin: 4mm; }
+  }
 </style>
 </head>
 <body>
@@ -132,6 +149,16 @@
       <button id="next">▶</button>
     </div>
     <div id="daySum"></div>
+  </div>
+  <div class="box prbox">
+    <div class="prrow"><button id="prNow">🖨️ 이 날짜 합계 출력</button></div>
+    <div class="prrow">
+      <span>⏰ 자동 출력</span>
+      <input type="time" id="prTime">
+      <select id="prWhich"><option value="1">내일 것</option><option value="0">오늘 것</option></select>
+      <label class="prsw"><input type="checkbox" id="prOn"> 켜기</label>
+    </div>
+    <div class="prnote" id="prNote"></div>
   </div>
   </div>
   <div id="vWeek" style="display:none">
@@ -433,6 +460,62 @@ function daySummary() {
     ${who ? `<div class="deliv">${who}</div>` : ""}
     ${pending ? `<div class="pend">⚠️ 이 날짜에 아직 확인 안 한 신청이 ${pending}건 있어요</div>` : ""}`;
 }
+
+
+// ===== 합계 출력 (배달 화면 위쪽 합계 부분만) =====
+function printSummaryHtml(d) {
+  const rows = [];
+  subs.forEach(s => s.status === "진행중" && s.orders.filter(o => o.date === d).forEach(o => rows.push({ s, o })));
+  const r = countUp(rows.map(x => x.o));
+  const byMeal = MEALS.map(m => {
+    const n = rows.filter(x => mealOf(x.o) === m).reduce((a, x) => a + x.o.items.reduce((b, i) => b + i.qty, 0), 0);
+    return n ? `${m} ${n}개` : "";
+  }).filter(Boolean).join(" · ");
+  const now = new Date();
+  return `<h2>📦 ${label(d)} 배달 · 전체 ${rows.length}곳</h2>
+    ${byMeal ? `<div class="pm">${byMeal}</div>` : ""}
+    ${lines(r)}
+    <div class="pt">출력 ${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}</div>`;
+}
+function printDay(d) {
+  let pa = document.getElementById("printArea");
+  if (!pa) { pa = document.createElement("div"); pa.id = "printArea"; document.body.appendChild(pa); }
+  pa.innerHTML = printSummaryHtml(d);
+  setTimeout(() => window.print(), 100);
+}
+document.getElementById("prNow").onclick = () => printDay(day);
+
+const PR_KEY = "dosirak_autoprint";
+let prSet = {};
+try { prSet = JSON.parse(localStorage.getItem(PR_KEY) || "{}"); } catch {}
+const prTime = document.getElementById("prTime"), prWhich = document.getElementById("prWhich"), prOn = document.getElementById("prOn");
+prTime.value = prSet.time || "18:00"; prWhich.value = prSet.which ?? "1"; prOn.checked = !!prSet.on;
+const prNote = () => {
+  document.getElementById("prNote").textContent = prOn.checked
+    ? `매일 ${prTime.value}에 ${prWhich.value === "1" ? "내일" : "오늘"} 배달 합계를 출력해요. 이 화면이 이 기기에서 켜져(로그인돼) 있어야 해요.`
+    : "자동 출력이 꺼져 있어요.";
+};
+const prSave = () => {
+  prSet = { ...prSet, time: prTime.value, which: prWhich.value, on: prOn.checked };
+  try { localStorage.setItem(PR_KEY, JSON.stringify(prSet)); } catch {}
+  prNote();
+};
+[prTime, prWhich, prOn].forEach(el => el.onchange = prSave);
+prNote();
+setInterval(() => {
+  if (!prSet.on || !prSet.time || !subs.length) return;
+  const now = new Date();
+  const hm = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+  const today = ymd(now);
+  if (hm >= prSet.time && prSet.last !== today) {
+    // 정한 시각에서 10분 안에만 출력 (늦게 켠 날 갑자기 출력되지 않게)
+    const [h, m] = prSet.time.split(":").map(Number);
+    if (now.getHours() * 60 + now.getMinutes() - (h * 60 + m) > 10) return;
+    prSet.last = today;
+    try { localStorage.setItem(PR_KEY, JSON.stringify(prSet)); } catch {}
+    printDay(addDays(today, Number(prSet.which)));
+  }
+}, 20000);
 
 // 주간 정산 (월~일)
 const monOf = s => { const d = new Date(s + "T00:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return ymd(d); };
