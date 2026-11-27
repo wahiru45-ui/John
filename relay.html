@@ -62,9 +62,10 @@
   .tpg { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
   .tpg button { border: 1px solid #ccc; border-radius: 999px; padding: 9px 14px; font-weight: 700; background: #fff; font-size: 15px; }
   .tpg button.on { background: #2e7d4f; border-color: #2e7d4f; color: #fff; }
-  .tpg button.dim { opacity: .45; }
-  .tpg button.tpz { width: 100%; }
-  .tpg button.tpz.on { background: #fff4d6; border-color: #e6a700; color: #8a6200; }
+  .tpp { display: flex; flex: 1 1 200px; }
+  .tpp .tpn { flex: 1; padding: 9px 12px; border: 1px solid #ccc; border-right: 0; border-radius: 999px 0 0 999px; background: #fff; font-weight: 700; font-size: 15px; white-space: nowrap; }
+  .tpp button { border-radius: 0 999px 999px 0 !important; white-space: nowrap; }
+  .tpg button.off { background: #fff4d6; border-color: #e6a700; color: #8a6200; }
 </style>
 </head>
 <body>
@@ -111,7 +112,7 @@
   <div class="box">
     <h2>테이블 오더 주문 출력할 곳</h2>
     <div class="tpg" id="tpg"></div>
-    <div class="note">직원 태블릿·주방 TV(테이블 오더)로 들어온 주문이 켜진 프린터에서 나와요. 어느 포스에서 바꿔도 같이 바뀌어요.</div>
+    <div class="note">직원 태블릿·주방 TV(테이블 오더) 주문이 <b>▶ 출력 중</b>인 프린터에서 나와요. 누르면 ⏸ 일시중지 ↔ ▶ 출력 중으로 바뀌어요. 배달앱 주문지와는 상관없어요.</div>
   </div>
 
   <div class="box">
@@ -571,8 +572,13 @@ let tpSeen = {};
 try { tpSeen = JSON.parse(localStorage.getItem(TP_SEEN_KEY) || "{}"); } catch {}
 const tpSave = () => { const cut = Date.now() - 86400000; for (const k in tpSeen) if (tpSeen[k] < cut) delete tpSeen[k]; try { localStorage.setItem(TP_SEEN_KEY, JSON.stringify(tpSeen)); } catch {} };
 function drawTP() {
-  $("tpg").innerHTML = `<button data-tpz="1" class="tpz ${TPpause ? "on" : ""}">${TPpause ? "⏸ 테이블 오더 출력 중지됨 · 누르면 다시 출력" : "⏸ 테이블 오더 출력 일시중지"}</button>`
-    + TP_LIST.map(([k, n]) => `<button data-tp="${k}" class="${TP.includes(k) ? "on" : ""} ${TPpause ? "dim" : ""}">${TP.includes(k) ? "✔ " : ""}${n}</button>`).join("");
+  // 프린터마다 [이름][▶ 출력 중 / ⏸ 일시중지] — 3번 포스는 실제 프린터 이름으로
+  const n3 = (peers[3] && peers[3].names && peers[3].names.length) ? peers[3].names : ["주방1", "주방2"];
+  const list = [["pos1", "1번 포스"], ["pos2", "2번 포스"], ...n3.map(nm => ["pos3:" + nm, "3번 " + nm])];
+  $("tpg").innerHTML = list.map(([k, n]) => {
+    const on = TP.includes(k);
+    return `<span class="tpp"><span class="tpn">${esc(n)}</span><button data-tp="${k}" class="${on ? "on" : "off"}">${on ? "▶ 출력 중" : "⏸ 일시중지"}</button></span>`;
+  }).join("");
 }
 $("tpg").addEventListener("click", async e => {
   if (e.target.closest("[data-tpz]")) {
@@ -623,7 +629,8 @@ function watchTable() {
   onSnapshot(doc(db, "settings", "tablePrint"), s => {
     const was = TPpause;
     TP = (s.exists() && s.data().targets) || ["pos2"];
-    TPpause = !!(s.exists() && s.data().paused);
+    TPpause = false;   // 전체 일시중지는 없앰 (프린터별 버튼으로)
+    if (s.exists() && s.data().paused) setDoc(doc(db, "settings", "tablePrint"), { paused: false }, { merge: true }).catch(() => {});
     if (was !== TPpause) log(TPpause ? "⏸ 테이블 오더 출력 일시중지" : "▶ 테이블 오더 출력 다시 시작");
     drawTP();
   }, () => {});
@@ -702,6 +709,7 @@ function watchPeers() {
   setInterval(renderPeers, 5000);
 }
 function renderPeers() {
+  try { drawTP(); } catch {}
   // 프린터마다 [●이름][⏸] 버튼 · 점: 초록 켜짐 / 노랑 일시중지 / 빨강 꺼짐
   const pill = (on, paused, label, attrs) =>
     `<span class="pill"><span class="pl"><span class="dot ${on ? (paused ? "y" : "g") : "r"}"></span>${label}</span><button class="pz ${paused ? "on" : ""}" ${attrs}>${paused ? "⏸ 중지됨" : "⏸"}</button></span>`;
