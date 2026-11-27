@@ -44,8 +44,17 @@ service cloud.firestore {
     }
     // 가게 설정 (영업시간 등)
     match /settings/{id} {
-      allow read: if true;
+      // 월말 입금 기록(pay-YYYY-MM)은 손님 정보라 가게만 봄
+      allow read: if !id.matches('pay-.*') || request.auth != null;
       allow write: if request.auth != null;
+    }
+    // 배달앱 영수증 (영수증 중계기가 저장)
+    match /receipts/{id} {
+      allow read, write: if request.auth != null;
+    }
+    // 관리자 화면 → 영수증 중계기 출력 대기열
+    match /printJobs/{id} {
+      allow read, write: if request.auth != null;
     }
   }
 }
