@@ -62,6 +62,9 @@
   .tpg { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
   .tpg button { border: 1px solid #ccc; border-radius: 999px; padding: 9px 14px; font-weight: 700; background: #fff; font-size: 15px; }
   .tpg button.on { background: #2e7d4f; border-color: #2e7d4f; color: #fff; }
+  .tpg button.dim { opacity: .45; }
+  .tpg button.tpz { width: 100%; }
+  .tpg button.tpz.on { background: #fff4d6; border-color: #e6a700; color: #8a6200; }
 </style>
 </head>
 <body>
@@ -562,14 +565,21 @@ const jobsDone = new Set();
 // ---------- 테이블 오더 주문 출력 ----------
 const TP_LIST = [["pos1", "1번 포스"], ["pos2", "2번 포스"], ["pos3:주방1", "3번 주방1"], ["pos3:주방2", "3번 주방2"]];
 let TP = ["pos2"];                    // 기본: 2번 포스
+let TPpause = false;                  // 테이블 오더 출력만 일시중지
 const TP_SEEN_KEY = "relay_tableprinted";
 let tpSeen = {};
 try { tpSeen = JSON.parse(localStorage.getItem(TP_SEEN_KEY) || "{}"); } catch {}
 const tpSave = () => { const cut = Date.now() - 86400000; for (const k in tpSeen) if (tpSeen[k] < cut) delete tpSeen[k]; try { localStorage.setItem(TP_SEEN_KEY, JSON.stringify(tpSeen)); } catch {} };
 function drawTP() {
-  $("tpg").innerHTML = TP_LIST.map(([k, n]) => `<button data-tp="${k}" class="${TP.includes(k) ? "on" : ""}">${TP.includes(k) ? "✔ " : ""}${n}</button>`).join("");
+  $("tpg").innerHTML = `<button data-tpz="1" class="tpz ${TPpause ? "on" : ""}">${TPpause ? "⏸ 테이블 오더 출력 중지됨 · 누르면 다시 출력" : "⏸ 테이블 오더 출력 일시중지"}</button>`
+    + TP_LIST.map(([k, n]) => `<button data-tp="${k}" class="${TP.includes(k) ? "on" : ""} ${TPpause ? "dim" : ""}">${TP.includes(k) ? "✔ " : ""}${n}</button>`).join("");
 }
 $("tpg").addEventListener("click", async e => {
+  if (e.target.closest("[data-tpz]")) {
+    if (!TPpause && !confirm("테이블 오더 주문 출력을 일시중지할까요?\n(배달앱 주문지는 그대로 나와요. 다시 누를 때까지 테이블 오더 주문은 안 찍혀요)")) return;
+    try { await setDoc(doc(db, "settings", "tablePrint"), { paused: !TPpause }, { merge: true }); } catch (err) { alert("저장 실패: " + err.message); }
+    return;
+  }
   const b = e.target.closest("[data-tp]"); if (!b) return;
   const k = b.dataset.tp, next = TP.includes(k) ? TP.filter(x => x !== k) : [...TP, k];
   try { await setDoc(doc(db, "settings", "tablePrint"), { targets: next }, { merge: true }); } catch (err) { alert("저장 실패: " + err.message); }
@@ -601,6 +611,7 @@ function processTable() {
     const mine = TP.includes(me) ? kOuts() : kOuts().filter(x => TP.includes(me + ":" + x.name));
     if (!mine.length) return;
     tpSeen[d.id] = Date.now(); tpSave();
+    if (TPpause) { log("테이블 오더 일시중지 중이라 건너뜀"); return; }   // 다시 켜도 이 주문은 안 찍힘
     while (owner || Date.now() - lastIn < 1500) await sleep(500);   // 배달앱 주문지 찍는 중이면 기다림
     const bytes = tableBytes(o);
     for (const x of mine) await writeOut(x, bytes);
@@ -609,7 +620,13 @@ function processTable() {
 }
 function watchTable() {
   drawTP();
-  onSnapshot(doc(db, "settings", "tablePrint"), s => { TP = (s.exists() && s.data().targets) || ["pos2"]; drawTP(); }, () => {});
+  onSnapshot(doc(db, "settings", "tablePrint"), s => {
+    const was = TPpause;
+    TP = (s.exists() && s.data().targets) || ["pos2"];
+    TPpause = !!(s.exists() && s.data().paused);
+    if (was !== TPpause) log(TPpause ? "⏸ 테이블 오더 출력 일시중지" : "▶ 테이블 오더 출력 다시 시작");
+    drawTP();
+  }, () => {});
   onSnapshot(collection(db, "orders"), snap => { tableDocs = snap.docs || []; processTable(); }, e => log("테이블 오더 연결 오류: " + e.message));
 }
 function watchJobs() {
