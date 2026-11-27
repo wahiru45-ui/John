@@ -37,7 +37,9 @@
   .tag { font-size: 12px; padding: 2px 8px; border-radius: 6px; color: #fff; background: #888; margin-right: 4px; }
   .tag.쿠팡이츠 { background: #00a5e5; } .tag.배달의민족 { background: #2ac1bc; } .tag.요기요 { background: #fa0050; }
   .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
-  .dot.g { background: #2e8b57; } .dot.r { background: #d93025; }
+  .dot.g { background: #2e8b57; } .dot.y { background: #e6a700; }
+  .pbtn { display: block; width: 100%; margin-top: 6px; padding: 6px; border-radius: 8px; border: 1px solid #ccc; background: #fff; font-size: 13px; font-weight: 700; }
+  .pbtn.on { background: #fff4d6; border-color: #e6a700; color: #8a6200; } .dot.r { background: #d93025; }
   .pp { font-size: 12px; font-weight: 400; color: #666; }
   .rc button { padding: 6px 10px; font-size: 13px; border-radius: 8px; border: 1px solid #ccc; background: #fff; }
 </style>
@@ -255,6 +257,13 @@ document.addEventListener("click", async e => {
       catch (err) { alert("시험 출력 실패: " + err.message); try { await o.port.close(); } catch {} }
     }
   }
+  if (t.dataset.ppause) {
+    const n = t.dataset.ppause, ps = !!ctrl["pos" + n];
+    if (!ps && !confirm(`${n}번 포스 주방 프린터를 일시중지할까요?\n(다시 누를 때까지 그 포스 프린터에서 주문지가 안 나와요)`)) return;
+    try { await setDoc(doc(db, "settings", "relay-control"), { ["pos" + n]: !ps }, { merge: true }); }
+    catch (e) { alert("바꾸기 실패: " + e.message); }
+    return;
+  }
   if (t.dataset.reprint) reprint(t.dataset.reprint);
 });
 
@@ -270,7 +279,7 @@ let running = false;
 let lastIn = 0;
 const isOpenErr = e => String(e.message).includes("already open");
 function writeOut(o, bytes, force) {
-  if (o.paused && !force) return o.chain || Promise.resolve();   // 일시중지된 프린터는 건너뜀
+  if ((o.paused || posPaused()) && !force) return o.chain || Promise.resolve();   // 일시중지된 프린터는 건너뜀
   o.chain = (o.chain || Promise.resolve()).then(async () => {
     if (!o.writer) return;
     // 선 속도에 맞춰 보내기 (너무 빨리 보내면 프린터가 뒷부분을 놓침)
@@ -466,6 +475,11 @@ const bootAt = Date.now();
 async function printShared(id, r) {
   if (!running || done.has(id)) return;
   done.add(id);
+  if (posPaused()) {   // 이 포스가 일시중지면 찍지 않고 '중지'로 표시
+    updateDoc(doc(db, "receipts", id), { ["printed." + myPos()]: "중지" }).catch(() => {});
+    log(`일시중지 중이라 ${String(r.from || "").replace("pos", "")}번 포스 주문지 건너뜀`);
+    return;
+  }
   try {
     while (Date.now() - lastIn < 2000) await sleep(500);   // 내 배달앱 주문지 나오는 중이면 기다림
     const bytes = unb64(r.raw);
@@ -500,7 +514,7 @@ function renderRecent() {
   $("rcCount").textContent = recent.length ? `(최근 ${recent.length}장)` : "";
   $("rcList").innerHTML = recent.map(r => {
     const p = r.printed || {};
-    const marks = [1, 2, 3].map(n => `${n}번${p["pos" + n] ? "○" : "×"}`).join(" ");
+    const marks = [1, 2, 3].map(n => `${n}번${p["pos" + n] === "중지" ? "(중지)" : p["pos" + n] ? "○" : "×"}`).join(" ");
     return `<div class="rc"><div class="h">
       <span><span class="tag ${esc(r.src)}">${esc(r.src)}</span>${r.app ? esc(r.app) + " · " : ""}${esc(String(r.from || "").replace("pos", ""))}번 포스 · ${hm(r.at)}</span>
       <span class="pp">${marks}</span>
@@ -547,14 +561,28 @@ function heartbeat() {
   const me = myPos(); if (!me) return;
   setDoc(doc(db, "settings", "relay-" + me), { at: Date.now(), running, printers: outs.length, hasIn: ins.length > 0 }, { merge: true }).catch(() => {});
 }
+// 포스별 일시중지 (어느 포스에서든 켜고 끌 수 있음)
+let ctrl = {};
+const posPaused = () => !!(cfg.pos && ctrl["pos" + cfg.pos]);
+function watchCtrl() {
+  onSnapshot(doc(db, "settings", "relay-control"), s => {
+    const was = posPaused();
+    ctrl = s.exists() ? s.data() : {};
+    if (was !== posPaused()) log(posPaused() ? "⏸ 이 포스 일시중지됨 (주문지 안 찍음)" : "▶ 이 포스 다시 출력");
+    renderPeers(); updUI();
+  }, () => {});
+}
 function watchPeers() {
+  watchCtrl();
   [1, 2, 3].forEach(n => onSnapshot(doc(db, "settings", "relay-pos" + n), s => { peers[n] = s.exists() ? s.data() : null; renderPeers(); }, () => {}));
   setInterval(renderPeers, 15000);
 }
 function renderPeers() {
   $("peers").innerHTML = [1, 2, 3].map(n => {
     const p = peers[n], on = p && p.running && Date.now() - (p.at || 0) < 90000;
-    return `<div><span class="dot ${on ? "g" : "r"}"></span>${n}번 포스${n === cfg.pos ? " (여기)" : ""}${on ? ` · 프린터 ${p.printers}대` : ""}</div>`;
+    const ps = !!ctrl["pos" + n];
+    return `<div><span class="dot ${on ? (ps ? "y" : "g") : "r"}"></span>${n}번 포스${n === cfg.pos ? " (여기)" : ""}${on ? ` · 프린터 ${p.printers}대` : ""}
+      <button class="pbtn ${ps ? "on" : ""}" data-ppause="${n}">${ps ? "⏸ 중지됨 · 누르면 다시 출력" : "일시중지"}</button></div>`;
   }).join("");
 }
 
@@ -564,7 +592,7 @@ function updUI() {
   renderIns();
   renderPrts();
   $("state").className = "state " + (running ? "on" : "off");
-  $("state").textContent = running ? `● ${cfg.pos}번 포스 · 작동 중` : "■ 꺼짐 · 다른 포스 주문지가 안 나와요!";
+  $("state").textContent = running ? (posPaused() ? `⏸ ${cfg.pos}번 포스 · 일시중지 중 (주문지 안 찍음)` : `● ${cfg.pos}번 포스 · 작동 중`) : "■ 꺼짐 · 다른 포스 주문지가 안 나와요!";
   $("startBtn").textContent = running ? "⏸ 멈추기" : "▶ 시작";
   $("startBtn").classList.toggle("ok", running);
   document.title = (running ? "[켜짐]" : "[꺼짐]") + " 주방 주문지 공유";
