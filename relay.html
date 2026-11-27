@@ -197,7 +197,7 @@ function syncInsCfg() {
   saveCfg();
 }
 function renderIns() {
-  $("inList").innerHTML = ins.map((o, i) => `<div class="prt"><b>✔ ${esc(o.name)}</b>
+  $("inList").innerHTML = ins.map((o, i) => `<div class="prt"><b>${o.down ? "⚠ " : "✔ "}${esc(o.name)}${o.down ? " (못 엶 · 다시 시도 중)" : ""}</b>
       <label style="font-size:14px"><input type="checkbox" data-onlycust="${i}" ${o.onlyCust ? "checked" : ""}> 고객용만 출력 (매장용 빼기)</label>
       <button class="btn" data-rmin="${i}">빼기</button></div>`).join("")
     || `<div class="note">없음 (3번 포스처럼 배달앱이 없으면 비워 두세요)</div>`;
@@ -217,7 +217,7 @@ function syncOutsCfg() {
 }
 function renderPrts() {
   $("prtList").innerHTML = outs.map((o, i) => `<div class="prt">
-      <b>✔ ${esc(o.name)}</b>
+      <b>${o.down ? "⚠ " : "✔ "}${esc(o.name)}${o.down ? " (못 엶 · 다시 시도 중)" : ""}</b>
       <span>속도</span><select data-baud="${i}">${BAUDS.map(b => `<option ${b === o.baud ? "selected" : ""}>${b}</option>`).join("")}</select>
       <button class="btn ${o.paused ? "" : "ok"}" data-pause="${i}">${o.paused ? "⏸ 일시중지됨 (누르면 다시 출력)" : "▶ 출력 중 (누르면 일시중지)"}</button>
       <button class="btn" data-test="${i}">시험 출력</button>
@@ -289,6 +289,34 @@ async function pump(reader, onData) {
   try { while (true) { const { value, done } = await reader.read(); if (done) break; if (value?.length) onData(value); } }
   catch (e) { if (running) log("읽기 오류: " + e.message); }
 }
+async function openOne(o) {
+  const isIn = ins.includes(o);
+  const label = (isIn ? "가상 포트 " : "프린터 ") + o.name;
+  if (o.writer) return null;
+  try {
+    try { await o.port.open({ baudRate: isIn ? 9600 : o.baud }); } catch (e) { if (!isOpenErr(e)) throw e; }
+    try { await o.port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch {}
+    if (o.port.writable.locked || o.port.readable.locked) throw new Error("이미 사용 중 (F5 새로고침 필요)");
+    o.writer = o.port.writable.getWriter();
+    o.reader = o.port.readable.getReader();
+    o.down = false;
+    if (isIn) { o.job = []; o.timer = null; pump(o.reader, v => { lastIn = Date.now(); answerStatus(o, v); capture(o, v); }); }
+    else pump(o.reader, () => {});      // 프린터 응답은 버림
+    return null;
+  } catch (e) {
+    o.down = true;
+    try { await o.port.close(); } catch {}
+    return `${label}: ${e.message}`;
+  }
+}
+// 못 연 포트 10초마다 다시 시도
+setInterval(async () => {
+  if (!running) return;
+  for (const o of [...outs, ...ins]) if (o.down && !o.writer) {
+    const err = await openOne(o);
+    if (!err) { log(`${(ins.includes(o) ? "가상 포트 " : "프린터 ") + o.name} 연결됨`); updUI(); }
+  }
+}, 10000);
 async function start() {
   if (running) return;
   if (!cfg.pos) { alert("① 몇 번 포스인지 먼저 골라 주세요."); return; }
@@ -298,39 +326,17 @@ async function start() {
   for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
     if (all[i][1] === all[j][1]) { alert(`'${all[i][0]}'과 '${all[j][0]}'이 같은 포트예요.\n둘 중 잘못 고른 쪽을 '빼기'로 지우고 다시 시작해 주세요.`); return; }
   }
-  const opened = [];
-  try {
-    for (const o of outs) {
-      try { await o.port.open({ baudRate: o.baud }); } catch (e) { if (!isOpenErr(e)) throw new Error(`${o.name}: ${e.message}`); }
-      opened.push(o.port);
-      try { await o.port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch {}
-      if (o.port.writable.locked || o.port.readable.locked) throw new Error(`${o.name}: 이미 사용 중 (페이지를 새로고침(F5) 해 주세요)`);
-      o.writer = o.port.writable.getWriter();
-      o.reader = o.port.readable.getReader();
-    }
-    for (const o of ins) {
-      try { await o.port.open({ baudRate: 9600 }); } catch (e) { if (!isOpenErr(e)) throw new Error(`가상 포트(${o.name}): ${e.message}`); }
-      opened.push(o.port);
-      // 배달앱이 '프린터 준비됨' 신호를 기다리는 경우가 있어 신호를 켜 둠
-      try { await o.port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch {}
-      if (o.port.writable.locked || o.port.readable.locked) throw new Error(`${o.name}: 이미 사용 중 (페이지를 새로고침(F5) 해 주세요)`);
-      o.writer = o.port.writable.getWriter();
-      o.reader = o.port.readable.getReader();
-      o.job = []; o.timer = null;
-    }
-  } catch (e) {
-    log("열기 실패: " + e.message);
-    alert("포트를 못 열었어요.\n배달앱이 아직 COM1을 쓰고 있으면, 배달앱 프린터 포트를 COM10으로 바꾸고 배달앱을 다시 켜 주세요.\n(" + e.message + ")");
-    for (const o of outs) { try { o.writer?.releaseLock(); o.reader?.releaseLock(); } catch {} o.writer = o.reader = null; }
-    for (const o of ins) { try { o.writer?.releaseLock(); o.reader?.releaseLock(); } catch {} o.writer = o.reader = null; }
-    for (const p of opened) { try { await p.close(); } catch {} }
-    return;
+  // 포트를 하나씩 열기 — 하나가 안 열려도 나머지는 계속 (안 열린 건 10초마다 다시 시도)
+  const fails = [];
+  for (const o of [...outs, ...ins]) {
+    const err = await openOne(o);
+    if (err) fails.push(err);
+  }
+  if (fails.length) {
+    log("일부 포트 못 엶: " + fails.join(" / "));
+    alert("일부 포트를 아직 못 열었어요. 나머지는 작동하고, 못 연 포트는 10초마다 자동으로 다시 시도해요.\n\n" + fails.join("\n") + "\n\n(다른 프로그램이 그 포트를 쓰고 있으면 그 프로그램을 끄거나 포트를 바꿔 주세요)");
   }
   running = true; cfg.auto = true; saveCfg();
-  // 프린터가 보내는 응답은 버림 (배달앱에는 아래에서 '정상' 응답을 대신 보냄)
-  outs.forEach(o => pump(o.reader, () => {}));
-  // 배달앱 → 한 장씩 모았다가 이 컴퓨터 프린터 + 다른 포스로 (여러 배달앱이 동시에 와도 섞이지 않게)
-  ins.forEach(o => pump(o.reader, v => { lastIn = Date.now(); answerStatus(o, v); capture(o, v); }));
   updUI(); heartbeat();
   log(`시작 (${cfg.pos}번 포스, 프린터 ${outs.length}대${ins.length ? `, 배달앱 ${ins.length}개` : ""})`);
   catchUp();
@@ -342,7 +348,7 @@ async function stop() {
   for (const o of ins) { if (o.timer) await finishJob(o); }
   for (const r of [...ins, ...outs].map(o => o.reader)) { try { await r?.cancel(); r?.releaseLock(); } catch {} }
   for (const w of [...ins, ...outs].map(o => o.writer)) { try { w?.releaseLock(); } catch {} }
-  [...ins, ...outs].forEach(o => { o.reader = o.writer = null; o.chain = null; });
+  [...ins, ...outs].forEach(o => { o.reader = o.writer = null; o.chain = null; o.down = false; });
   for (const p of [...ins, ...outs].map(o => o.port)) { try { await p?.close(); } catch {} }
   updUI(); heartbeat(); log("멈춤");
 }
