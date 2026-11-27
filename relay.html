@@ -44,6 +44,7 @@
   .pill .pl { flex: 1; padding: 8px 6px; border: 1px solid #ccc; border-right: 0; border-radius: 999px 0 0 999px; background: #fff; font-size: 14px; white-space: nowrap; }
   .pill .pz { padding: 8px 10px; border: 1px solid #ccc; border-radius: 0 999px 999px 0; background: #fff; font-weight: 700; font-size: 14px; white-space: nowrap; }
   .pill .pz.on { background: #fff4d6; border-color: #e6a700; color: #8a6200; }
+  .pill .pz.run { background: #2e7d4f; border-color: #2e7d4f; color: #fff; }
   .pbtn { display: block; width: 100%; margin-top: 6px; padding: 6px; border-radius: 8px; border: 1px solid #ccc; background: #fff; font-size: 13px; font-weight: 700; }
   .pbtn.on { background: #fff4d6; border-color: #e6a700; color: #8a6200; } .dot.r { background: #d93025; }
   .pp { font-size: 12px; font-weight: 400; color: #666; }
@@ -712,7 +713,7 @@ function renderPeers() {
   try { drawTP(); } catch {}
   // 프린터마다 [●이름][⏸] 버튼 · 점: 초록 켜짐 / 노랑 일시중지 / 빨강 꺼짐
   const pill = (on, paused, label, attrs) =>
-    `<span class="pill"><span class="pl"><span class="dot ${on ? (paused ? "y" : "g") : "r"}"></span>${label}</span><button class="pz ${paused ? "on" : ""}" ${attrs}>${paused ? "⏸ 중지됨" : "⏸"}</button></span>`;
+    `<span class="pill"><span class="pl"><span class="dot ${on ? (paused ? "y" : "g") : "r"}"></span>${label}</span><button class="pz ${paused ? "on" : "run"}" ${attrs}>${paused ? "⏸ 일시중지" : "▶ 출력 중"}</button></span>`;
   $("peers").innerHTML = [1, 2, 3].map(n => {
     const p = peers[n], on = !!(p && p.running && Date.now() - (p.at || 0) < 90000);
     const ps = !!ctrl["pos" + n];

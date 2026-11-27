@@ -26,6 +26,7 @@ button{touch-action:manipulation;cursor:pointer}
 .ptg .ptw button[data-pt]{border-radius:999px 0 0 999px}
 .ptg button.pz{border-radius:0 999px 999px 0;padding:7px 9px;font-weight:700}
 .ptg button.pz.on{background:#fff4d6;border-color:#e6a700;color:#8a6200}
+.ptg button.pz.run{background:#2e7d4f;border-color:#2e7d4f;color:#fff}
 .ptg small{color:#888;width:100%}
 #muteBtn{background:#ffd34d;color:var(--ink);animation:pulse 1s ease-in-out infinite}
 @keyframes pulse{50%{transform:scale(1.06)}}
@@ -1411,8 +1412,8 @@ const posOf = t => t.split(":")[0];
 const rlyOn = pos => { const r = RLY[pos]; return !!(r && r.running && Date.now() - (r.at || 0) < 90000); };
 function drawPT() {
   $("ptg").innerHTML = `<b>🖨 출력할 곳</b>` + PT_LIST.map(([k, n]) =>
-    `<span class="ptw"><button data-pt="${k}" class="${PT.includes(k) ? "on" : ""}"><span class="dot ${rlyOn(posOf(k)) ? (isPaused(k) ? "y" : "g") : ""}"></span>${n}</button><button data-pz="${k}" class="pz ${isPaused(k) ? "on" : ""}" title="일시중지">${isPaused(k) ? "⏸ 중지됨" : "⏸"}</button></span>`).join("")
-    + `<small>${PT.length ? "켜진 곳으로 바로 출력돼요 · 점: 초록 켜짐 / 노랑 일시중지 / 빨강 꺼짐 · ⏸는 그 프린터 전체 일시중지" : "아무 곳도 안 고르면 이 기기의 인쇄 창으로 출력해요"}</small>`;
+    `<span class="ptw"><button data-pt="${k}" class="${PT.includes(k) ? "on" : ""}"><span class="dot ${rlyOn(posOf(k)) ? (isPaused(k) ? "y" : "g") : ""}"></span>${n}</button><button data-pz="${k}" class="pz ${isPaused(k) ? "on" : "run"}">${isPaused(k) ? "⏸ 일시중지" : "▶ 출력 중"}</button></span>`).join("")
+    + `<small>${PT.length ? "켜진 곳으로 바로 출력돼요 · 점: 초록 켜짐 / 노랑 일시중지 / 빨강 꺼짐 · 오른쪽 ▶ 출력 중/⏸ 일시중지는 그 프린터 전체(배달앱 포함)" : "아무 곳도 안 고르면 이 기기의 인쇄 창으로 출력해요"}</small>`;
 }
 function watchPT() {
   onSnapshot(doc(db, "settings", "orderPrint"), s => { PT = (s.exists() && s.data().targets) || []; drawPT(); }, () => {});
