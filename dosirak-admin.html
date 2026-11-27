@@ -160,7 +160,7 @@
     <details class="prset"><summary>프린터 설정</summary>
       <div class="prrow">
         <span>속도</span><select id="prBaud"></select>
-        <span>용지</span><select id="prCols"><option value="48">80mm</option><option value="32">58mm</option></select>
+        <span>용지</span><select id="prCols"><option value="42">80mm</option><option value="48">80mm(넓게)</option><option value="32">58mm</option></select>
       </div>
     </details>
     <div class="prnote" id="prNote"></div>
@@ -525,14 +525,14 @@ function encKR(str) {
 const dispW = t => [...t].reduce((a, ch) => a + (ch.codePointAt(0) < 0x80 ? 1 : 2), 0);
 const lr = (l, r, cols) => l + " ".repeat(Math.max(1, cols - dispW(l) - dispW(r))) + r;
 function escposBytes(d) {
-  const cols = Number(prSet.cols || 48);
+  const cols = Number(prSet.cols || 42);
   const rows = [];
   subs.forEach(s => s.status === "진행중" && s.orders.filter(o => o.date === d).forEach(o => rows.push({ s, o })));
   const r = countUp(rows.map(x => x.o));
   const byMeal = MEALS.map(m => {
     const n = rows.filter(x => mealOf(x.o) === m).reduce((a, x) => a + x.o.items.reduce((b, i) => b + i.qty, 0), 0);
     return n ? `${m} ${n}개` : "";
-  }).filter(Boolean).join(" / ");
+  }).filter(Boolean).join(" · ");
   const mm = menus[d];
   const now = new Date();
   const B = [];
@@ -544,23 +544,26 @@ function escposBytes(d) {
   const line = ch => text(ch.repeat(cols));
   raw(0x1B, 0x40);                               // 초기화
   raw(0x1C, 0x26);                               // 한글 모드 (일부 기종)
-  align(1); size(0x11); bold(1); text(`${label(d)} 배달`); size(0); bold(0);
-  text(`전체 ${rows.length}곳`);
-  align(0); line("=");
+  align(0);
+  // 화면 출력 모양 그대로: 제목 → 식단 칸 → 식사별 개수 → 메뉴별 개수 → 합계 → 출력 시각
+  size(0x01); bold(1); text(`${label(d)} 배달 · 전체 ${rows.length}곳`); bold(0); size(0);
+  line("-");
   size(0x01); bold(1);
-  if (mm && (mm.main || mm.soup)) { text("메인: " + (mm.main || "-")); text("국  : " + (mm.soup || "-")); }
+  if (mm && (mm.main || mm.soup)) { if (mm.main) text(mm.main); if (mm.soup) text(mm.soup); }
   else text("식단 미입력");
-  size(0); bold(0); line("-");
+  bold(0); size(0);
+  line("-");
   if (byMeal) text(byMeal);
-  size(0x01);
   const ent = Object.entries(r.count);
   if (!ent.length) text("주문 없음");
-  ent.forEach(([k, v]) => text(lr(k, v + "개", cols)));
-  size(0); line("=");
-  size(0x01); bold(1); text(lr("합계", `${r.boxes}개  ${won(r.money)}`, cols)); bold(0); size(0);
+  ent.forEach(([k, v], i) => {
+    size(0x01); text(lr(k, v + "개", cols)); size(0);
+    text(". ".repeat(Math.floor(cols / 2)).trimEnd());
+  });
+  line("=");
+  size(0x01); bold(1); text(lr("합계", `${r.boxes}개 · ${won(r.money)}`, cols)); bold(0); size(0);
   text(`출력 ${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
-  raw(0x0A, 0x0A, 0x0A, 0x0A);
-  raw(0x1D, 0x56, 0x42, 0x00);                   // 용지 자르기
+  raw(0x0A, 0x0A, 0x0A, 0x0A, 0x0A);             // 자르지 않고 여유 있게 밀어 올림 (손으로 뜯기)
   return new Uint8Array(B);
 }
 async function openCom(port) {
@@ -613,7 +616,7 @@ prHour.innerHTML = [...Array(24)].map((_, h) => `<option value="${h}">${h < 12 ?
 prBaud.innerHTML = [9600, 19200, 38400, 57600, 115200].map(b => `<option>${b}</option>`).join("");
 if (prSet.hour == null && prSet.time) prSet.hour = Number(prSet.time.split(":")[0]);
 prHour.value = String(prSet.hour ?? 18); prWhich.value = prSet.which ?? "1"; prOn.checked = !!prSet.on;
-prBaud.value = String(prSet.baud || 9600); prCols.value = String(prSet.cols || 48);
+prBaud.value = String(prSet.baud || 9600); prCols.value = String(prSet.cols || 42);
 function prNote() {
   const h = Number(prHour.value);
   document.getElementById("prNote").textContent = (prOn.checked
