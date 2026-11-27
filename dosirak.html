@@ -289,6 +289,7 @@ function pickDate(d, m) {
   activeMeal = m && ok.includes(m) ? m : (ok.find(x => slotCount(slot(d, x))) || (ok.includes("점심") ? "점심" : ok[0]) || "점심");
 }
 
+const STAT_FROM = "2026-12-01";   // '드신 도시락' 합계 시작일
 function renderMine() {
   const rows = [];
   Object.entries(live).forEach(([id, d]) => {
@@ -299,6 +300,7 @@ function renderMine() {
   // 지금까지 먹은 것: 배달 완료됐거나, 날짜가 지난 주문 (취소·종료된 신청의 미배달분은 빼고)
   const eaten = [];
   Object.values(live).forEach(d => (d.orders || []).forEach(o => {
+    if (o.date < STAT_FROM) return;   // 12월 주문부터 셈
     if (o.delivered || (o.date < today && d.status !== "종료")) eaten.push(o);
   }));
   const box = document.getElementById("myBox");
@@ -313,7 +315,7 @@ function renderMine() {
   eaten.forEach(o => (o.items || []).forEach(i => { byMenu[i.name] = (byMenu[i.name] || 0) + (i.qty || 0); }));
   const statHtml = eaten.length ? `<div class="mystat">
       <div class="st-t">📊 지금까지 드신 도시락</div>
-      <div class="st-row"><span>전체</span><b>${all.n}개 · ${won(all.w)}</b></div>
+      <div class="st-row"><span>전체 (12월부터)</span><b>${all.n}개 · ${won(all.w)}</b></div>
       <div class="st-row"><span>이번 달 (${Number(month.slice(5))}월)</span><b>${mon.n}개 · ${won(mon.w)}</b></div>
       <div class="st-menu">${Object.entries(byMenu).filter(([, q]) => q).map(([n, q]) => `${n} ${q}개`).join(" · ")}</div>
     </div>` : "";
