@@ -700,6 +700,12 @@ prMemo.oninput = () => {
 prHour.innerHTML = [...Array(24)].map((_, h) => `<option value="${h}">${String(h).padStart(2, "0")}시</option>`).join("");
 prBaud.innerHTML = [9600, 19200, 38400, 57600, 115200].map(b => `<option>${b}</option>`).join("");
 if (prSet.hour == null && prSet.time) prSet.hour = Number(prSet.time.split(":")[0]);
+// 기본: 매일 새벽 3시 자동 출력 (한 번만 적용, 이후엔 화면에서 바꾼 값 유지)
+if (prSet.v !== 3) {
+  prSet = { ...prSet, hour: 3, rep: true, on: true, adate: ymd(new Date()), v: 3 };
+  delete prSet.last;
+  prSaveSet();
+}
 if (!prSet.adate) prSet.adate = ymd(new Date());
 if (prSet.rep == null) prSet.rep = true;
 // 매일 반복인데 날짜가 지나 버렸으면 다음 출력 날짜로 맞춤
@@ -710,7 +716,7 @@ function rollAuto() {
   if (prSet.adate === today && (now.getHours() > Number(prSet.hour ?? 0) || prSet.last === today + "|" + prSet.hour)) prSet.adate = addDays(today, 1);
 }
 rollAuto();
-prHour.value = String(prSet.hour ?? 18); prOn.checked = !!prSet.on; prRep.checked = !!prSet.rep;
+prHour.value = String(prSet.hour ?? 3); prOn.checked = !!prSet.on; prRep.checked = !!prSet.rep;
 fillMD(paM, paD, prSet.adate);
 prBaud.value = String(prSet.baud || 9600); prCols.value = String(prSet.cols || 42);
 function prNote() {
