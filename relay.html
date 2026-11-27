@@ -536,7 +536,7 @@ function renderJobs() {
   const me = myPos();
   $("jobList").innerHTML = jobDocs.slice(0, 5).map(d => {
     const j = d.data();
-    const why = j.done ? "출력 완료" : j.target !== me ? `${String(j.target || "").replace("pos", "")}번 포스용` :
+    const why = j.targets ? ((j.doneBy || {})[me] ? "출력 완료" : (j.targets.some(t => t === me || t.startsWith(me + ":")) ? (running ? "출력 중…" : "대기 중 — ▶ 시작을 눌러야 출력돼요") : "이 포스는 대상 아님")) : j.done ? "출력 완료" : j.target !== me ? `${String(j.target || "").replace("pos", "")}번 포스용` :
       !running ? "대기 중 — ▶ 시작을 눌러야 출력돼요" : Date.now() - (j.at || 0) > 30 * 60000 ? "30분 지나서 건너뜀" : "출력 중…";
     return `<div>${hm(j.at || 0)} · ${esc(j.what || "출력")} → <b>${why}</b></div>`;
   }).join("") || "아직 받은 출력이 없어요. 도시락 관리자에서 '합계 출력'을 누르면 여기에 나와요.";
@@ -545,13 +545,24 @@ function processJobs() {
     const me = myPos(); if (!me || !running) return;
     jobDocs.slice().reverse().forEach(async d => {
       const j = d.data();
-      if (j.done || j.target !== me || jobsDone.has(d.id) || Date.now() - (j.at || 0) > 30 * 60000) return;
+      if (jobsDone.has(d.id) || Date.now() - (j.at || 0) > 30 * 60000) return;
+      // 보낼 프린터 고르기: target(이 포스 전체) 또는 targets(["pos1", "pos3:주방1", ...])
+      let mine = [];
+      if (j.targets) {
+        if ((j.doneBy || {})[me]) return;
+        const ts = j.targets;
+        mine = ts.includes(me) ? outs.slice() : outs.filter(o => ts.includes(me + ":" + o.name));
+      } else {
+        if (j.done || j.target !== me) return;
+        mine = outs.slice();
+      }
+      if (!mine.length) return;
       jobsDone.add(d.id);
       try {
         while (owner || Date.now() - lastIn < 1500) await sleep(500);   // 배달앱 주문지 찍는 중이면 기다림
         const bytes = unb64(j.data);
-        for (const o of outs) await writeOut(o, bytes);
-        await updateDoc(doc(db, "printJobs", d.id), { done: true, doneAt: Date.now(), by: me });
+        for (const o of mine) await writeOut(o, bytes);
+        await updateDoc(doc(db, "printJobs", d.id), j.targets ? { ["doneBy." + me]: Date.now() } : { done: true, doneAt: Date.now(), by: me });
         log(`출력함: ${j.what || "관리자 출력"}`);
       } catch (e) { jobsDone.delete(d.id); log("관리자 출력 실패: " + e.message); }
     });

@@ -15,6 +15,13 @@ button{touch-action:manipulation;cursor:pointer}
 .top h1{font:400 24px "Do Hyeon",sans-serif;margin:0;flex:1 1 auto}
 .top button{border:0;border-radius:10px;padding:9px 14px;font-weight:700;background:#fff;color:var(--ink);min-height:40px}
 .top button.on{background:var(--ok);color:#fff}
+.ptg{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 12px;background:#fff;border-bottom:1px solid #eee;font-size:14px}
+.ptg b{margin-right:2px}
+.ptg button{border:1px solid #ccc;border-radius:999px;padding:7px 12px;font-weight:700;background:#fff;color:#333;font-size:14px}
+.ptg button.on{background:#2e7d4f;border-color:#2e7d4f;color:#fff}
+.ptg .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;background:#d93025;vertical-align:middle}
+.ptg .dot.g{background:#2e8b57}
+.ptg small{color:#888;width:100%}
 #muteBtn{background:#ffd34d;color:var(--ink);animation:pulse 1s ease-in-out infinite}
 @keyframes pulse{50%{transform:scale(1.06)}}
 .tabs{display:flex;gap:8px;padding:12px 16px 0;overflow-x:auto}
@@ -169,6 +176,7 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
     <button id="soundBtn">🔔 알림 소리 켜기</button>
     <button id="logout">로그아웃</button>
   </div>
+  <div class="ptg" id="ptg"></div>
   <div class="tabs" id="tabs">
     <button data-f="all" class="on">전체</button>
     <button data-f="delivery">배달</button>
@@ -272,7 +280,7 @@ summary{font:400 20px "Do Hyeon",sans-serif;padding:10px 0;cursor:pointer}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, deleteDoc, setDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, deleteDoc, setDoc, addDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",
@@ -1307,7 +1315,7 @@ onAuthStateChanged(auth, user => {
   $("app").classList.toggle("hide", !user);
   if (unsub) { unsub(); unsub = null; }
   if (unsubS) { unsubS(); unsubS = null; }
-  if (user) { listen(); listenSettings(); }
+  if (user) { listen(); listenSettings(); watchPT(); }
 });
 
 // ===== 영업시간·할인 설정 =====
@@ -1386,7 +1394,82 @@ function receiptHTML(o) {
     <div class="c" style="margin-top:3mm">감사합니다</div>
   </body></html>`;
 }
+
+// ===== 포스 프린터로 출력 (주방 주문지 공유 relay.html 경유) =====
+const PT_LIST = [["pos1", "1번 포스"], ["pos2", "2번 포스"], ["pos3:주방1", "3번 주방1"], ["pos3:주방2", "3번 주방2"]];
+let PT = [];            // 고른 출력 대상 (가게 전체 공유: settings/orderPrint)
+const RLY = {};         // 포스별 중계기 상태
+const posOf = t => t.split(":")[0];
+const rlyOn = pos => { const r = RLY[pos]; return !!(r && r.running && Date.now() - (r.at || 0) < 90000); };
+function drawPT() {
+  $("ptg").innerHTML = `<b>🖨 출력할 곳</b>` + PT_LIST.map(([k, n]) =>
+    `<button data-pt="${k}" class="${PT.includes(k) ? "on" : ""}"><span class="dot ${rlyOn(posOf(k)) ? "g" : ""}"></span>${n}</button>`).join("")
+    + `<small>${PT.length ? "켜진 곳으로 바로 출력돼요 (점이 빨간 포스는 주방 주문지 공유 페이지가 꺼져 있어요)" : "아무 곳도 안 고르면 이 기기의 인쇄 창으로 출력해요"}</small>`;
+}
+function watchPT() {
+  onSnapshot(doc(db, "settings", "orderPrint"), s => { PT = (s.exists() && s.data().targets) || []; drawPT(); }, () => {});
+  ["pos1", "pos2", "pos3"].forEach(p => onSnapshot(doc(db, "settings", "relay-" + p), s => { RLY[p] = s.exists() ? s.data() : null; drawPT(); }, () => {}));
+  setInterval(drawPT, 20000);
+}
+$("ptg").addEventListener("click", async e => {
+  const b = e.target.closest("[data-pt]"); if (!b) return;
+  const k = b.dataset.pt, next = PT.includes(k) ? PT.filter(x => x !== k) : [...PT, k];
+  try { await setDoc(doc(db, "settings", "orderPrint"), { targets: next }, { merge: true }); } catch (err) { alert("저장 실패: " + err.message); }
+});
+// 영수증 프린터용 글자 데이터 (ESC/POS, 한글 EUC-KR)
+let EUC = null;
+function encKR(str) {
+  if (!EUC) { EUC = new Map(); const dec = new TextDecoder("euc-kr"); for (let a = 0x81; a <= 0xFE; a++) for (let b = 0x41; b <= 0xFE; b++) { const ch = dec.decode(new Uint8Array([a, b])); if (ch.length === 1 && ch !== "�" && !EUC.has(ch)) EUC.set(ch, [a, b]); } }
+  const out = []; for (const ch of str) { const c = ch.codePointAt(0); if (c < 0x80) out.push(c); else if (EUC.has(ch)) out.push(...EUC.get(ch)); else out.push(0x3F); } return out;
+}
+const dispW = t => [...t].reduce((a, ch) => a + (ch.codePointAt(0) < 0x80 ? 1 : 2), 0);
+function orderBytes(o) {
+  const cols = 42, B = [];
+  const raw = (...x) => B.push(...x), text = t => B.push(...encKR(String(t)), 0x0A);
+  const size = n => raw(0x1D, 0x21, n), bold = v => raw(0x1B, 0x45, v ? 1 : 0), align = n => raw(0x1B, 0x61, n);
+  const lr = (l, r, w = cols) => l + " ".repeat(Math.max(1, w - dispW(l) - dispW(r))) + r;
+  const line = ch => text(ch.repeat(cols));
+  const wrap = (t, w) => { const out = []; let cur = ""; for (const ch of String(t)) { if (dispW(cur + ch) > w) { out.push(cur); cur = ch; } else cur += ch; } if (cur) out.push(cur); return out; };
+  const c = o.customer || {}, p = o.payment || {};
+  const t = o.createdAt?.toDate ? o.createdAt.toDate() : new Date();
+  const when = t.toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" });
+  const pay = p.method === "card" ? "카드 (받을 때 결제)" : p.method === "transfer" ? `계좌이체${p.paid ? " (입금 확인)" : " (입금 확인 전)"}` : p.method === "cash" ? "현금 (받을 때 결제)" : "";
+  raw(0x1B, 0x40); raw(0x1C, 0x26);
+  align(1); text("맛있는밥집 쌍촌본점");
+  size(0x11); bold(1); text(`[${o.type === "delivery" ? "배달" : o.type === "pickup" ? "포장" : "매장"}] ${o.code || ""}`); bold(0); size(0);
+  text(when); align(0); line("-");
+  size(0x01); (o.items || []).forEach(i => text(lr(i.name, "x" + i.qty))); size(0); line("-");
+  if (o.subtotal != null) text(lr("상품 금액", won(o.subtotal)));
+  if (o.discount) text(lr("할인", "-" + won(o.discount)));
+  if (o.stampDiscount) text(lr("스탬프 할인", "-" + won(o.stampDiscount)));
+  if (o.baseFee) text(lr("기본 배달비", "+" + won(o.baseFee)));
+  if (o.deliveryTip) text(lr("배달팁", "+" + won(o.deliveryTip)));
+  size(0x01); bold(1); text(lr("결제 금액", won(o.total))); bold(0); size(0);
+  if (pay) text(pay);
+  if (p.receipt) text(`현금영수증 ${p.receiptType === "business" ? "사업자" : "개인"} ${p.receiptNo || ""}`);
+  line("-");
+  if (c.name) text("이름: " + c.name);
+  if (c.phone) { size(0x11); bold(1); text(fmtPhone(c.phone)); bold(0); size(0); }
+  if (o.type === "delivery" && c.address) { size(0x01); bold(1); wrap(c.address, cols).forEach(text); bold(0); size(0); }
+  if (o.memo) { line("="); bold(1); wrap("요청: " + o.memo, cols).forEach(text); bold(0); line("="); }
+  align(1); text("감사합니다"); align(0);
+  raw(0x0A, 0x0A, 0x0A, 0x0A); raw(0x1D, 0x56, 0x42, 0x00);
+  return new Uint8Array(B);
+}
+const toB64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s); };
+async function printToPos(o) {
+  const live = PT.filter(k => rlyOn(posOf(k)));
+  if (!live.length) return false;
+  try {
+    await addDoc(collection(db, "printJobs"), { targets: PT.slice(), data: toB64(orderBytes(o)), what: `주문 ${o.code || ""}`, at: Date.now(), doneBy: {} });
+    return true;
+  } catch (e) { console.error(e); return false; }
+}
 function printOrder(o) {
+  if (PT.length) { printToPos(o).then(ok => { if (!ok) printLocal(o); }); return; }
+  printLocal(o);
+}
+function printLocal(o) {
   const f = document.createElement("iframe");
   f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
   document.body.appendChild(f);
