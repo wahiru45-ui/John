@@ -106,8 +106,11 @@
   .empty { text-align: center; color: #999; padding: 40px; }
   .prbox { padding: 12px 14px; }
   .prrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
-  .prrow button#prNow { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-size: 16px; font-weight: 700; }
-  .prrow input[type=time], .prrow select { padding: 8px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; }
+  .prrow .prbig { flex: 2; padding: 12px; border-radius: 10px; border: none; background: #333; color: #fff; font-size: 16px; font-weight: 700; }
+  .prrow .prcom { flex: 1; padding: 12px 6px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-size: 13px; }
+  .prrow .prcom.on { background: #e8f5e9; border-color: #2e8b57; color: #1e6b3f; font-weight: 700; }
+  .prset summary { font-size: 13px; color: #777; margin-bottom: 6px; }
+  .prrow select { padding: 8px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; }
   .prsw { display: flex; align-items: center; gap: 4px; font-size: 15px; }
   .prnote { font-size: 12px; color: #888; line-height: 1.5; }
   #printArea { display: none; }
@@ -143,6 +146,25 @@
     <button data-view="menu">🍱 식단</button>
   </div>
   <div id="vDay">
+  <div class="box prbox">
+    <div class="prrow">
+      <button id="prNow" class="prbig">🖨️ 합계 출력</button>
+      <button id="prCom" class="prcom">🔌 프린터(COM) 연결</button>
+    </div>
+    <div class="prrow">
+      <span>⏰ 자동</span>
+      <select id="prHour"></select>
+      <select id="prWhich"><option value="1">내일 것</option><option value="0">오늘 것</option></select>
+      <label class="prsw"><input type="checkbox" id="prOn"> 켜기</label>
+    </div>
+    <details class="prset"><summary>프린터 설정</summary>
+      <div class="prrow">
+        <span>속도</span><select id="prBaud"></select>
+        <span>용지</span><select id="prCols"><option value="48">80mm</option><option value="32">58mm</option></select>
+      </div>
+    </details>
+    <div class="prnote" id="prNote"></div>
+  </div>
   <div class="box day">
     <div class="daynav">
       <button id="prev">◀</button>
@@ -150,16 +172,6 @@
       <button id="next">▶</button>
     </div>
     <div id="daySum"></div>
-  </div>
-  <div class="box prbox">
-    <div class="prrow"><button id="prNow">🖨️ 이 날짜 합계 출력</button></div>
-    <div class="prrow">
-      <span>⏰ 자동 출력</span>
-      <input type="time" id="prTime">
-      <select id="prWhich"><option value="1">내일 것</option><option value="0">오늘 것</option></select>
-      <label class="prsw"><input type="checkbox" id="prOn"> 켜기</label>
-    </div>
-    <div class="prnote" id="prNote"></div>
   </div>
   </div>
   <div id="vWeek" style="display:none">
@@ -483,7 +495,110 @@ function printSummaryHtml(d) {
     ${lines(r)}
     <div class="pt">출력 ${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}</div>`;
 }
-function printDay(d) {
+// ----- COM(시리얼) 영수증 프린터 -----
+const PR_KEY = "dosirak_autoprint";
+let prSet = {};
+try { prSet = JSON.parse(localStorage.getItem(PR_KEY) || "{}"); } catch {}
+const prSaveSet = () => { try { localStorage.setItem(PR_KEY, JSON.stringify(prSet)); } catch {} };
+let comPort = null;
+let EUC = null;   // 글자 → EUC-KR 바이트 (한글 영수증 프린터용)
+function eucMap() {
+  if (EUC) return EUC;
+  EUC = new Map();
+  const dec = new TextDecoder("euc-kr");
+  for (let a = 0x81; a <= 0xFE; a++) for (let b = 0x41; b <= 0xFE; b++) {
+    const ch = dec.decode(new Uint8Array([a, b]));
+    if (ch.length === 1 && ch !== "�" && !EUC.has(ch)) EUC.set(ch, [a, b]);
+  }
+  return EUC;
+}
+function encKR(str) {
+  const m = eucMap(), out = [];
+  for (const ch of str) {
+    const c = ch.codePointAt(0);
+    if (c < 0x80) out.push(c);
+    else if (m.has(ch)) out.push(...m.get(ch));
+    else out.push(0x3F);   // 출력 못 하는 글자(이모지 등)는 ?
+  }
+  return out;
+}
+const dispW = t => [...t].reduce((a, ch) => a + (ch.codePointAt(0) < 0x80 ? 1 : 2), 0);
+const lr = (l, r, cols) => l + " ".repeat(Math.max(1, cols - dispW(l) - dispW(r))) + r;
+function escposBytes(d) {
+  const cols = Number(prSet.cols || 48);
+  const rows = [];
+  subs.forEach(s => s.status === "진행중" && s.orders.filter(o => o.date === d).forEach(o => rows.push({ s, o })));
+  const r = countUp(rows.map(x => x.o));
+  const byMeal = MEALS.map(m => {
+    const n = rows.filter(x => mealOf(x.o) === m).reduce((a, x) => a + x.o.items.reduce((b, i) => b + i.qty, 0), 0);
+    return n ? `${m} ${n}개` : "";
+  }).filter(Boolean).join(" / ");
+  const mm = menus[d];
+  const now = new Date();
+  const B = [];
+  const raw = (...x) => B.push(...x);
+  const text = t => B.push(...encKR(t), 0x0A);
+  const size = n => raw(0x1D, 0x21, n);          // 0: 보통, 0x11: 가로·세로 2배, 0x01: 세로 2배
+  const bold = on => raw(0x1B, 0x45, on ? 1 : 0);
+  const align = n => raw(0x1B, 0x61, n);         // 0 왼쪽, 1 가운데
+  const line = ch => text(ch.repeat(cols));
+  raw(0x1B, 0x40);                               // 초기화
+  raw(0x1C, 0x26);                               // 한글 모드 (일부 기종)
+  align(1); size(0x11); bold(1); text(`${label(d)} 배달`); size(0); bold(0);
+  text(`전체 ${rows.length}곳`);
+  align(0); line("=");
+  size(0x01); bold(1);
+  if (mm && (mm.main || mm.soup)) { text("메인: " + (mm.main || "-")); text("국  : " + (mm.soup || "-")); }
+  else text("식단 미입력");
+  size(0); bold(0); line("-");
+  if (byMeal) text(byMeal);
+  size(0x01);
+  const ent = Object.entries(r.count);
+  if (!ent.length) text("주문 없음");
+  ent.forEach(([k, v]) => text(lr(k, v + "개", cols)));
+  size(0); line("=");
+  size(0x01); bold(1); text(lr("합계", `${r.boxes}개  ${won(r.money)}`, cols)); bold(0); size(0);
+  text(`출력 ${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+  raw(0x0A, 0x0A, 0x0A, 0x0A);
+  raw(0x1D, 0x56, 0x42, 0x00);                   // 용지 자르기
+  return new Uint8Array(B);
+}
+async function openCom(port) {
+  try { await port.open({ baudRate: Number(prSet.baud || 9600) }); }
+  catch (e) { if (!String(e.message).includes("already open")) throw e; }
+  comPort = port;
+  updCom();
+}
+async function comPrint(d) {
+  const w = comPort.writable.getWriter();
+  try { await w.write(escposBytes(d)); } finally { w.releaseLock(); }
+}
+function updCom() {
+  const b = document.getElementById("prCom");
+  b.classList.toggle("on", !!comPort);
+  b.textContent = comPort ? "✅ 프린터 연결됨" : "🔌 프린터(COM) 연결";
+  prNote();
+}
+document.getElementById("prCom").onclick = async () => {
+  if (!("serial" in navigator)) { alert("이 기기·브라우저는 COM 프린터 연결이 안 돼요.\n프린터가 꽂힌 컴퓨터(윈도우)의 크롬이나 엣지에서 열어 주세요."); return; }
+  try {
+    if (comPort) { try { await comPort.close(); } catch {} comPort = null; }
+    const port = await navigator.serial.requestPort();   // 목록에서 COM1 선택
+    await openCom(port);
+    alert("프린터가 연결됐어요. 이제 '합계 출력'을 누르면 바로 영수증으로 나와요.");
+  } catch (e) { if (e.name !== "NotFoundError") alert("연결 실패: " + e.message); }
+};
+// 한 번 고른 COM 포트는 다음부터 자동으로 다시 연결
+if ("serial" in navigator) {
+  navigator.serial.getPorts().then(ps => { if (ps[0]) openCom(ps[0]).catch(() => {}); });
+  navigator.serial.addEventListener("disconnect", () => { comPort = null; updCom(); });
+}
+
+async function printDay(d) {
+  if (comPort) {
+    try { await comPrint(d); return; }
+    catch (e) { alert("COM 프린터 출력 실패: " + e.message + "\n일반 인쇄 창으로 대신 열게요."); }
+  }
   let pa = document.getElementById("printArea");
   if (!pa) { pa = document.createElement("div"); pa.id = "printArea"; document.body.appendChild(pa); }
   pa.innerHTML = printSummaryHtml(d);
@@ -491,34 +606,38 @@ function printDay(d) {
 }
 document.getElementById("prNow").onclick = () => printDay(day);
 
-const PR_KEY = "dosirak_autoprint";
-let prSet = {};
-try { prSet = JSON.parse(localStorage.getItem(PR_KEY) || "{}"); } catch {}
-const prTime = document.getElementById("prTime"), prWhich = document.getElementById("prWhich"), prOn = document.getElementById("prOn");
-prTime.value = prSet.time || "18:00"; prWhich.value = prSet.which ?? "1"; prOn.checked = !!prSet.on;
-const prNote = () => {
-  document.getElementById("prNote").textContent = prOn.checked
-    ? `매일 ${prTime.value}에 ${prWhich.value === "1" ? "내일" : "오늘"} 배달 합계를 출력해요. 이 화면이 이 기기에서 켜져(로그인돼) 있어야 해요.`
-    : "자동 출력이 꺼져 있어요.";
-};
+// ----- 자동 출력 (시 단위) -----
+const prHour = document.getElementById("prHour"), prWhich = document.getElementById("prWhich"), prOn = document.getElementById("prOn");
+const prBaud = document.getElementById("prBaud"), prCols = document.getElementById("prCols");
+prHour.innerHTML = [...Array(24)].map((_, h) => `<option value="${h}">${h < 12 ? "오전" : "오후"} ${h % 12 === 0 ? 12 : h % 12}시 (${String(h).padStart(2, "0")}시)</option>`).join("");
+prBaud.innerHTML = [9600, 19200, 38400, 57600, 115200].map(b => `<option>${b}</option>`).join("");
+if (prSet.hour == null && prSet.time) prSet.hour = Number(prSet.time.split(":")[0]);
+prHour.value = String(prSet.hour ?? 18); prWhich.value = prSet.which ?? "1"; prOn.checked = !!prSet.on;
+prBaud.value = String(prSet.baud || 9600); prCols.value = String(prSet.cols || 48);
+function prNote() {
+  const h = Number(prHour.value);
+  document.getElementById("prNote").textContent = (prOn.checked
+    ? `매일 ${String(h).padStart(2, "0")}시에 ${prWhich.value === "1" ? "내일" : "오늘"} 배달 합계를 자동 출력해요. 이 화면이 켜져(로그인돼) 있어야 해요.`
+    : "자동 출력이 꺼져 있어요.")
+    + (comPort ? " · COM 프린터로 바로 출력" : " · 프린터 미연결: 인쇄 창이 떠요");
+}
 const prSave = () => {
-  prSet = { ...prSet, time: prTime.value, which: prWhich.value, on: prOn.checked };
-  try { localStorage.setItem(PR_KEY, JSON.stringify(prSet)); } catch {}
-  prNote();
+  prSet = { ...prSet, hour: Number(prHour.value), which: prWhich.value, on: prOn.checked, baud: Number(prBaud.value), cols: Number(prCols.value) };
+  delete prSet.time;
+  prSaveSet(); prNote();
 };
-[prTime, prWhich, prOn].forEach(el => el.onchange = prSave);
+[prHour, prWhich, prOn, prCols].forEach(el => el.onchange = prSave);
+prBaud.onchange = async () => {
+  prSave();
+  if (comPort) { const p = comPort; try { await p.close(); } catch {} comPort = null; await openCom(p).catch(e => alert("다시 연결 실패: " + e.message)); }
+};
 prNote();
 setInterval(() => {
-  if (!prSet.on || !prSet.time || !subs.length) return;
-  const now = new Date();
-  const hm = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
-  const today = ymd(now);
-  if (hm >= prSet.time && prSet.last !== today) {
-    // 정한 시각에서 10분 안에만 출력 (늦게 켠 날 갑자기 출력되지 않게)
-    const [h, m] = prSet.time.split(":").map(Number);
-    if (now.getHours() * 60 + now.getMinutes() - (h * 60 + m) > 10) return;
-    prSet.last = today;
-    try { localStorage.setItem(PR_KEY, JSON.stringify(prSet)); } catch {}
+  if (!prSet.on || prSet.hour == null || !subs.length) return;
+  const now = new Date(), today = ymd(now);
+  // 정한 시각 정각~10분 안에 하루 한 번만
+  if (now.getHours() === Number(prSet.hour) && now.getMinutes() <= 10 && prSet.last !== today) {
+    prSet.last = today; prSaveSet();
     printDay(addDays(today, Number(prSet.which)));
   }
 }, 20000);
