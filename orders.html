@@ -21,6 +21,11 @@ button{touch-action:manipulation;cursor:pointer}
 .ptg button.on{background:#2e7d4f;border-color:#2e7d4f;color:#fff}
 .ptg .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;background:#d93025;vertical-align:middle}
 .ptg .dot.g{background:#2e8b57}
+.ptg .dot.y{background:#e6a700}
+.ptg .ptw{display:inline-flex;gap:2px}
+.ptg .ptw button[data-pt]{border-radius:999px 0 0 999px}
+.ptg button.pz{border-radius:0 999px 999px 0;padding:7px 9px;font-weight:700}
+.ptg button.pz.on{background:#fff4d6;border-color:#e6a700;color:#8a6200}
 .ptg small{color:#888;width:100%}
 #muteBtn{background:#ffd34d;color:var(--ink);animation:pulse 1s ease-in-out infinite}
 @keyframes pulse{50%{transform:scale(1.06)}}
@@ -1399,19 +1404,31 @@ function receiptHTML(o) {
 const PT_LIST = [["pos1", "1번 포스"], ["pos2", "2번 포스"], ["pos3:주방1", "3번 주방1"], ["pos3:주방2", "3번 주방2"]];
 let PT = [];            // 고른 출력 대상 (가게 전체 공유: settings/orderPrint)
 const RLY = {};         // 포스별 중계기 상태
+let CTRL = {};          // 일시중지 (주방 주문지 공유 페이지와 같은 설정: settings/relay-control)
+const ctrlKey = k => k.includes(":") ? k : k;   // "pos1" 또는 "pos3:주방1"
+const isPaused = k => !!(CTRL[ctrlKey(k)] || CTRL[posOf(k)]);
 const posOf = t => t.split(":")[0];
 const rlyOn = pos => { const r = RLY[pos]; return !!(r && r.running && Date.now() - (r.at || 0) < 90000); };
 function drawPT() {
   $("ptg").innerHTML = `<b>🖨 출력할 곳</b>` + PT_LIST.map(([k, n]) =>
-    `<button data-pt="${k}" class="${PT.includes(k) ? "on" : ""}"><span class="dot ${rlyOn(posOf(k)) ? "g" : ""}"></span>${n}</button>`).join("")
-    + `<small>${PT.length ? "켜진 곳으로 바로 출력돼요 (점이 빨간 포스는 주방 주문지 공유 페이지가 꺼져 있어요)" : "아무 곳도 안 고르면 이 기기의 인쇄 창으로 출력해요"}</small>`;
+    `<span class="ptw"><button data-pt="${k}" class="${PT.includes(k) ? "on" : ""}"><span class="dot ${rlyOn(posOf(k)) ? (isPaused(k) ? "y" : "g") : ""}"></span>${n}</button><button data-pz="${k}" class="pz ${isPaused(k) ? "on" : ""}" title="일시중지">${isPaused(k) ? "⏸ 중지됨" : "⏸"}</button></span>`).join("")
+    + `<small>${PT.length ? "켜진 곳으로 바로 출력돼요 · 점: 초록 켜짐 / 노랑 일시중지 / 빨강 꺼짐 · ⏸는 그 프린터 전체 일시중지" : "아무 곳도 안 고르면 이 기기의 인쇄 창으로 출력해요"}</small>`;
 }
 function watchPT() {
   onSnapshot(doc(db, "settings", "orderPrint"), s => { PT = (s.exists() && s.data().targets) || []; drawPT(); }, () => {});
+  onSnapshot(doc(db, "settings", "relay-control"), s => { CTRL = s.exists() ? s.data() : {}; drawPT(); }, () => {});
   ["pos1", "pos2", "pos3"].forEach(p => onSnapshot(doc(db, "settings", "relay-" + p), s => { RLY[p] = s.exists() ? s.data() : null; drawPT(); }, () => {}));
   setInterval(drawPT, 20000);
 }
 $("ptg").addEventListener("click", async e => {
+  const z = e.target.closest("[data-pz]");
+  if (z) {
+    const k = ctrlKey(z.dataset.pz), name = PT_LIST.find(x => x[0] === z.dataset.pz)[1], ps = isPaused(z.dataset.pz);
+    if (!ps && !confirm(`${name} 프린터를 일시중지할까요?\n(배달앱 주문지를 포함해 그 프린터에서 아무것도 안 나와요. 다시 누르면 풀려요)`)) return;
+    const upd = { [k]: !ps }; if (ps && posOf(k) !== k) upd[posOf(k)] = false;
+    try { await setDoc(doc(db, "settings", "relay-control"), upd, { merge: true }); } catch (err) { alert("저장 실패: " + err.message); }
+    return;
+  }
   const b = e.target.closest("[data-pt]"); if (!b) return;
   const k = b.dataset.pt, next = PT.includes(k) ? PT.filter(x => x !== k) : [...PT, k];
   try { await setDoc(doc(db, "settings", "orderPrint"), { targets: next }, { merge: true }); } catch (err) { alert("저장 실패: " + err.message); }
