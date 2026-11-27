@@ -110,6 +110,9 @@
   .prrow .prcom { flex: 1; padding: 12px 6px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-size: 13px; }
   .prrow .prcom.on { background: #e8f5e9; border-color: #2e8b57; color: #1e6b3f; font-weight: 700; }
   .prmemo { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical; }
+  .prrow .prarr { padding: 10px 12px; border-radius: 8px; border: 1px solid #ccc; background: #fff; font-size: 15px; }
+  .prrow .prsel { padding: 9px 4px; font-size: 16px; font-weight: 700; }
+  .prrow .prbig { flex: 1; min-width: 120px; }
   .prset summary { font-size: 13px; color: #777; margin-bottom: 6px; }
   .prrow select { padding: 8px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; }
   .prsw { display: flex; align-items: center; gap: 4px; font-size: 15px; }
@@ -150,15 +153,18 @@
   <div id="vDay">
   <div class="box prbox">
     <div class="prrow">
+      <button id="pdPrev" class="prarr">◀</button>
+      <select id="pdM" class="prsel"></select><select id="pdD" class="prsel"></select>
+      <button id="pdNext" class="prarr">▶</button>
       <button id="prNow" class="prbig">🖨️ 합계 출력</button>
-      <button id="prCom" class="prcom">🔌 프린터(COM) 연결</button>
     </div>
     <div class="prrow">
       <span>⏰ 자동</span>
-      <select id="prHour"></select>
-      <select id="prWhich"><option value="1">내일 것</option><option value="0">오늘 것</option></select>
+      <select id="paM" class="prsel"></select><select id="paD" class="prsel"></select><select id="prHour" class="prsel"></select>
+      <label class="prsw"><input type="checkbox" id="prRep"> 매일</label>
       <label class="prsw"><input type="checkbox" id="prOn"> 켜기</label>
     </div>
+    <div class="prrow"><button id="prCom" class="prcom">🔌 프린터(COM) 연결</button></div>
     <details class="prset"><summary>프린터 설정</summary>
       <div class="prrow">
         <span>속도</span><select id="prBaud"></select>
@@ -655,8 +661,35 @@ async function printDay(d) {
 }
 document.getElementById("prNow").onclick = () => printDay(day);
 
-// ----- 자동 출력 (시 단위) -----
-const prHour = document.getElementById("prHour"), prWhich = document.getElementById("prWhich"), prOn = document.getElementById("prOn");
+// ----- 날짜 고르기 칸 ([11월][27일]) -----
+const MONTHS = [...Array(12)].map((_, i) => `<option value="${i + 1}">${i + 1}월</option>`).join("");
+const dim = (y, m) => new Date(y, m, 0).getDate();
+function fillMD(mSel, dSel, ymdStr) {
+  const [y, m, d] = ymdStr.split("-").map(Number);
+  if (!mSel.options.length) mSel.innerHTML = MONTHS;
+  mSel.value = String(m);
+  const n = dim(y, m);
+  if (dSel.options.length !== n) dSel.innerHTML = [...Array(n)].map((_, i) => `<option value="${i + 1}">${i + 1}일</option>`).join("");
+  dSel.value = String(d);
+}
+// 월·일 칸에서 날짜 만들기 (연도는 오늘 기준 가까운 쪽으로)
+function readMD(mSel, dSel) {
+  const now = new Date(); let y = now.getFullYear();
+  const m = Number(mSel.value);
+  if (m - (now.getMonth() + 1) < -6) y++; else if (m - (now.getMonth() + 1) > 6) y--;
+  const d = Math.min(Number(dSel.value), dim(y, m));
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+const pdM = document.getElementById("pdM"), pdD = document.getElementById("pdD");
+const setDay = v => { day = v; document.getElementById("pickDay").value = v; render(); };
+pdM.onchange = pdD.onchange = () => setDay(readMD(pdM, pdD));
+document.getElementById("pdPrev").onclick = () => setDay(addDays(day, -1));
+document.getElementById("pdNext").onclick = () => setDay(addDays(day, 1));
+function syncPrintDate() { fillMD(pdM, pdD, day); }
+
+// ----- 자동 출력 ([11월][27일][01시]) -----
+const prHour = document.getElementById("prHour"), prOn = document.getElementById("prOn"), prRep = document.getElementById("prRep");
+const paM = document.getElementById("paM"), paD = document.getElementById("paD");
 const prBaud = document.getElementById("prBaud"), prCols = document.getElementById("prCols");
 const prMemo = document.getElementById("prMemo");
 prMemo.oninput = () => {
@@ -664,36 +697,48 @@ prMemo.oninput = () => {
   if (prMemo.value.trim()) prMemos[d] = prMemo.value; else delete prMemos[d];
   try { localStorage.setItem(MEMO_KEY, JSON.stringify(prMemos)); } catch {}
 };
-prHour.innerHTML = [...Array(24)].map((_, h) => `<option value="${h}">${h < 12 ? "오전" : "오후"} ${h % 12 === 0 ? 12 : h % 12}시 (${String(h).padStart(2, "0")}시)</option>`).join("");
+prHour.innerHTML = [...Array(24)].map((_, h) => `<option value="${h}">${String(h).padStart(2, "0")}시</option>`).join("");
 prBaud.innerHTML = [9600, 19200, 38400, 57600, 115200].map(b => `<option>${b}</option>`).join("");
 if (prSet.hour == null && prSet.time) prSet.hour = Number(prSet.time.split(":")[0]);
-prHour.value = String(prSet.hour ?? 18); prWhich.value = prSet.which ?? "1"; prOn.checked = !!prSet.on;
+if (!prSet.adate) prSet.adate = ymd(new Date());
+if (prSet.rep == null) prSet.rep = true;
+// 매일 반복인데 날짜가 지나 버렸으면 다음 출력 날짜로 맞춤
+function rollAuto() {
+  if (!prSet.rep) return;
+  const now = new Date(), today = ymd(now);
+  while (prSet.adate < today) prSet.adate = addDays(prSet.adate, 1);
+  if (prSet.adate === today && (now.getHours() > Number(prSet.hour ?? 0) || prSet.last === today + "|" + prSet.hour)) prSet.adate = addDays(today, 1);
+}
+rollAuto();
+prHour.value = String(prSet.hour ?? 18); prOn.checked = !!prSet.on; prRep.checked = !!prSet.rep;
+fillMD(paM, paD, prSet.adate);
 prBaud.value = String(prSet.baud || 9600); prCols.value = String(prSet.cols || 42);
 function prNote() {
-  const h = Number(prHour.value);
+  const [, m, d] = prSet.adate.split("-").map(Number);
+  const hh = String(Number(prHour.value)).padStart(2, "0");
   document.getElementById("prNote").textContent = (prOn.checked
-    ? `매일 ${String(h).padStart(2, "0")}시에 ${prWhich.value === "1" ? "내일" : "오늘"} 배달 합계를 자동 출력해요. 이 화면이 켜져(로그인돼) 있어야 해요.`
+    ? `${m}월 ${d}일 ${hh}시에 ${m}/${d} 배달 합계를 자동 출력해요${prRep.checked ? " (그다음부터 매일 같은 시각에 그날 것)" : " (한 번만)"}. 이 화면이 켜져(로그인돼) 있어야 해요.`
     : "자동 출력이 꺼져 있어요.")
     + (comPort ? " · COM 프린터로 바로 출력" : " · 프린터 미연결: 인쇄 창이 떠요");
 }
 const prSave = () => {
-  prSet = { ...prSet, hour: Number(prHour.value), which: prWhich.value, on: prOn.checked, baud: Number(prBaud.value), cols: Number(prCols.value) };
-  delete prSet.time;
+  prSet = { ...prSet, hour: Number(prHour.value), on: prOn.checked, rep: prRep.checked, adate: readMD(paM, paD), baud: Number(prBaud.value), cols: Number(prCols.value) };
+  delete prSet.time; delete prSet.which;
+  fillMD(paM, paD, prSet.adate);
   prSaveSet(); prNote();
 };
-[prHour, prWhich, prOn, prCols].forEach(el => el.onchange = prSave);
-prBaud.onchange = async () => {
-  prSave();
-
-};
+[prHour, prOn, prRep, paM, paD, prCols, prBaud].forEach(el => el.onchange = prSave);
 prNote();
 setInterval(() => {
   if (!prSet.on || prSet.hour == null || !subs.length) return;
-  const now = new Date(), today = ymd(now);
-  // 정한 시각 정각~10분 안에 하루 한 번만
-  if (now.getHours() === Number(prSet.hour) && now.getMinutes() <= 10 && prSet.last !== today) {
-    prSet.last = today; prSaveSet();
-    printDay(addDays(today, Number(prSet.which)));
+  const now = new Date(), today = ymd(now), key = today + "|" + prSet.hour;
+  // 정한 날짜·시각 정각~10분 안에 한 번만
+  if (prSet.adate === today && now.getHours() === Number(prSet.hour) && now.getMinutes() <= 10 && prSet.last !== key) {
+    prSet.last = key;
+    const target = prSet.adate;
+    if (prSet.rep) prSet.adate = addDays(today, 1); else { prSet.on = false; prOn.checked = false; }
+    prSaveSet(); fillMD(paM, paD, prSet.adate); prNote();
+    printDay(target);
   }
 }, 20000);
 
@@ -762,6 +807,7 @@ function render() {
     document.getElementById("daySum").innerHTML = daySummary();
     const pm = document.getElementById("prMemo");
     if (pm && document.activeElement !== pm) { pm.value = memoOf(day); pm.dataset.day = day; }
+    syncPrintDate();
   }
   if (view === "week") document.getElementById("allSum").innerHTML = allSummary();
 
