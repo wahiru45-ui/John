@@ -48,6 +48,17 @@
   .pbtn.on { background: #fff4d6; border-color: #e6a700; color: #8a6200; } .dot.r { background: #d93025; }
   .pp { font-size: 12px; font-weight: 400; color: #666; }
   .rc button { padding: 6px 10px; font-size: 13px; border-radius: 8px; border: 1px solid #ccc; background: #fff; }
+  .peers > div { min-width: 0; }
+  .pill .pl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  body { overflow-x: hidden; }
+  @media (max-width: 640px) {
+    .peers { flex-direction: column; }
+    .peers > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; text-align: left; }
+    .peers .ph { width: 100%; margin: 0; }
+    .pill { flex: 1 1 140px; margin: 0; }
+    .row button { min-width: 0 !important; }
+    .posbtns button { font-size: 16px; padding: 10px 4px; }
+  }
 </style>
 </head>
 <body>
