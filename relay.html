@@ -63,10 +63,10 @@
       <button data-pos="1">1번 포스</button><button data-pos="2">2번 포스</button><button data-pos="3">3번 포스</button>
     </div>
 
-    <h2 style="margin-top:16px">② 배달앱 주문 받는 가상 포트 <span class="pp">(배달앱이 있는 1·2번 포스만)</span></h2>
+    <h2 style="margin-top:16px">② 배달앱 주문 받는 가상 포트 <span class="pp">(배달앱이 있는 1·2번 포스만 · 배달앱 하나에 하나씩)</span></h2>
+    <div id="inList"></div>
     <div class="row">
-      <button id="pickIn" style="flex:1">가상 포트 고르기 (COM11)</button>
-      <button id="noIn">없음 (3번 포스)</button>
+      <button id="pickIn" style="flex:1">➕ 가상 포트 추가 (COM11, COM13, COM15…)</button>
     </div>
 
     <h2 style="margin-top:16px">③ 이 컴퓨터의 주방 프린터</h2>
@@ -148,13 +148,15 @@ document.querySelectorAll(".posbtns button").forEach(b => b.onclick = () => {
 const BAUDS = [9600, 19200, 38400, 57600, 115200];
 const infoKey = p => JSON.stringify(p.getInfo ? p.getInfo() : {});
 let allPorts = [];
-let inPort = null;
+let ins = [];           // [{port, name, reader, writer, job, timer}]
 let outs = [];          // [{port, baud, name, writer, reader, chain}]
 async function restorePorts() {
   if (!("serial" in navigator)) return;
   allPorts = await navigator.serial.getPorts();
   const find = (idx, info) => (allPorts[idx] && infoKey(allPorts[idx]) === info) ? allPorts[idx] : null;
-  inPort = cfg.inIdx != null ? find(cfg.inIdx, cfg.inInfo) : null;
+  if (cfg.inIdx != null && !cfg.ins) cfg.ins = [{ idx: cfg.inIdx, info: cfg.inInfo, name: "배달앱" }];   // 예전 설정 옮기기
+  cfg.ins = cfg.ins || [];
+  ins = cfg.ins.map(o => ({ port: find(o.idx, o.info), name: o.name })).filter(o => o.port);
   outs = cfg.outs.map(o => ({ port: find(o.idx, o.info), baud: o.baud || 9600, name: o.name })).filter(o => o.port);
   if (outs.length !== cfg.outs.length) log("⚠️ 기억해 둔 프린터 포트 중 못 찾은 게 있어요. 다시 추가해 주세요.");
 }
@@ -169,17 +171,25 @@ async function choosePort() {
 $("pickIn").onclick = async () => {
   if (running) { alert("먼저 ⏸ 멈추고 바꿔 주세요."); return; }
   const p = await choosePort(); if (!p) return;
-  if (outs.some(o => o.port === p)) { alert("이 포트는 프린터로 이미 골랐어요. 가상 포트(COM11)를 골라 주세요."); return; }
-  inPort = p; cfg.inIdx = allPorts.indexOf(p); cfg.inInfo = infoKey(p); cfg.noIn = false; saveCfg(); updUI();
+  if (outs.some(o => o.port === p)) { alert("이 포트는 프린터로 이미 골랐어요. 가상 포트(COM11 등)를 골라 주세요."); return; }
+  if (ins.some(o => o.port === p)) { alert("이미 추가한 가상 포트예요."); return; }
+  const name = prompt("어느 배달앱용인가요? (예: 쿠팡, 배민, 요기요)", `배달앱${ins.length + 1}`) || `배달앱${ins.length + 1}`;
+  ins.push({ port: p, name });
+  syncInsCfg(); updUI();
 };
-$("noIn").onclick = () => {
-  if (running) { alert("먼저 ⏸ 멈추고 바꿔 주세요."); return; }
-  inPort = null; delete cfg.inIdx; cfg.noIn = true; saveCfg(); updUI();
-};
+function syncInsCfg() {
+  cfg.ins = ins.map(o => ({ idx: allPorts.indexOf(o.port), info: infoKey(o.port), name: o.name }));
+  delete cfg.inIdx; delete cfg.inInfo;
+  saveCfg();
+}
+function renderIns() {
+  $("inList").innerHTML = ins.map((o, i) => `<div class="prt"><b>✔ ${esc(o.name)}</b><button class="btn" data-rmin="${i}">빼기</button></div>`).join("")
+    || `<div class="note">없음 (3번 포스처럼 배달앱이 없으면 비워 두세요)</div>`;
+}
 $("addPrt").onclick = async () => {
   if (running) { alert("먼저 ⏸ 멈추고 바꿔 주세요."); return; }
   const p = await choosePort(); if (!p) return;
-  if (p === inPort) { alert("이 포트는 가상 포트로 골랐어요. 프린터 포트(COM1 등)를 골라 주세요."); return; }
+  if (ins.some(o => o.port === p)) { alert("이 포트는 가상 포트로 골랐어요. 프린터 포트(COM1 등)를 골라 주세요."); return; }
   if (outs.some(o => o.port === p)) { alert("이미 추가한 프린터예요."); return; }
   const name = prompt("이 프린터 이름 (예: 주방1, 튀김)", `프린터${outs.length + 1}`) || `프린터${outs.length + 1}`;
   outs.push({ port: p, baud: 9600, name });
@@ -203,6 +213,10 @@ document.addEventListener("change", e => {
 });
 document.addEventListener("click", async e => {
   const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.rmin != null) {
+    if (running) { alert("먼저 ⏸ 멈추고 바꿔 주세요."); return; }
+    ins.splice(Number(t.dataset.rmin), 1); syncInsCfg(); updUI();
+  }
   if (t.dataset.rm != null) {
     if (running) { alert("먼저 ⏸ 멈추고 바꿔 주세요."); return; }
     outs.splice(Number(t.dataset.rm), 1); syncOutsCfg(); updUI();
@@ -228,7 +242,7 @@ function encKR(str) {
 }
 
 // ---------- 시작 / 멈춤 ----------
-let running = false, inReader = null, inWriter = null;
+let running = false;
 let lastIn = 0;
 const isOpenErr = e => String(e.message).includes("already open");
 function writeOut(o, bytes) {
@@ -256,61 +270,70 @@ async function start() {
       o.writer = o.port.writable.getWriter();
       o.reader = o.port.readable.getReader();
     }
-    if (inPort) {
-      try { await inPort.open({ baudRate: 9600 }); } catch (e) { if (!isOpenErr(e)) throw new Error(`가상 포트: ${e.message}`); }
-      opened.push(inPort);
+    for (const o of ins) {
+      try { await o.port.open({ baudRate: 9600 }); } catch (e) { if (!isOpenErr(e)) throw new Error(`가상 포트(${o.name}): ${e.message}`); }
+      opened.push(o.port);
       // 배달앱이 '프린터 준비됨' 신호를 기다리는 경우가 있어 신호를 켜 둠
-      try { await inPort.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch {}
-      inWriter = inPort.writable.getWriter();
-      inReader = inPort.readable.getReader();
+      try { await o.port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch {}
+      o.writer = o.port.writable.getWriter();
+      o.reader = o.port.readable.getReader();
+      o.job = []; o.timer = null;
     }
   } catch (e) {
     log("열기 실패: " + e.message);
     alert("포트를 못 열었어요.\n배달앱이 아직 COM1을 쓰고 있으면, 배달앱 프린터 포트를 COM10으로 바꾸고 배달앱을 다시 켜 주세요.\n(" + e.message + ")");
     for (const o of outs) { try { o.writer?.releaseLock(); o.reader?.releaseLock(); } catch {} o.writer = o.reader = null; }
-    try { inWriter?.releaseLock(); inReader?.releaseLock(); } catch {} inWriter = inReader = null;
+    for (const o of ins) { try { o.writer?.releaseLock(); o.reader?.releaseLock(); } catch {} o.writer = o.reader = null; }
     for (const p of opened) { try { await p.close(); } catch {} }
     return;
   }
   running = true; cfg.auto = true; saveCfg();
-  // 프린터 → 배달앱: 첫 번째 프린터의 상태 응답만 배달앱에 돌려줌
-  outs.forEach((o, i) => pump(o.reader, v => { if (i === 0 && inWriter) inWriter.write(v).catch(() => {}); }));
-  // 배달앱 → 이 컴퓨터 프린터 + 다른 포스로 공유
-  if (inReader) pump(inReader, v => { lastIn = Date.now(); outs.forEach(o => writeOut(o, v)); capture(v); });
+  // 프린터가 보내는 응답은 버림 (배달앱에는 아래에서 '정상' 응답을 대신 보냄)
+  outs.forEach(o => pump(o.reader, () => {}));
+  // 배달앱 → 한 장씩 모았다가 이 컴퓨터 프린터 + 다른 포스로 (여러 배달앱이 동시에 와도 섞이지 않게)
+  ins.forEach(o => pump(o.reader, v => { lastIn = Date.now(); answerStatus(o, v); capture(o, v); }));
   updUI(); heartbeat();
-  log(`시작 (${cfg.pos}번 포스, 프린터 ${outs.length}대${inPort ? ", 배달앱 받음" : ""})`);
+  log(`시작 (${cfg.pos}번 포스, 프린터 ${outs.length}대${ins.length ? `, 배달앱 ${ins.length}개` : ""})`);
   catchUp();
 }
 async function stop() {
   running = false;
-  for (const r of [inReader, ...outs.map(o => o.reader)]) { try { await r?.cancel(); r?.releaseLock(); } catch {} }
-  for (const w of [inWriter, ...outs.map(o => o.writer)]) { try { w?.releaseLock(); } catch {} }
-  inReader = inWriter = null; outs.forEach(o => { o.reader = o.writer = null; o.chain = null; });
-  for (const p of [inPort, ...outs.map(o => o.port)]) { try { await p?.close(); } catch {} }
+  for (const o of ins) { if (o.timer) { clearTimeout(o.timer); await finishJob(o); } }
+  for (const r of [...ins, ...outs].map(o => o.reader)) { try { await r?.cancel(); r?.releaseLock(); } catch {} }
+  for (const w of [...ins, ...outs].map(o => o.writer)) { try { w?.releaseLock(); } catch {} }
+  [...ins, ...outs].forEach(o => { o.reader = o.writer = null; o.chain = null; });
+  for (const p of [...ins, ...outs].map(o => o.port)) { try { await p?.close(); } catch {} }
   updUI(); heartbeat(); log("멈춤");
 }
 $("startBtn").onclick = () => running ? (cfg.auto = false, saveCfg(), stop()) : start();
 if ("serial" in navigator) navigator.serial.addEventListener("disconnect", () => { log("⚠️ 포트 연결이 빠졌어요"); if (running) stop(); });
 
 // ---------- 배달앱 주문지 한 장 모으기 → 공유 ----------
-let job = [], jobTimer = null;
-function capture(v) {
-  for (const b of v) job.push(b);
-  clearTimeout(jobTimer);
-  jobTimer = setTimeout(finishJob, 1500);     // 1.5초 조용하면 한 장 끝
+// 배달앱이 프린터 상태를 물어보면(DLE EOT) '정상'이라고 바로 대답
+function answerStatus(o, v) {
+  for (let i = 0; i + 1 < v.length; i++) {
+    if (v[i] === 0x10 && v[i + 1] === 0x04) o.writer?.write(new Uint8Array([0x12])).catch(() => {});
+  }
+}
+function capture(o, v) {
+  for (const b of v) o.job.push(b);
+  clearTimeout(o.timer);
+  o.timer = setTimeout(() => finishJob(o), 1200);     // 1.2초 조용하면 한 장 끝
 }
 const b64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s); };
 const unb64 = s => { const bin = atob(s || ""); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return u8; };
-async function finishJob() {
-  if (!job.length) return;
-  const bytes = new Uint8Array(job); job = [];
+async function finishJob(o) {
+  o.timer = null;
+  if (!o.job.length) return;
+  const bytes = new Uint8Array(o.job); o.job = [];
+  for (const p of outs) writeOut(p, bytes);          // 이 컴퓨터 프린터로 한 장 통째로
   if (bytes.length < 20) return;                     // 상태 확인 같은 짧은 신호는 공유 안 함
   const text = escposToText(bytes);
   const src = guessSrc(text);
   if (bytes.length > 700000) { log("⚠️ 주문지가 너무 커서 공유 못 함"); return; }
   try {
     await addDoc(collection(db, "receipts"), {
-      from: myPos(), src, text: text.slice(0, 4000), raw: b64(bytes), size: bytes.length,
+      from: myPos(), app: o.name, src, text: text.slice(0, 4000), raw: b64(bytes), size: bytes.length,
       at: Date.now(), createdAt: serverTimestamp(), printed: { [myPos()]: true }
     });
     log(`주문지 공유함 (${src}, ${bytes.length}B)`);
@@ -385,7 +408,7 @@ function renderRecent() {
     const p = r.printed || {};
     const marks = [1, 2, 3].map(n => `${n}번${p["pos" + n] ? "○" : "×"}`).join(" ");
     return `<div class="rc"><div class="h">
-      <span><span class="tag ${esc(r.src)}">${esc(r.src)}</span>${esc(String(r.from || "").replace("pos", ""))}번 포스 · ${hm(r.at)}</span>
+      <span><span class="tag ${esc(r.src)}">${esc(r.src)}</span>${r.app ? esc(r.app) + " · " : ""}${esc(String(r.from || "").replace("pos", ""))}번 포스 · ${hm(r.at)}</span>
       <span class="pp">${marks}</span>
       <button data-reprint="${r.id}">다시 출력</button></div>
       <pre>${esc(r.text || "(글자 없음)")}</pre></div>`;
@@ -396,7 +419,7 @@ function renderRecent() {
 const peers = {};
 function heartbeat() {
   const me = myPos(); if (!me) return;
-  setDoc(doc(db, "settings", "relay-" + me), { at: Date.now(), running, printers: outs.length, hasIn: !!inPort }, { merge: true }).catch(() => {});
+  setDoc(doc(db, "settings", "relay-" + me), { at: Date.now(), running, printers: outs.length, hasIn: ins.length > 0 }, { merge: true }).catch(() => {});
 }
 function watchPeers() {
   [1, 2, 3].forEach(n => onSnapshot(doc(db, "settings", "relay-pos" + n), s => { peers[n] = s.exists() ? s.data() : null; renderPeers(); }, () => {}));
@@ -412,9 +435,7 @@ function renderPeers() {
 // ---------- 화면 ----------
 function updUI() {
   document.querySelectorAll(".posbtns button").forEach(b => b.classList.toggle("on", Number(b.dataset.pos) === cfg.pos));
-  $("pickIn").classList.toggle("ok", !!inPort);
-  $("pickIn").textContent = inPort ? "✔ 가상 포트 선택됨 (다시 고르려면 누르기)" : "가상 포트 고르기 (COM11)";
-  $("noIn").classList.toggle("ok", !inPort && !!cfg.noIn);
+  renderIns();
   renderPrts();
   $("state").className = "state " + (running ? "on" : "off");
   $("state").textContent = running ? `● ${cfg.pos}번 포스 · 작동 중` : "■ 꺼짐 · 다른 포스 주문지가 안 나와요!";
