@@ -29,6 +29,7 @@
   .note { font-size: 13px; color: #777; line-height: 1.7; }
   .prt { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid #eee; border-radius: 10px; margin: 6px 0; flex-wrap: wrap; }
   .prt b { flex: 1; }
+  .prt .btn.ok { font-size: 13px; }
   .log { font-family: Consolas, monospace; font-size: 12px; color: #555; max-height: 150px; overflow: auto; background: #fafafa; border-radius: 8px; padding: 8px; white-space: pre-wrap; margin-top: 10px; }
   .rc { border: 1px solid #eee; border-radius: 10px; padding: 10px; margin: 8px 0; }
   .rc .h { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 6px; flex-wrap: wrap; }
@@ -170,7 +171,7 @@ async function restorePorts() {
   if (cfg.inIdx != null && !cfg.ins) cfg.ins = [{ idx: cfg.inIdx, info: cfg.inInfo, name: "배달앱" }];   // 예전 설정 옮기기
   cfg.ins = cfg.ins || [];
   ins = cfg.ins.map(o => ({ port: find(o.idx, o.info), name: o.name, onlyCust: o.onlyCust ?? /쿠팡/.test(o.name || "") })).filter(o => o.port);
-  outs = cfg.outs.map(o => ({ port: find(o.idx, o.info), baud: o.baud || 9600, name: o.name })).filter(o => o.port);
+  outs = cfg.outs.map(o => ({ port: find(o.idx, o.info), baud: o.baud || 9600, name: o.name, paused: !!o.paused })).filter(o => o.port);
   if (outs.length !== cfg.outs.length) log("⚠️ 기억해 둔 프린터 포트 중 못 찾은 게 있어요. 다시 추가해 주세요.");
 }
 async function choosePort() {
@@ -211,13 +212,14 @@ $("addPrt").onclick = async () => {
   syncOutsCfg(); updUI();
 };
 function syncOutsCfg() {
-  cfg.outs = outs.map(o => ({ idx: allPorts.indexOf(o.port), info: infoKey(o.port), baud: o.baud, name: o.name }));
+  cfg.outs = outs.map(o => ({ idx: allPorts.indexOf(o.port), info: infoKey(o.port), baud: o.baud, name: o.name, paused: !!o.paused }));
   saveCfg();
 }
 function renderPrts() {
   $("prtList").innerHTML = outs.map((o, i) => `<div class="prt">
       <b>✔ ${esc(o.name)}</b>
       <span>속도</span><select data-baud="${i}">${BAUDS.map(b => `<option ${b === o.baud ? "selected" : ""}>${b}</option>`).join("")}</select>
+      <button class="btn ${o.paused ? "" : "ok"}" data-pause="${i}">${o.paused ? "⏸ 일시중지됨 (누르면 다시 출력)" : "▶ 출력 중 (누르면 일시중지)"}</button>
       <button class="btn" data-test="${i}">시험 출력</button>
       <button class="btn" data-rm="${i}">빼기</button>
     </div>`).join("") || `<div class="note">아직 추가한 프린터가 없어요.</div>`;
@@ -233,6 +235,12 @@ document.addEventListener("click", async e => {
     if (running) { alert("먼저 ⏸ 멈추고 바꿔 주세요."); return; }
     ins.splice(Number(t.dataset.rmin), 1); syncInsCfg(); updUI();
   }
+  if (t.dataset.pause != null) {
+    const o = outs[Number(t.dataset.pause)];
+    o.paused = !o.paused; syncOutsCfg(); renderPrts();
+    log(`${o.name}: ${o.paused ? "일시중지" : "다시 출력"}`);
+    return;
+  }
   if (t.dataset.rm != null) {
     if (running) { alert("먼저 ⏸ 멈추고 바꿔 주세요."); return; }
     outs.splice(Number(t.dataset.rm), 1); syncOutsCfg(); updUI();
@@ -241,7 +249,7 @@ document.addEventListener("click", async e => {
     const o = outs[Number(t.dataset.test)];
     const txt = `${cfg.pos || "?"}번 포스 · ${o.name} 시험 출력\n${hm(Date.now())}\n\n\n\n`;
     const bytes = new Uint8Array([0x1B, 0x40, ...encKR(txt), 0x1D, 0x56, 0x42, 0x00]);
-    if (running) await writeOut(o, bytes);
+    if (running) await writeOut(o, bytes, true);
     else {
       try { await o.port.open({ baudRate: o.baud }); const w = o.port.writable.getWriter(); await w.write(bytes); w.releaseLock(); await sleep(500); await o.port.close(); log(`${o.name} 시험 출력함`); }
       catch (err) { alert("시험 출력 실패: " + err.message); try { await o.port.close(); } catch {} }
@@ -261,7 +269,8 @@ function encKR(str) {
 let running = false;
 let lastIn = 0;
 const isOpenErr = e => String(e.message).includes("already open");
-function writeOut(o, bytes) {
+function writeOut(o, bytes, force) {
+  if (o.paused && !force) return o.chain || Promise.resolve();   // 일시중지된 프린터는 건너뜀
   o.chain = (o.chain || Promise.resolve()).then(async () => {
     if (!o.writer) return;
     // 선 속도에 맞춰 보내기 (너무 빨리 보내면 프린터가 뒷부분을 놓침)
