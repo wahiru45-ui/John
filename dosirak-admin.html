@@ -118,6 +118,16 @@
   .autobar input { width: 20px; height: 20px; vertical-align: middle; }
   .autobar span { font-size: 13px; color: #666; }
   .autobadge { display: inline-block; font-size: 11px; background: #2e8b57; color: #fff; border-radius: 6px; padding: 1px 6px; margin-left: 4px; }
+  .pmode { display: flex; gap: 8px; margin: 12px 12px 0; }
+  .pmode button { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #ccc; background: #fff; font-size: 15px; font-weight: 700; }
+  .pmode button.on { background: #333; color: #fff; border-color: #333; }
+  .bill td { vertical-align: middle; }
+  .bill .bn { font-weight: 700; }
+  .bill .bp { font-size: 12px; color: #888; }
+  .bill .paid td { color: #999; }
+  .bill button { padding: 6px 8px; border-radius: 8px; border: 1px solid #ccc; background: #fff; font-size: 12px; margin: 2px 0; white-space: nowrap; }
+  .bill button.pd { background: #2e8b57; color: #fff; border-color: #2e8b57; }
+  .paysum { display: flex; justify-content: space-between; font-weight: 700; padding: 10px 4px; font-size: 15px; }
   .prset summary { font-size: 13px; color: #777; margin-bottom: 6px; }
   .prrow select { padding: 8px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; }
   .prsw { display: flex; align-items: center; gap: 4px; font-size: 15px; }
@@ -189,6 +199,7 @@
   </div>
   </div>
   <div id="vWeek" style="display:none">
+  <div class="pmode"><button id="pmWeek" class="on">📅 주간 정산</button><button id="pmMonth">💰 월말 결제 정산</button></div>
   <div class="box all">
     <div class="daynav">
       <button id="wPrev">◀</button>
@@ -798,10 +809,79 @@ let custOpen = false;
 document.addEventListener("toggle", e => { if (e.target.id === "custDet") custOpen = e.target.open; }, true);
 const weekDates = () => [...Array(7)].map((_, i) => { const d = new Date(weekMon + "T00:00"); d.setDate(d.getDate() + i); return ymd(d); });
 const moveWeek = n => { const d = new Date(weekMon + "T00:00"); d.setDate(d.getDate() + n * 7); weekMon = ymd(d); render(); };
-document.getElementById("wPrev").onclick = () => moveWeek(-1);
-document.getElementById("wNext").onclick = () => moveWeek(1);
+let pmode = "week";
+let monFirst = TODAY.slice(0, 8) + "01";
+const monthDates = () => { const [y, m] = monFirst.split("-").map(Number); const n = new Date(y, m, 0).getDate(); return [...Array(n)].map((_, i) => `${monFirst.slice(0, 8)}${String(i + 1).padStart(2, "0")}`); };
+const moveMonth = n => { const [y, m] = monFirst.split("-").map(Number); monFirst = ymd(new Date(y, m - 1 + n, 1)); render(); };
+document.getElementById("wPrev").onclick = () => pmode === "week" ? moveWeek(-1) : moveMonth(-1);
+document.getElementById("wNext").onclick = () => pmode === "week" ? moveWeek(1) : moveMonth(1);
+const setPmode = m => { pmode = m; document.getElementById("pmWeek").classList.toggle("on", m === "week"); document.getElementById("pmMonth").classList.toggle("on", m === "month"); render(); };
+document.getElementById("pmWeek").onclick = () => setPmode("week");
+document.getElementById("pmMonth").onclick = () => setPmode("month");
+// 월말 입금 확인 (settings/pay-YYYY-MM 에 손님별로 저장)
+let pays = {};
+const payWatch = {};
+function watchPay(ym) {
+  if (payWatch[ym]) return;
+  payWatch[ym] = onSnapshot(doc(db, "settings", "pay-" + ym), snap => { pays[ym] = snap.exists() ? snap.data() : {}; if (view === "week" && pmode === "month") render(); }, () => {});
+}
+const PAY_MSG = "{이름}님, 맛있는밥집 정기 도시락 {월}월 이용 금액 안내드려요.\n{일수}일 · {개수}개\n합계 {금액}\n{월}월 말일까지 입금 부탁드립니다. 감사합니다!";
+
+function monthSummary() {
+  const M = monthDates(), ym = monFirst.slice(0, 7), mNum = Number(ym.slice(5));
+  watchPay(ym);
+  const paid = pays[ym] || {};
+  document.getElementById("wTitle").textContent = `💰 ${ym.slice(0, 4)}년 ${mNum}월 결제 정산`;
+  const ok = subs.filter(s => s.status === "진행중");
+  const inMon = s => s.orders.filter(o => o.date.startsWith(ym));
+  const all = countUp(ok.flatMap(inMon));
+  const weeks = [];
+  M.forEach(d => { const w = monOf(d); let g = weeks.find(x => x.w === w); if (!g) weeks.push(g = { w, ds: [] }); g.ds.push(d); });
+  const weekRows = weeks.map(g => {
+    const r = countUp(ok.flatMap(s => s.orders.filter(o => g.ds.includes(o.date))));
+    return `<tr><td>${label(g.ds[0])}~${label(g.ds[g.ds.length - 1])}</td><td>${r.boxes}개</td><td>${won(r.money)}</td></tr>`;
+  }).join("");
+  const menuRows = Object.entries(all.count).map(([k, v]) => {
+    const price = ok.flatMap(inMon).flatMap(o => o.items).find(i => i.name === k)?.price || 0;
+    return `<tr><td>${k}</td><td>${v}개</td><td>${won(v * price)}</td></tr>`;
+  }).join("");
+  const per = {};
+  ok.forEach(s => inMon(s).forEach(o => {
+    const k = custKey(s);
+    const p = per[k] = per[k] || { k, name: s.name, phone: s.phone, days: new Set(), boxes: 0, money: 0 };
+    p.days.add(o.date); o.items.forEach(i => p.boxes += i.qty); p.money += o.amount;
+  }));
+  const list = Object.values(per).sort((a, b) => (paid[a.k] ? 1 : 0) - (paid[b.k] ? 1 : 0) || b.money - a.money);
+  const paidMoney = list.filter(p => paid[p.k]).reduce((a, p) => a + p.money, 0);
+  billCache = { ym, mNum, per };
+  const none = `<tr><td colspan="3">없음</td></tr>`;
+  const custRows = list.map(p => `<tr class="${paid[p.k] ? "paid" : ""}">
+      <td><div class="bn">${esc(p.name || "-")}</div><div class="bp">${esc(p.phone || "")}</div></td>
+      <td>${p.days.size}일 · ${p.boxes}개<br><b>${won(p.money)}</b></td>
+      <td style="text-align:right">
+        <button class="${paid[p.k] ? "pd" : ""}" data-pay="${esc(p.k)}">${paid[p.k] ? "✅ 입금 완료" : "입금 확인"}</button><br>
+        ${p.phone ? `<button data-bill="${esc(p.k)}">💬 청구 문자</button>` : ""}
+      </td></tr>`).join("");
+  const lastDay = M[M.length - 1];
+  const wait = countUp(subs.filter(s => s.status === "신청").flatMap(inMon));
+  return `
+    <div class="sub" style="margin:2px 0 8px;color:#666">결제일: <b>${label(lastDay)}</b> (매달 마지막 날)</div>
+    <div class="stitle">손님별 청구 · ${list.length}명</div>
+    <table class="bill"><tr><th>손님</th><th>이용</th><th></th></tr>${custRows || none}</table>
+    <div class="paysum"><span>입금 완료 ${won(paidMoney)}</span><span style="color:#d9532b">미입금 ${won(all.money - paidMoney)}</span></div>
+    <table><tr class="tot"><td>${mNum}월 합계</td><td>${all.boxes}개</td><td>${won(all.money)}</td></tr></table>
+    <div class="gap"></div>
+    <div class="stitle">주차별</div>
+    <table><tr><th>기간</th><th>개수</th><th>금액</th></tr>${weekRows}</table>
+    <div class="gap"></div>
+    <div class="stitle">메뉴별</div>
+    <table><tr><th>메뉴</th><th>개수</th><th>금액</th></tr>${menuRows || none}</table>
+    ${wait.boxes ? `<div class="pend">⚠️ 이 달에 아직 확인 안 한 신청: ${wait.boxes}개 · ${won(wait.money)} (정산에 미포함)</div>` : ""}`;
+}
+let billCache = null;
 
 function allSummary() {
+  if (pmode === "month") return monthSummary();
   const W = weekDates();
   document.getElementById("wTitle").textContent = `📊 주간 정산 ${label(W[0])} ~ ${label(W[6])}`;
   const ok = subs.filter(s => s.status === "진행중");
@@ -1057,6 +1137,20 @@ document.addEventListener("click", async e => {
   const t = e.target.closest("button");
   if (!t) return;
   if (t.dataset.tab) { tab = t.dataset.tab; render(); }
+  if (t.dataset.pay && billCache) {
+    const ym = billCache.ym, k = t.dataset.pay, cur = !!(pays[ym] || {})[k];
+    const p = billCache.per[k];
+    if (!confirm(cur ? `${p?.name || ""}님 입금 완료를 취소할까요?` : `${p?.name || ""}님 ${won(p?.money || 0)} 입금 확인할까요?`)) return;
+    try { await setDoc(doc(db, "settings", "pay-" + ym), { [k]: !cur }, { merge: true }); }
+    catch (err) { alert("저장 실패: " + err.message); }
+  }
+  if (t.dataset.bill && billCache) {
+    const p = billCache.per[t.dataset.bill];
+    if (!p || !p.phone) return;
+    const msg = PAY_MSG.replaceAll("{이름}", p.name || "고객").replaceAll("{월}", billCache.mNum)
+      .replace("{일수}", p.days.size).replace("{개수}", p.boxes).replace("{금액}", won(p.money));
+    location.href = `sms:${p.phone.replace(/[^0-9]/g, "")}?body=${encodeURIComponent(msg)}`;
+  }
   if (t.id === "addNew") { startNew(); return; }
   if (t.dataset.view) { view = t.dataset.view; render(); if (view === "menu") renderMenu(); window.scrollTo(0, 0); return; }
   if (t.dataset.arrive) {
