@@ -73,7 +73,7 @@
     <div id="prtList"></div>
     <div class="row"><button id="addPrt" style="flex:1">➕ 프린터 포트 추가 (COM1 등)</button></div>
 
-    <div class="row" style="margin-top:14px"><button id="startBtn" style="flex:1;font-size:17px">▶ 시작</button></div>
+    <div class="row" style="margin-top:14px"><button id="startBtn" style="flex:1;font-size:17px">▶ 시작</button><button id="resetBtn">설정 초기화</button></div>
     <div class="note">
       · 1·2번 포스: 배달앱 프린터 포트를 <b>COM10</b>으로 바꿔 두고, 여기 ②에서 <b>COM11</b>을 고르세요.<br>
       · 이 창은 <b>항상 켜 두세요</b>. 다음부터는 열기만 하면 자동으로 시작해요.<br>
@@ -312,6 +312,14 @@ async function stop() {
   for (const p of [...ins, ...outs].map(o => o.port)) { try { await p?.close(); } catch {} }
   updUI(); heartbeat(); log("멈춤");
 }
+$("resetBtn").onclick = async () => {
+  if (!confirm("이 컴퓨터의 포트 설정을 모두 지우고 처음부터 다시 고를까요?")) return;
+  if (running) await stop();
+  try { for (const p of await navigator.serial.getPorts()) { try { await p.close(); } catch {} try { await p.forget?.(); } catch {} } } catch {}
+  const pos = cfg.pos;
+  cfg = { pos, outs: [], ins: [] }; saveCfg();
+  location.reload();
+};
 $("startBtn").onclick = () => running ? (cfg.auto = false, saveCfg(), stop()) : start();
 if ("serial" in navigator) navigator.serial.addEventListener("disconnect", () => { log("⚠️ 포트 연결이 빠졌어요"); if (running) stop(); });
 
