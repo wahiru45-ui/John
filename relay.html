@@ -157,7 +157,9 @@ const saveCfg = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } 
 const myPos = () => cfg.pos ? "pos" + cfg.pos : null;
 
 document.querySelectorAll(".posbtns button").forEach(b => b.onclick = () => {
-  cfg.pos = Number(b.dataset.pos); saveCfg(); updUI(); heartbeat();
+  const n = Number(b.dataset.pos);
+  if (running) { alert("먼저 ⏸ 멈추고 바꿔 주세요."); return; }
+  cfg.pos = cfg.pos === n ? null : n; saveCfg(); updUI(); heartbeat();
 });
 
 // ---------- 포트 ----------
@@ -559,6 +561,7 @@ function processJobs() {
 const peers = {};
 function heartbeat() {
   const me = myPos(); if (!me) return;
+  if (!("serial" in navigator) || !outs.length) return;   // 휴대폰·설정 안 된 기기는 상태를 덮어쓰지 않음
   setDoc(doc(db, "settings", "relay-" + me), { at: Date.now(), running, printers: outs.length, names: outs.map(o => o.name), hasIn: ins.length > 0 }, { merge: true }).catch(() => {});
 }
 // 포스별 일시중지 (어느 포스에서든 켜고 끌 수 있음)
@@ -590,8 +593,8 @@ function renderPeers() {
     const p = peers[n], on = p && p.running && Date.now() - (p.at || 0) < 90000;
     const ps = !!ctrl["pos" + n];
     return `<div><span class="dot ${on ? (ps ? "y" : "g") : "r"}"></span>${n}번 포스${n === cfg.pos ? " (여기)" : ""}${on ? ` · 프린터 ${p.printers}대` : ""}
-      ${p && (p.names || []).length > 1
-        ? p.names.map(nm => { const q = !!ctrl[prtKey(n, nm)]; return `<button class="pbtn ${q ? "on" : ""}" data-pprt="${n}" data-pname="${esc(nm)}">${esc(nm)} · ${q ? "⏸ 중지됨" : "일시중지"}</button>`; }).join("")
+      ${n === 3
+        ? ((p && p.names && p.names.length) ? p.names : ["주방1", "주방2"]).map(nm => { const q = !!ctrl[prtKey(n, nm)]; return `<button class="pbtn ${q ? "on" : ""}" data-pprt="${n}" data-pname="${esc(nm)}">${esc(nm)} · ${q ? "⏸ 중지됨" : "일시중지"}</button>`; }).join("")
         : `<button class="pbtn ${ps ? "on" : ""}" data-ppause="${n}">${ps ? "⏸ 중지됨 · 누르면 다시 출력" : "일시중지"}</button>`}</div>`;
   }).join("");
 }
