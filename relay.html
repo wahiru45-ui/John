@@ -169,7 +169,7 @@ async function restorePorts() {
   const find = (idx, info) => (allPorts[idx] && infoKey(allPorts[idx]) === info) ? allPorts[idx] : null;
   if (cfg.inIdx != null && !cfg.ins) cfg.ins = [{ idx: cfg.inIdx, info: cfg.inInfo, name: "배달앱" }];   // 예전 설정 옮기기
   cfg.ins = cfg.ins || [];
-  ins = cfg.ins.map(o => ({ port: find(o.idx, o.info), name: o.name })).filter(o => o.port);
+  ins = cfg.ins.map(o => ({ port: find(o.idx, o.info), name: o.name, onlyCust: o.onlyCust ?? /쿠팡/.test(o.name || "") })).filter(o => o.port);
   outs = cfg.outs.map(o => ({ port: find(o.idx, o.info), baud: o.baud || 9600, name: o.name })).filter(o => o.port);
   if (outs.length !== cfg.outs.length) log("⚠️ 기억해 둔 프린터 포트 중 못 찾은 게 있어요. 다시 추가해 주세요.");
 }
@@ -187,16 +187,18 @@ $("pickIn").onclick = async () => {
   if (outs.some(o => o.port === p)) { alert("이 포트는 프린터로 이미 골랐어요. 가상 포트(COM11 등)를 골라 주세요."); return; }
   if (ins.some(o => o.port === p)) { alert("이미 추가한 가상 포트예요."); return; }
   const name = prompt("어느 배달앱용인가요? (예: 쿠팡, 배민, 요기요)", `배달앱${ins.length + 1}`) || `배달앱${ins.length + 1}`;
-  ins.push({ port: p, name });
+  ins.push({ port: p, name, onlyCust: /쿠팡/.test(name) });
   syncInsCfg(); updUI();
 };
 function syncInsCfg() {
-  cfg.ins = ins.map(o => ({ idx: allPorts.indexOf(o.port), info: infoKey(o.port), name: o.name }));
+  cfg.ins = ins.map(o => ({ idx: allPorts.indexOf(o.port), info: infoKey(o.port), name: o.name, onlyCust: !!o.onlyCust }));
   delete cfg.inIdx; delete cfg.inInfo;
   saveCfg();
 }
 function renderIns() {
-  $("inList").innerHTML = ins.map((o, i) => `<div class="prt"><b>✔ ${esc(o.name)}</b><button class="btn" data-rmin="${i}">빼기</button></div>`).join("")
+  $("inList").innerHTML = ins.map((o, i) => `<div class="prt"><b>✔ ${esc(o.name)}</b>
+      <label style="font-size:14px"><input type="checkbox" data-onlycust="${i}" ${o.onlyCust ? "checked" : ""}> 고객용만 출력 (매장용 빼기)</label>
+      <button class="btn" data-rmin="${i}">빼기</button></div>`).join("")
     || `<div class="note">없음 (3번 포스처럼 배달앱이 없으면 비워 두세요)</div>`;
 }
 $("addPrt").onclick = async () => {
@@ -221,6 +223,7 @@ function renderPrts() {
     </div>`).join("") || `<div class="note">아직 추가한 프린터가 없어요.</div>`;
 }
 document.addEventListener("change", e => {
+  if (e.target.dataset.onlycust != null) { ins[Number(e.target.dataset.onlycust)].onlyCust = e.target.checked; syncInsCfg(); log(`${ins[Number(e.target.dataset.onlycust)].name}: 고객용만 ${e.target.checked ? "켬" : "끔"}`); return; }
   const i = e.target.dataset.baud;
   if (i != null) { if (running) { alert("먼저 ⏸ 멈추고 바꿔 주세요."); renderPrts(); return; } outs[i].baud = Number(e.target.value); syncOutsCfg(); }
 });
@@ -365,10 +368,31 @@ function flushNext() {
   owner = n; outs.forEach(p => writeOut(p, bytes));
   if (n.ended) { n.ended = false; owner = null; flushNext(); }
 }
+// '고객용만' 켜진 배달앱: 용지 자르기 명령마다 한 장씩 끊어서, [매장용] 장은 버림
+function cutEnd(a, from) {
+  for (let i = from; i + 1 < a.length; i++) {
+    if (a[i] === 0x1D && a[i + 1] === 0x56) { const m = a[i + 2]; if (m === undefined) return -1; const len = m >= 65 ? 4 : 3; return i + len <= a.length ? i + len : -1; }
+    if (a[i] === 0x1B && (a[i + 1] === 0x69 || a[i + 1] === 0x6D)) return i + 2;
+  }
+  return -1;
+}
+const isStoreCopy = bytes => /매장\s*용/.test(escposToText(bytes).slice(0, 300));
+function passSeg(o, bytes) {
+  if (isStoreCopy(bytes)) { log(`${o.name}: 매장용 1장 뺌`); return; }
+  localPrint(o, bytes);
+  for (const b of bytes) o.job.push(b);
+}
 function capture(o, v) {
-  localPrint(o, v);
   o.ended = false;
-  for (const b of v) o.job.push(b);
+  if (o.onlyCust) {
+    o.seg = o.seg || [];
+    for (const b of v) o.seg.push(b);
+    let end;
+    while ((end = cutEnd(o.seg, 0)) > 0) { passSeg(o, new Uint8Array(o.seg.slice(0, end))); o.seg = o.seg.slice(end); }
+  } else {
+    localPrint(o, v);
+    for (const b of v) o.job.push(b);
+  }
   // 0.8초 조용하면 한 장 끝
   const token = (o.tok = (o.tok || 0) + 1);
   o.timer = true;
@@ -378,6 +402,7 @@ const b64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s +=
 const unb64 = s => { const bin = atob(s || ""); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return u8; };
 async function finishJob(o) {
   o.timer = null;
+  if (o.seg && o.seg.length) { const rest = new Uint8Array(o.seg); o.seg = []; if (rest.length > 8) passSeg(o, rest); else localPrint(o, rest); }
   if (!o.job.length) return;
   const bytes = new Uint8Array(o.job); o.job = [];
   if (owner === o) { owner = null; flushNext(); } else o.ended = true;
