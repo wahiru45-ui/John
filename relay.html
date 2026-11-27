@@ -261,12 +261,18 @@ async function start() {
   if (running) return;
   if (!cfg.pos) { alert("① 몇 번 포스인지 먼저 골라 주세요."); return; }
   if (!outs.length) { alert("③ 프린터 포트를 하나 이상 추가해 주세요."); return; }
+  // 같은 포트를 두 번 고른 경우 막기
+  const all = [...ins.map(o => ["가상 포트 " + o.name, o.port]), ...outs.map(o => ["프린터 " + o.name, o.port])];
+  for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
+    if (all[i][1] === all[j][1]) { alert(`'${all[i][0]}'과 '${all[j][0]}'이 같은 포트예요.\n둘 중 잘못 고른 쪽을 '빼기'로 지우고 다시 시작해 주세요.`); return; }
+  }
   const opened = [];
   try {
     for (const o of outs) {
       try { await o.port.open({ baudRate: o.baud }); } catch (e) { if (!isOpenErr(e)) throw new Error(`${o.name}: ${e.message}`); }
       opened.push(o.port);
       try { await o.port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch {}
+      if (o.port.writable.locked || o.port.readable.locked) throw new Error(`${o.name}: 이미 사용 중 (페이지를 새로고침(F5) 해 주세요)`);
       o.writer = o.port.writable.getWriter();
       o.reader = o.port.readable.getReader();
     }
@@ -275,6 +281,7 @@ async function start() {
       opened.push(o.port);
       // 배달앱이 '프린터 준비됨' 신호를 기다리는 경우가 있어 신호를 켜 둠
       try { await o.port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch {}
+      if (o.port.writable.locked || o.port.readable.locked) throw new Error(`${o.name}: 이미 사용 중 (페이지를 새로고침(F5) 해 주세요)`);
       o.writer = o.port.writable.getWriter();
       o.reader = o.port.readable.getReader();
       o.job = []; o.timer = null;
