@@ -250,12 +250,15 @@ async function start() {
     for (const o of outs) {
       try { await o.port.open({ baudRate: o.baud }); } catch (e) { if (!isOpenErr(e)) throw new Error(`${o.name}: ${e.message}`); }
       opened.push(o.port);
+      try { await o.port.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch {}
       o.writer = o.port.writable.getWriter();
       o.reader = o.port.readable.getReader();
     }
     if (inPort) {
       try { await inPort.open({ baudRate: 9600 }); } catch (e) { if (!isOpenErr(e)) throw new Error(`가상 포트: ${e.message}`); }
       opened.push(inPort);
+      // 배달앱이 '프린터 준비됨' 신호를 기다리는 경우가 있어 신호를 켜 둠
+      try { await inPort.setSignals({ dataTerminalReady: true, requestToSend: true }); } catch {}
       inWriter = inPort.writable.getWriter();
       inReader = inPort.readable.getReader();
     }
