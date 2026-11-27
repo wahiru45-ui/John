@@ -176,7 +176,7 @@
 
 <div id="done" class="done" style="display:none">
   <h2>신청이 저장됐어요 ✅</h2>
-  <p>가게에서 확인 후 연락드릴게요.</p>
+  <p id="doneMsg">가게에서 확인 후 연락드릴게요.</p>
   <p class="hint" style="margin-top:14px">잠시 후 처음 화면으로 돌아가요…</p>
 </div>
 
@@ -616,6 +616,10 @@ document.getElementById("submit").addEventListener("click", async () => {
   const editable = o => ALL.includes(o.date) && canSlot(o.date, mealOf(o));
   const used = new Set();
   const info = { name: v("name"), addr: v("addr"), memo: v("memo") };
+  // 사장님이 '자동 수락'을 켜 두면 바로 확인됨(진행중)으로 저장
+  let NEW = "신청";
+  try { const st = await getDoc(doc(db, "settings", "dosirak")); if (st.exists() && st.data().autoAccept) NEW = "진행중"; } catch {}
+  const autoTag = NEW === "진행중" ? { autoOk: true } : {};
   try {
     // 1) 예전 신청서 수정
     for (const L of loaded) {
@@ -632,7 +636,7 @@ document.getElementById("submit").addEventListener("click", async () => {
         // 지난 주문이 없으면 그대로 고치고 다시 확인 대기로
         await updateDoc(doc(db, "subscriptions", L.id), {
           ...info, orders, total: sum(orders),
-          status: orders.length ? "신청" : "종료", editedAt: serverTimestamp()
+          status: orders.length ? NEW : "종료", editedAt: serverTimestamp(), ...autoTag
         });
         if (!orders.length) me.subs = me.subs.filter(x => x !== L.id);
       } else {
@@ -642,7 +646,7 @@ document.getElementById("submit").addEventListener("click", async () => {
         if (future.length) {
           const ref = await addDoc(collection(db, "subscriptions"), {
             orders: future, phone: L.phone || v("phone"), ...info, total: sum(future),
-            status: "신청", editedAt: serverTimestamp(), createdAt: serverTimestamp()
+            status: NEW, editedAt: serverTimestamp(), createdAt: serverTimestamp(), ...autoTag
           });
           me.subs.push(ref.id);
         }
@@ -655,7 +659,7 @@ document.getElementById("submit").addEventListener("click", async () => {
       const ref = await addDoc(collection(db, "subscriptions"), {
         orders, phone: v("phone"), ...info,
         total: orders.reduce((a, o) => a + o.amount, 0),
-        status: "신청", createdAt: serverTimestamp()
+        status: NEW, createdAt: serverTimestamp(), ...autoTag
       });
       me.subs.push(ref.id);
       listen(ref.id);
@@ -665,6 +669,7 @@ document.getElementById("submit").addEventListener("click", async () => {
     try { localStorage.setItem(LS, JSON.stringify(me)); } catch {}
     document.getElementById("form").style.display = "none";
     document.getElementById("bar").style.display = "none";
+    document.getElementById("doneMsg").textContent = NEW === "진행중" ? "주문이 바로 확인됐어요. 감사합니다!" : "가게에서 확인 후 연락드릴게요.";
     document.getElementById("done").style.display = "block";
     window.scrollTo(0, 0);
     setTimeout(() => location.reload(), 1800);

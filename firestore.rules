@@ -13,7 +13,9 @@ service cloud.firestore {
       allow update: if request.auth != null
         || (request.resource.data.phone == resource.data.phone
             && (request.resource.data.status in ['신청', '종료']
-                || request.resource.data.status == resource.data.status));
+                || request.resource.data.status == resource.data.status
+                || (request.resource.data.status == '진행중'
+                    && get(/databases/$(database)/documents/settings/dosirak).data.autoAccept == true)));
     }
     // 정기 도시락 식단표
     match /dosirakMenus/{date} {

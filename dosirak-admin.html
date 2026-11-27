@@ -113,6 +113,11 @@
   .prrow .prarr { padding: 10px 12px; border-radius: 8px; border: 1px solid #ccc; background: #fff; font-size: 15px; }
   .prrow .prsel { padding: 9px 4px; font-size: 16px; font-weight: 700; }
   .prrow .prbig { flex: 1; min-width: 120px; }
+  .autobar { margin: 12px 12px 0; padding: 12px 14px; border-radius: 12px; background: #fff; border: 2px solid #ddd; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 15px; }
+  .autobar.on { border-color: #2e8b57; background: #eef8f1; }
+  .autobar input { width: 20px; height: 20px; vertical-align: middle; }
+  .autobar span { font-size: 13px; color: #666; }
+  .autobadge { display: inline-block; font-size: 11px; background: #2e8b57; color: #fff; border-radius: 6px; padding: 1px 6px; margin-left: 4px; }
   .prset summary { font-size: 13px; color: #777; margin-bottom: 6px; }
   .prrow select { padding: 8px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; }
   .prsw { display: flex; align-items: center; gap: 4px; font-size: 15px; }
@@ -194,6 +199,10 @@
   </div>
   </div>
   <div id="vList" style="display:none">
+  <div class="autobar" id="autoBar">
+    <label><input type="checkbox" id="autoAcc"> <b>⚡ 자동 수락</b></label>
+    <span id="autoTxt">꺼짐 · 신청이 오면 직접 ✅확인을 눌러야 해요</span>
+  </div>
   <div style="margin:12px"><button id="addNew" class="addbtn">➕ 전화·문자 주문 직접 추가</button></div>
   <div id="newBox"></div>
   <div style="margin:0 12px 10px"><input id="q" class="search" placeholder="🔍 이름·전화번호·주소로 찾기"></div>
@@ -334,10 +343,12 @@ onAuthStateChanged(auth, user => {
   document.getElementById("app").style.display = user ? "block" : "none";
   document.getElementById("logout").style.display = user ? "block" : "none";
   if (user && !unsub) {
+    watchAuto();
     watchMenus();
     unsub = onSnapshot(query(collection(db, "subscriptions"), orderBy("createdAt", "desc")), snap => {
       subs = snap.docs.map(d => normalize({ id: d.id, ...d.data() }));
       render();
+      autoConfirmPending();
     }, err => { document.getElementById("list").innerHTML = `<div class="empty">불러오기 실패: ${esc(err.message)}</div>`; });
   }
   if (!user && unsub) { unsub(); unsub = null; }
@@ -747,6 +758,38 @@ setInterval(() => {
     printDay(target);
   }
 }, 20000);
+
+
+// ===== 자동 수락 =====
+let autoAccept = false;
+function watchAuto() {
+  onSnapshot(doc(db, "settings", "dosirak"), snap => {
+    autoAccept = snap.exists() && !!snap.data().autoAccept;
+    const cb = document.getElementById("autoAcc");
+    cb.checked = autoAccept;
+    document.getElementById("autoBar").classList.toggle("on", autoAccept);
+    document.getElementById("autoTxt").textContent = autoAccept
+      ? "켜짐 · 손님이 신청하면 바로 '확인됨'으로 들어가요"
+      : "꺼짐 · 신청이 오면 직접 ✅확인을 눌러야 해요";
+    autoConfirmPending();
+  }, () => {});
+}
+document.getElementById("autoAcc").onchange = async e => {
+  const on = e.target.checked;
+  if (on && !confirm("자동 수락을 켤까요?\n손님이 신청·수정하면 가게 확인 없이 바로 '확인됨'으로 들어가고 배달 목록에 올라가요.")) { e.target.checked = false; return; }
+  try { await setDoc(doc(db, "settings", "dosirak"), { autoAccept: on }, { merge: true }); }
+  catch (err) { e.target.checked = !on; alert("저장 실패: " + err.message); }
+};
+// 켜져 있는 동안 '확인 대기'로 들어온 것(예전 화면에서 신청한 것 등)도 바로 확인 처리
+let autoBusy = false;
+async function autoConfirmPending() {
+  if (!autoAccept || autoBusy) return;
+  const wait = subs.filter(s => s.status === "신청");
+  if (!wait.length) return;
+  autoBusy = true;
+  try { for (const s of wait) await updateDoc(doc(db, "subscriptions", s.id), { status: "진행중", autoOk: true }).catch(() => {}); }
+  finally { autoBusy = false; }
+}
 
 // 주간 정산 (월~일)
 const monOf = s => { const d = new Date(s + "T00:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return ymd(d); };
