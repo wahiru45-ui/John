@@ -591,29 +591,41 @@ function escposBytes(d) {
   return new Uint8Array(B);
 }
 
-async function openCom(port) {
-  try { await port.open({ baudRate: Number(prSet.baud || 9600) }); }
-  catch (e) { if (!String(e.message).includes("already open")) throw e; }
-  comPort = port;
-  updCom();
-}
+// 포트는 '선택'만 기억해 두고, 출력할 때만 잠깐 열었다가 바로 닫음
+// (계속 열어 두면 쿠팡이츠·배민 같은 다른 프로그램이 같은 프린터를 못 씀)
+function useCom(port) { comPort = port; updCom(); }
 async function comPrint(d) {
-  const w = comPort.writable.getWriter();
-  try {
-    // 프린터 버퍼가 넘치지 않게 조금씩 나눠 보냄 (한꺼번에 보내면 뒷부분이 잘려 나옴)
-    const data = escposBytes(d);
-    const baud = Number(prSet.baud || 9600);
-    const CH = 32, wait = Math.ceil(CH * 10 * 1000 / baud * 1.5);
-    for (let i = 0; i < data.length; i += CH) {
-      await w.write(data.slice(i, i + CH));
-      await new Promise(res => setTimeout(res, wait));
+  const data = escposBytes(d);
+  const baud = Number(prSet.baud || 9600);
+  // 다른 프로그램이 프린터를 쓰는 중이면 잠깐 기다렸다가 다시 시도 (최대 약 10초)
+  let opened = false, lastErr;
+  for (let t = 0; t < 10 && !opened; t++) {
+    try { await comPort.open({ baudRate: baud }); opened = true; }
+    catch (e) {
+      if (String(e.message).includes("already open")) opened = true;
+      else { lastErr = e; await new Promise(r => setTimeout(r, 1000)); }
     }
-  } finally { w.releaseLock(); }
+  }
+  if (!opened) throw new Error("프린터를 다른 프로그램(쿠팡이츠 등)이 쓰고 있어요. 잠시 후 다시 눌러 주세요. (" + (lastErr?.message || "") + ")");
+  try {
+    const w = comPort.writable.getWriter();
+    try {
+      // 프린터 버퍼가 넘치지 않게 조금씩 나눠 보냄
+      const CH = 32, wait = Math.ceil(CH * 10 * 1000 / baud * 1.5);
+      for (let i = 0; i < data.length; i += CH) {
+        await w.write(data.slice(i, i + CH));
+        await new Promise(res => setTimeout(res, wait));
+      }
+    } finally { w.releaseLock(); }
+    await new Promise(r => setTimeout(r, 300));
+  } finally {
+    try { await comPort.close(); } catch {}   // 바로 놓아줌
+  }
 }
 function updCom() {
   const b = document.getElementById("prCom");
   b.classList.toggle("on", !!comPort);
-  b.textContent = comPort ? "✅ 프린터 연결됨" : "🔌 프린터(COM) 연결";
+  b.textContent = comPort ? "✅ 프린터 선택됨" : "🔌 프린터(COM) 연결";
   prNote();
 }
 document.getElementById("prCom").onclick = async () => {
@@ -621,13 +633,13 @@ document.getElementById("prCom").onclick = async () => {
   try {
     if (comPort) { try { await comPort.close(); } catch {} comPort = null; }
     const port = await navigator.serial.requestPort();   // 목록에서 COM1 선택
-    await openCom(port);
-    alert("프린터가 연결됐어요. 이제 '합계 출력'을 누르면 바로 영수증으로 나와요.");
+    useCom(port);
+    alert("프린터를 골랐어요. '합계 출력'을 누를 때만 잠깐 연결해서 찍고 바로 놓아줘요.\n(그동안 쿠팡이츠 영수증도 그대로 나와요)");
   } catch (e) { if (e.name !== "NotFoundError") alert("연결 실패: " + e.message); }
 };
-// 한 번 고른 COM 포트는 다음부터 자동으로 다시 연결
+// 한 번 고른 COM 포트는 다음에도 기억 (열지는 않음)
 if ("serial" in navigator) {
-  navigator.serial.getPorts().then(ps => { if (ps[0]) openCom(ps[0]).catch(() => {}); });
+  navigator.serial.getPorts().then(ps => { if (ps[0]) useCom(ps[0]); });
   navigator.serial.addEventListener("disconnect", () => { comPort = null; updCom(); });
 }
 
@@ -672,7 +684,7 @@ const prSave = () => {
 [prHour, prWhich, prOn, prCols].forEach(el => el.onchange = prSave);
 prBaud.onchange = async () => {
   prSave();
-  if (comPort) { const p = comPort; try { await p.close(); } catch {} comPort = null; await openCom(p).catch(e => alert("다시 연결 실패: " + e.message)); }
+
 };
 prNote();
 setInterval(() => {
