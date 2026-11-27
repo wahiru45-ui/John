@@ -83,6 +83,11 @@
   </div>
 
   <div class="box">
+    <h2>관리자 화면에서 보낸 출력 (정기도시락 등)</h2>
+    <div id="jobList" class="note">불러오는 중…</div>
+  </div>
+
+  <div class="box">
     <h2>📥 최근 주문지 <span id="rcCount" class="pp"></span></h2>
     <div id="rcList"></div>
   </div>
@@ -317,6 +322,7 @@ async function start() {
   updUI(); heartbeat();
   log(`시작 (${cfg.pos}번 포스, 프린터 ${outs.length}대${ins.length ? `, 배달앱 ${ins.length}개` : ""})`);
   catchUp();
+  renderJobs();
   processJobs();
 }
 async function stop() {
@@ -466,10 +472,19 @@ function renderRecent() {
 // ---------- 관리자 화면(정기도시락 등)에서 보낸 출력 ----------
 const jobsDone = new Set();
 function watchJobs() {
-  onSnapshot(query(collection(db, "printJobs"), orderBy("at", "desc"), limit(20)), snap => { jobDocs = snap.docs || []; processJobs(); },
+  onSnapshot(query(collection(db, "printJobs"), orderBy("at", "desc"), limit(20)), snap => { jobDocs = snap.docs || []; renderJobs(); processJobs(); },
     e => log("출력 대기열 오류: " + e.message));
 }
 let jobDocs = [];
+function renderJobs() {
+  const me = myPos();
+  $("jobList").innerHTML = jobDocs.slice(0, 5).map(d => {
+    const j = d.data();
+    const why = j.done ? "출력 완료" : j.target !== me ? `${String(j.target || "").replace("pos", "")}번 포스용` :
+      !running ? "대기 중 — ▶ 시작을 눌러야 출력돼요" : Date.now() - (j.at || 0) > 30 * 60000 ? "30분 지나서 건너뜀" : "출력 중…";
+    return `<div>${hm(j.at || 0)} · ${esc(j.what || "출력")} → <b>${why}</b></div>`;
+  }).join("") || "아직 받은 출력이 없어요. 도시락 관리자에서 '합계 출력'을 누르면 여기에 나와요.";
+}
 function processJobs() {
     const me = myPos(); if (!me || !running) return;
     jobDocs.slice().reverse().forEach(async d => {
@@ -480,7 +495,7 @@ function processJobs() {
         while (owner || Date.now() - lastIn < 1500) await sleep(500);   // 배달앱 주문지 찍는 중이면 기다림
         const bytes = unb64(j.data);
         for (const o of outs) await writeOut(o, bytes);
-        await updateDoc(doc(db, "printJobs", d.id), { done: true, doneAt: Date.now() });
+        await updateDoc(doc(db, "printJobs", d.id), { done: true, doneAt: Date.now(), by: me });
         log(`출력함: ${j.what || "관리자 출력"}`);
       } catch (e) { jobsDone.delete(d.id); log("관리자 출력 실패: " + e.message); }
     });

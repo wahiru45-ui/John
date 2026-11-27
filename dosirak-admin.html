@@ -680,7 +680,12 @@ const toB64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s 
 async function printDay(d) {
   if (relayAlive()) {
     try {
-      await addDoc(collection(db, "printJobs"), { target: "pos1", data: toB64(escposBytes(d)), what: "도시락 합계 " + d, at: Date.now(), done: false });
+      const ref = await addDoc(collection(db, "printJobs"), { target: "pos1", data: toB64(escposBytes(d)), what: "도시락 합계 " + d, at: Date.now(), done: false });
+      const btn = document.getElementById("prNow"), old = btn.textContent;
+      btn.textContent = "1번 포스로 보내는 중…";
+      let ok = false;
+      const un = onSnapshot(ref, s => { if (s.exists() && s.data().done) { ok = true; btn.textContent = "✅ 1번 포스에서 출력됨"; } });
+      setTimeout(() => { un(); btn.textContent = old; if (!ok) alert("1번 포스가 아직 출력하지 않았어요.\n1번 포스의 '주방 주문지 공유' 페이지가 켜져 있고 '작동 중'인지 확인해 주세요.\n(켜지면 30분 안에 자동으로 출력돼요)"); }, 20000);
       return;
     } catch (e) { alert("1번 포스로 출력 보내기 실패: " + e.message); }
   }
