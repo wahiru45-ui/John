@@ -35,12 +35,14 @@
   .rc pre { margin: 0; font-family: Consolas, "Malgun Gothic", monospace; font-size: 12px; white-space: pre-wrap; max-height: 200px; overflow: auto; background: #fafafa; padding: 8px; border-radius: 8px; }
   .tag { font-size: 12px; padding: 2px 8px; border-radius: 6px; color: #fff; background: #888; margin-right: 4px; }
   .tag.쿠팡이츠 { background: #00a5e5; } .tag.배달의민족 { background: #2ac1bc; } .tag.요기요 { background: #fa0050; }
+  .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+  .dot.g { background: #2e8b57; } .dot.r { background: #d93025; }
   .pp { font-size: 12px; font-weight: 400; color: #666; }
   .rc button { padding: 6px 10px; font-size: 13px; border-radius: 8px; border: 1px solid #ccc; background: #fff; }
 </style>
 </head>
 <body>
-<header><h1>🧾 주방 주문지 공유</h1><button id="logout" style="display:none">로그아웃</button></header>
+<header><h1>주방 주문지 공유</h1><button id="logout" style="display:none">로그아웃</button></header>
 
 <div class="box login" id="login">
   <input id="email" type="email" placeholder="관리자 이메일">
@@ -189,7 +191,7 @@ function syncOutsCfg() {
 }
 function renderPrts() {
   $("prtList").innerHTML = outs.map((o, i) => `<div class="prt">
-      <b>🖨️ ${esc(o.name)}</b>
+      <b>✔ ${esc(o.name)}</b>
       <span>속도</span><select data-baud="${i}">${BAUDS.map(b => `<option ${b === o.baud ? "selected" : ""}>${b}</option>`).join("")}</select>
       <button class="btn" data-test="${i}">시험 출력</button>
       <button class="btn" data-rm="${i}">빼기</button>
@@ -381,7 +383,7 @@ function renderRecent() {
   $("rcCount").textContent = recent.length ? `(최근 ${recent.length}장)` : "";
   $("rcList").innerHTML = recent.map(r => {
     const p = r.printed || {};
-    const marks = [1, 2, 3].map(n => `${n}번${p["pos" + n] ? "✅" : "⬜"}`).join(" ");
+    const marks = [1, 2, 3].map(n => `${n}번${p["pos" + n] ? "○" : "×"}`).join(" ");
     return `<div class="rc"><div class="h">
       <span><span class="tag ${esc(r.src)}">${esc(r.src)}</span>${esc(String(r.from || "").replace("pos", ""))}번 포스 · ${hm(r.at)}</span>
       <span class="pp">${marks}</span>
@@ -403,7 +405,7 @@ function watchPeers() {
 function renderPeers() {
   $("peers").innerHTML = [1, 2, 3].map(n => {
     const p = peers[n], on = p && p.running && Date.now() - (p.at || 0) < 90000;
-    return `<div>${on ? "🟢" : "🔴"} ${n}번 포스${n === cfg.pos ? " (여기)" : ""}${on ? ` · 프린터 ${p.printers}대` : ""}</div>`;
+    return `<div><span class="dot ${on ? "g" : "r"}"></span>${n}번 포스${n === cfg.pos ? " (여기)" : ""}${on ? ` · 프린터 ${p.printers}대` : ""}</div>`;
   }).join("");
 }
 
@@ -411,14 +413,14 @@ function renderPeers() {
 function updUI() {
   document.querySelectorAll(".posbtns button").forEach(b => b.classList.toggle("on", Number(b.dataset.pos) === cfg.pos));
   $("pickIn").classList.toggle("ok", !!inPort);
-  $("pickIn").textContent = inPort ? "✅ 가상 포트 선택됨" : "가상 포트 고르기 (COM11)";
+  $("pickIn").textContent = inPort ? "✔ 가상 포트 선택됨 (다시 고르려면 누르기)" : "가상 포트 고르기 (COM11)";
   $("noIn").classList.toggle("ok", !inPort && !!cfg.noIn);
   renderPrts();
   $("state").className = "state " + (running ? "on" : "off");
-  $("state").textContent = running ? `🟢 ${cfg.pos}번 포스 · 작동 중` : "⏹ 꺼짐 · 다른 포스 주문지가 안 나와요!";
+  $("state").textContent = running ? `● ${cfg.pos}번 포스 · 작동 중` : "■ 꺼짐 · 다른 포스 주문지가 안 나와요!";
   $("startBtn").textContent = running ? "⏸ 멈추기" : "▶ 시작";
   $("startBtn").classList.toggle("ok", running);
-  document.title = (running ? "🟢" : "🔴") + " 주방 주문지 공유";
+  document.title = (running ? "[켜짐]" : "[꺼짐]") + " 주방 주문지 공유";
   renderPeers();
 }
 
