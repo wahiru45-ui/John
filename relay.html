@@ -346,7 +346,7 @@ async function openOne(o) {
     o.writer = o.port.writable.getWriter();
     o.reader = o.port.readable.getReader();
     o.down = false;
-    if (isIn) { o.job = []; o.timer = null; pump(o.reader, v => { answerStatus(o, v); if (stripStatus(v).length) lastIn = Date.now(); capture(o, v); }); }
+    if (isIn) { o.job = []; o.timer = null; pump(o.reader, v => { answerStatus(o, v); if (!(v.length <= 6 && !stripStatus(v).length)) lastIn = Date.now(); capture(o, v); }); }
     else pump(o.reader, () => {});      // 프린터 응답은 버림
     return null;
   } catch (e) {
@@ -495,8 +495,9 @@ function stripStatus(v) {
 }
 let ownerAt = 0;   // 프린터를 쓰는 배달앱이 마지막으로 데이터를 보낸 시각
 function capture(o, v) {
-  v = stripStatus(v);
-  if (!v.length) return;              // 상태 확인만 온 거면 무시 (프린터를 붙잡지 않음)
+  // 상태 확인만 온 거면 무시 (프린터를 붙잡지 않음). 인쇄 내용은 절대 건드리지 않고 그대로 보냄
+  // (QR코드·그림 데이터 안에 같은 바이트가 섞여 있어서, 빼 버리면 프린터가 멈춤)
+  if (v.length <= 6 && !stripStatus(v).length) return;
   ownerAt = Date.now();
   o.ended = false;
   if (o.onlyCust) {
