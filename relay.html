@@ -438,11 +438,43 @@ function cutEnd(a, from) {
   }
   return -1;
 }
-const isStoreCopy = bytes => /매장\s*용/.test(escposToText(bytes).slice(0, 300));
+// 고객용이 아닌 장: [매장용] [주방용] [가게용] [사장님용] [포장용] 등
+const STORE_RE = /(매장|주방|가게|사장님|업주|점주)\s*용/;
+const isStoreCopy = bytes => STORE_RE.test(escposToText(bytes).slice(0, 300));
+// 자르기 명령 없이 두 장을 한꺼번에 보내는 앱 대비: [고객용]/[매장용] 같은 표시 위치로 나눔
+let MARK = null;
+function markPats() {
+  if (MARK) return MARK;
+  MARK = ["고객용", "매장용", "주방용", "가게용", "사장님용", "업주용", "점주용"].map(w => encKR(w));
+  return MARK;
+}
+function findAll(a, pat) {
+  const r = [];
+  outer: for (let i = 0; i + pat.length <= a.length; i++) { for (let j = 0; j < pat.length; j++) if (a[i + j] !== pat[j]) continue outer; r.push(i); }
+  return r;
+}
+function splitCopies(bytes) {
+  const hits = markPats().flatMap(p => findAll(bytes, p)).sort((x, y) => x - y);
+  if (hits.length < 2) return [bytes];
+  const cuts = [0];
+  for (const h of hits.slice(1)) {
+    // 그 표시 앞쪽의 프린터 초기화(ESC @)나 줄바꿈에서 자름
+    let c = -1;
+    for (let i = h; i > cuts[cuts.length - 1]; i--) { if (bytes[i] === 0x1B && bytes[i + 1] === 0x40) { c = i; break; } }
+    if (c < 0) for (let i = h; i > cuts[cuts.length - 1]; i--) { if (bytes[i] === 0x0A) { c = i + 1; break; } }
+    if (c > cuts[cuts.length - 1]) cuts.push(c);
+  }
+  cuts.push(bytes.length);
+  const out = [];
+  for (let i = 0; i + 1 < cuts.length; i++) out.push(bytes.slice(cuts[i], cuts[i + 1]));
+  return out;
+}
 function passSeg(o, bytes) {
-  if (isStoreCopy(bytes)) { log(`${o.name}: 매장용 1장 뺌`); return; }
-  localPrint(o, bytes);
-  for (const b of bytes) o.job.push(b);
+  for (const part of splitCopies(bytes)) {
+    if (isStoreCopy(part)) { log(`${o.name}: 고객용 아닌 장 1장 뺌`); continue; }
+    localPrint(o, part);
+    for (const b of part) o.job.push(b);
+  }
 }
 function capture(o, v) {
   o.ended = false;
@@ -465,7 +497,7 @@ const unb64 = s => { const bin = atob(s || ""); const u8 = new Uint8Array(bin.le
 async function finishJob(o) {
   o.timer = null;
   if (o.seg && o.seg.length) { const rest = new Uint8Array(o.seg); o.seg = []; if (rest.length > 8) passSeg(o, rest); else localPrint(o, rest); }
-  if (!o.job.length) return;
+  if (!o.job.length) { if (owner === o) { owner = null; flushNext(); } return; }
   const bytes = new Uint8Array(o.job); o.job = [];
   if (owner === o) { owner = null; flushNext(); } else o.ended = true;
   if (bytes.length < 20) return;                     // 상태 확인 같은 짧은 신호는 공유 안 함
