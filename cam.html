@@ -85,12 +85,13 @@ a{color:var(--accent)}
       <div class="row" style="margin-top:8px">
         <button id="edit" class="btn">✏️ 테이블 자리 그리기</button>
         <button id="clearz" class="btn">자리 모두 지우기</button>
+        <button id="dimb" class="btn">🌙 절전 화면</button>
         <span id="cinfo" class="note" style="margin:0"></span>
       </div>
       <p id="ehelp" class="note hide">화면에서 테이블 하나를 손가락으로 끌어 네모를 그리세요. 그린 네모를 누르면 지워져요. 다 그렸으면 다시 ‘그리기’ 버튼을 누르세요.</p>
       <div id="stage" class="stage hide"><video id="vid" playsinline muted autoplay></video><div id="ov" class="ov"></div></div>
       <div id="chips" class="chips"></div>
-      <p class="note">화면을 켜둔 채로 충전기에 꽂아 두세요. 영상은 저장·녹화되지 않고, 로그인한 직원만 ‘보기’에서 실시간으로 볼 수 있어요. 손님 화면에는 숫자(빈자리·대기시간)만 나가요.</p>
+      <p class="note">화면을 켜둔 채로 충전기에 꽂아 두고, 쓰지 않을 땐 ‘🌙 절전 화면’을 눌러 두세요. 화면이 꺼지거나 다른 앱으로 넘어가면 휴대폰이 카메라를 막지만, 다시 이 화면으로 돌아오면 카메라가 자동으로 다시 켜져요. 영상은 저장·녹화되지 않고, 로그인한 직원만 ‘보기’에서 실시간으로 볼 수 있어요. 손님 화면에는 숫자(빈자리·대기시간)만 나가요.</p>
     </div>
   </main>
 
@@ -198,8 +199,9 @@ function zoneHtml(zones,st,persons){
 // ---------- 카메라 모드 ----------
 var stream=null,model=null,zones=[],zst=[],persons=[],editing=false,draft=null,lastPub=0,dirty=false,wake=null,calls={};
 
-$("cstart").onclick=async function(){
-  if(stream){stopCam();return}
+$("cstart").onclick=function(){if(stream){localStorage.removeItem("camOn");stopCam()}else startCam()};
+async function startCam(){
+  if(stream)return;
   var name=$("cname").value.trim();
   if(!name){name="카메라 "+CID.slice(-3);$("cname").value=name}
   localStorage.setItem("camName",name);
@@ -215,12 +217,38 @@ $("cstart").onclick=async function(){
   try{wake=await navigator.wakeLock.request("screen")}catch(e){}
   var mine=W.cams&&W.cams[CID];
   if(mine&&mine.zones&&!zones.length){zones=mine.zones;zst=zones.map(function(z,i){var o=(mine.st||[])[i]||{};return{occ:!!o.occ,since:o.since||Date.now(),last:o.occ?Date.now():0,hits:0}})}
+  localStorage.setItem("camOn","1");
+  stream.getVideoTracks()[0].onended=function(){restartCam()};
   $("cinfo").textContent="사람 인식 준비 중…";
   publish(0);
   loadModel();
   listenCalls();
 };
-document.addEventListener("visibilitychange",async function(){if(stream&&document.visibilityState==="visible"){try{wake=await navigator.wakeLock.request("screen")}catch(e){}}});
+function camDead(){return !stream||stream.getVideoTracks().every(function(t){return t.readyState==="ended"||t.muted})}
+var restarting=false;
+async function restartCam(){
+  if(restarting||!localStorage.getItem("camOn")||document.visibilityState!=="visible")return;
+  restarting=true;
+  if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null;for(var k in calls){try{calls[k].close()}catch(e){}}calls={}}
+  await startCam();restarting=false;
+}
+document.addEventListener("visibilitychange",async function(){
+  if(document.visibilityState!=="visible")return;
+  if(stream){try{wake=await navigator.wakeLock.request("screen")}catch(e){}}
+  if(localStorage.getItem("camOn")&&camDead())setTimeout(restartCam,500);
+});
+setInterval(function(){if(localStorage.getItem("camOn")&&document.visibilityState==="visible"&&stream&&camDead())restartCam()},10000);
+
+// 절전 화면: 화면은 켜둔 채 까맣게 (카메라·인식은 계속 작동)
+function dimOn(){
+  var d=document.createElement("div");d.id="dim";
+  d.style.cssText="position:fixed;inset:0;background:#000;z-index:99;display:flex;align-items:flex-end;justify-content:center;color:#333;font-size:14px;padding-bottom:30px";
+  d.textContent="📷 카메라 작동 중 · 화면을 누르면 돌아가요";
+  d.onclick=function(){d.remove();if(document.fullscreenElement)document.exitFullscreen().catch(function(){})};
+  document.body.appendChild(d);
+  try{document.documentElement.requestFullscreen()}catch(e){}
+}
+$("dimb").onclick=function(){if(!stream){$("cinfo").textContent="카메라를 먼저 켜주세요.";return}dimOn()};
 
 function stopCam(){
   if(!stream)return;
@@ -448,6 +476,7 @@ $("mclr").onclick=function(){WREF().set({manual:{min:0,until:0}},{merge:true})};
 // ---------- 시작 ----------
 $("plink").href=$("plink").textContent=location.href.replace(/cam\.html.*$/,"wait.html");
 function start(){
+  if(localStorage.getItem("camOn"))setTimeout(startCam,800);
   $("login").classList.add("hide");$("app").classList.remove("hide");net("");
   unsubs.push(WREF().onSnapshot(function(d){W=d.data()||{};net(d.metadata.fromCache?"":"ok");renderView()},function(){net("err")}));
   unsubs.push(fs.collection("orders").onSnapshot(function(s){orders=s.docs.map(function(x){return x.data()});pushFood()},function(){}));
