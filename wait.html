@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>맛있는밥집 지금 대기시간</title>
+<style>
+:root{--bg:#f6f4ef;--card:#fff;--line:#e3ddd2;--text:#2a241c;--muted:#776d60;--ok:#1f7a5a;--mid:#c86a12;--busy:#c0392b}
+@media (prefers-color-scheme:dark){:root{--bg:#16130f;--card:#211c16;--line:#3a3229;--text:#f3ede4;--muted:#b0a596;--ok:#3fb68b;--mid:#ffa24a;--busy:#ff6b5b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans KR","Malgun Gothic",sans-serif;display:flex;justify-content:center}
+main{width:100%;max-width:480px;padding:28px 18px 40px}
+h1{text-align:center;font-size:24px;margin:0 0 4px}
+.sub{text-align:center;color:var(--muted);margin:0 0 20px;font-size:15px}
+.hero{background:var(--card);border:2px solid var(--line);border-radius:22px;padding:26px 16px;text-align:center}
+.lv{display:inline-block;padding:6px 16px;border-radius:999px;font-weight:900;font-size:18px;color:#fff;background:var(--ok)}
+.lv.보통{background:var(--mid)}.lv.혼잡{background:var(--busy)}
+.num{font-size:84px;font-weight:900;line-height:1.1;margin:14px 0 2px}
+.num small{font-size:30px}
+.cap{color:var(--muted);font-weight:700}
+.rows{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.rows div{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:14px;text-align:center}
+.rows b{display:block;font-size:30px;font-weight:900}
+.rows span{color:var(--muted);font-size:14px;font-weight:700}
+.closed{background:var(--card);border:2px solid var(--line);border-radius:22px;padding:30px 16px;text-align:center;font-size:20px;font-weight:800}
+.call{display:block;margin-top:16px;text-align:center;padding:16px;border-radius:16px;background:var(--ok);color:#fff;font-weight:900;font-size:19px;text-decoration:none}
+.note{color:var(--muted);font-size:13px;line-height:1.6;text-align:center;margin-top:14px}
+.hide{display:none!important}
+</style></head>
+<body><main>
+  <h1>맛있는밥집 쌍촌본점</h1>
+  <p class="sub">지금 홀 대기 상황</p>
+
+  <section id="live" class="hide">
+    <div class="hero">
+      <span id="lv" class="lv">여유</span>
+      <div class="num" id="num">-</div>
+      <div class="cap">예상 대기시간 (자리 + 음식)</div>
+    </div>
+    <div class="rows">
+      <div><b id="free">-</b><span>빈 테이블</span></div>
+      <div><b id="food">-</b><span>음식 나오는 시간</span></div>
+    </div>
+  </section>
+  <section id="off" class="closed hide">지금은 홀 영업시간이 아니에요.<br><span style="font-size:15px;color:var(--muted)">홀 영업: 오전 11시 ~ 저녁 9시 · 일요일 휴무</span></section>
+  <div id="load" class="closed">불러오는 중…</div>
+
+  <a class="call" href="tel:0623853450">📞 전화로 물어보기 062-385-3450</a>
+  <p class="note"><span id="upd"></span><br>매장 상황에 따라 실제 시간과 다를 수 있어요.<br>카메라 영상은 공개되지 않고 숫자만 보여드려요.</p>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="wait-calc.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",
+  authDomain:"house-order-a689f.firebaseapp.com",
+  projectId:"house-order-a689f",
+  storageBucket:"house-order-a689f.firebasestorage.app",
+  messagingSenderId:"621901289473",
+  appId:"1:621901289473:web:952c5951744cd9f5b40800"
+});
+var $=function(id){return document.getElementById(id)},W=null;
+function render(){
+  if(!W)return;
+  var now=Date.now(),r=calcWait(W,now);
+  $("load").classList.add("hide");
+  $("live").classList.toggle("hide",!r.open);$("off").classList.toggle("hide",r.open);
+  $("lv").textContent=r.total<=5?"바로 식사 가능":r.level;$("lv").className="lv "+r.level;
+  $("num").innerHTML=r.total+"<small>분</small>";
+  $("free").textContent=r.zones?r.free+"개":"확인 중";
+  $("food").textContent="약 "+r.food+"분";
+  var t=0;for(var k in (W.cams||{}))t=Math.max(t,W.cams[k].at||0);
+  if(W.food)t=Math.max(t,W.food.at||0);
+  $("upd").textContent=t?"업데이트: "+new Date(t).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"}):"";
+}
+firebase.firestore().collection("settings").doc("wait").onSnapshot(function(d){W=d.data()||{};render()},function(){$("load").textContent="잠시 후 다시 확인해주세요."});
+setInterval(render,20000);
+</script>
+</body></html>

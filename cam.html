@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>매장 카메라 · 대기시간</title>
+<style>
+:root{--bg:#f2f4f3;--card:#fff;--line:#d9e0de;--text:#1c2b2a;--muted:#5d6d6b;--accent:#1f7a5a;--accent-text:#fff;--warn:#c0392b;--busy:#d35400}
+@media (prefers-color-scheme:dark){:root{--bg:#121917;--card:#1b2522;--line:#32413d;--text:#eef3f1;--muted:#9fb0ab;--accent:#3fb68b;--accent-text:#06110d;--warn:#ff6b5b;--busy:#ff9b4a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans KR","Malgun Gothic",sans-serif}
+.hide{display:none!important}
+button,input,select{font:inherit}
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);padding:0 8px;position:sticky;top:0;background:var(--bg);z-index:5}
+.tab{flex:1;padding:14px 6px;border:0;background:none;color:var(--muted);font-size:17px;font-weight:800;border-bottom:3px solid transparent;margin-bottom:-2px;cursor:pointer}
+.tab[aria-selected="true"]{color:var(--text);border-color:var(--accent)}
+.st{font-size:13px;color:var(--muted);padding:6px 14px;display:flex;justify-content:space-between;gap:8px}
+.st b.ok{color:var(--accent)}.st b.err{color:var(--warn)}
+main{padding:8px 14px 40px;max-width:1100px;margin:0 auto}
+.card{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{min-height:48px;padding:0 18px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--text);font-weight:800;cursor:pointer}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+.btn.on{border-color:var(--busy);color:var(--busy)}
+input,select{min-height:48px;padding:0 12px;border-radius:12px;border:2px solid var(--line);background:var(--bg);color:var(--text)}
+label{font-size:14px;color:var(--muted);font-weight:700}
+.stage{position:relative;margin:10px auto 0;background:#000;border-radius:12px;overflow:hidden;touch-action:none}
+.stage video{display:block;width:100%;height:100%}
+.ov{position:absolute;inset:0}
+.z{position:absolute;border:3px solid #2ecc71;background:rgba(46,204,113,.15);border-radius:6px;color:#fff;font-weight:900;font-size:15px;padding:2px 5px;text-shadow:0 1px 3px #000}
+.z.occ{border-color:#e74c3c;background:rgba(231,76,60,.2)}
+.z.tmp{border-style:dashed;border-color:#f1c40f;background:rgba(241,196,15,.15)}
+.p{position:absolute;border:1px solid rgba(255,255,255,.7);border-radius:3px}
+.big{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.big div{background:var(--bg);border-radius:12px;padding:12px;text-align:center}
+.big b{display:block;font-size:40px;font-weight:900;color:var(--accent)}
+.big span{font-size:14px;color:var(--muted);font-weight:700}
+.lv-혼잡 b{color:var(--warn)!important}.lv-보통 b{color:var(--busy)!important}
+.note{font-size:14px;color:var(--muted);line-height:1.6;margin:8px 0 0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{padding:6px 10px;border-radius:999px;font-size:14px;font-weight:800;background:rgba(46,204,113,.18)}
+.chip.occ{background:rgba(231,76,60,.2)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.grid2 div{display:flex;flex-direction:column;gap:4px}
+#login{max-width:380px;margin:60px auto;padding:0 16px}
+#login input,#login button{width:100%;margin-top:10px}
+.err{color:var(--warn);font-weight:700;min-height:22px}
+h2{margin:0 0 8px;font-size:20px}
+a{color:var(--accent)}
+</style></head>
+<body>
+
+<div id="login" class="hide">
+  <h2>매장 카메라 · 대기시간</h2>
+  <input id="em" type="email" placeholder="이메일" autocomplete="username">
+  <input id="pw" type="password" placeholder="비밀번호" autocomplete="current-password">
+  <button id="lgo" class="btn pri">로그인</button>
+  <div id="lerr" class="err"></div>
+</div>
+
+<div id="app" class="hide">
+  <div class="tabs" role="tablist">
+    <button class="tab" data-t="cam" aria-selected="true">📷 카메라</button>
+    <button class="tab" data-t="view" aria-selected="false">👀 보기</button>
+    <button class="tab" data-t="set" aria-selected="false">⚙️ 설정</button>
+  </div>
+  <div class="st"><span id="net">연결 확인 중…</span><span><a href="#" id="lo">로그아웃</a></span></div>
+
+  <!-- 카메라 모드: 남는 폰·태블릿을 홀에 세워두고 씀 -->
+  <main id="t-cam">
+    <div class="card">
+      <h2>이 기기를 카메라로 쓰기</h2>
+      <div class="row">
+        <input id="cname" placeholder="카메라 이름 (예: 홀 앞쪽)" style="flex:1;min-width:160px">
+        <select id="csel"><option value="environment">뒤 카메라</option><option value="user">앞 카메라</option></select>
+        <button id="cstart" class="btn pri">카메라 켜기</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="edit" class="btn">✏️ 테이블 자리 그리기</button>
+        <button id="clearz" class="btn">자리 모두 지우기</button>
+        <span id="cinfo" class="note" style="margin:0"></span>
+      </div>
+      <p id="ehelp" class="note hide">화면에서 테이블 하나를 손가락으로 끌어 네모를 그리세요. 그린 네모를 누르면 지워져요. 다 그렸으면 다시 ‘그리기’ 버튼을 누르세요.</p>
+      <div id="stage" class="stage hide"><video id="vid" playsinline muted autoplay></video><div id="ov" class="ov"></div></div>
+      <div id="chips" class="chips"></div>
+      <p class="note">화면을 켜둔 채로 충전기에 꽂아 두세요. 영상은 저장·녹화되지 않고, 로그인한 직원만 ‘보기’에서 실시간으로 볼 수 있어요. 손님 화면에는 숫자(빈자리·대기시간)만 나가요.</p>
+    </div>
+  </main>
+
+  <!-- 보기 모드 -->
+  <main id="t-view" class="hide">
+    <div class="card">
+      <h2>지금 대기 상황</h2>
+      <div id="sum" class="big"></div>
+      <p id="sumnote" class="note"></p>
+      <p class="note">손님용 화면: <a id="plink" target="_blank"></a></p>
+    </div>
+    <div id="camlist"></div>
+  </main>
+
+  <!-- 설정 -->
+  <main id="t-set" class="hide">
+    <div class="card">
+      <h2>대기시간 직접 입력</h2>
+      <p class="note" style="margin-top:0">카메라 계산이 안 맞을 때 직접 넣으면 정해진 시간 동안 손님 화면에 이 숫자가 나가요.</p>
+      <div class="row" style="margin-top:8px">
+        <input id="mmin" type="number" min="0" max="120" placeholder="분" style="width:110px">
+        <select id="mfor"><option value="30">30분 동안</option><option value="60">1시간 동안</option><option value="120">2시간 동안</option></select>
+        <button id="mset" class="btn pri">적용</button>
+        <button id="mclr" class="btn">자동으로 되돌리기</button>
+      </div>
+      <p id="mnow" class="note"></p>
+    </div>
+    <div class="card">
+      <h2>계산 기준</h2>
+      <div class="grid2">
+        <div><label>전체 테이블 수</label><input id="c-tables" type="number" min="1"></div>
+        <div><label>평균 식사 시간 (분)</label><input id="c-meal" type="number" min="5"></div>
+        <div><label>기본 조리 시간 (분)</label><input id="c-base" type="number" min="0"></div>
+        <div><label>밀린 접시 1개당 추가 (분)</label><input id="c-per" type="number" step="0.1" min="0"></div>
+        <div><label>최근 몇 분 주문을 밀린 걸로 볼지</label><input id="c-win" type="number" min="1"></div>
+        <div><label>사람이 안 보이면 몇 초 뒤 빈자리로</label><input id="c-empty" type="number" min="10"></div>
+      </div>
+      <div class="row" style="margin-top:12px"><button id="cfgsave" class="btn pri">저장</button><span id="cfgmsg" class="note" style="margin:0"></span></div>
+      <p class="note">예상 대기 = 자리 대기(빈 테이블 없으면 가장 먼저 일어날 테이블까지 남은 시간) + 음식 대기(기본 조리 시간 + 밀린 접시 × 추가 시간). 예약 주문은 빼고 계산해요.</p>
+    </div>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="wait-calc.js"></script>
+<script>
+var FIREBASE_CONFIG={
+  apiKey:"AIzaSyC2zCKXtWxY9vgHf2bS_L1bvuXUUvKQpSA",
+  authDomain:"house-order-a689f.firebaseapp.com",
+  projectId:"house-order-a689f",
+  storageBucket:"house-order-a689f.firebasestorage.app",
+  messagingSenderId:"621901289473",
+  appId:"1:621901289473:web:952c5951744cd9f5b40800"
+};
+var ICE={iceServers:[{urls:["stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302"]}]};
+var $=function(id){return document.getElementById(id)};
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+var fs,auth,W={},orders=[],unsubs=[];
+var WREF=function(){return fs.collection("settings").doc("wait")};
+
+// 이 기기의 카메라 번호 (기기마다 하나)
+var CID=localStorage.getItem("camId");
+if(!CID){CID="c"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);localStorage.setItem("camId",CID)}
+$("cname").value=localStorage.getItem("camName")||"";
+
+function net(s){$("net").innerHTML=s==="ok"?'<b class="ok">● 실시간 연결됨</b>':s==="err"?'<b class="err">연결 오류 · 인터넷을 확인하세요</b>':"연결 확인 중…"}
+
+// ---------- 탭 ----------
+document.querySelectorAll(".tab").forEach(function(b){b.onclick=function(){
+  document.querySelectorAll(".tab").forEach(function(x){x.setAttribute("aria-selected",x===b)});
+  ["cam","view","set"].forEach(function(t){$("t-"+t).classList.toggle("hide",t!==b.dataset.t)});
+  if(b.dataset.t==="set")fillCfg();
+  renderView();fitAll();
+}});
+
+// ---------- 로그인 ----------
+function showLogin(m){$("app").classList.add("hide");$("login").classList.remove("hide");$("lerr").textContent=m||""}
+function doLogin(){$("lerr").textContent="";auth.signInWithEmailAndPassword($("em").value.trim(),$("pw").value).catch(function(){$("lerr").textContent="이메일 또는 비밀번호가 맞지 않아요."})}
+$("lgo").onclick=doLogin;
+$("pw").addEventListener("keydown",function(e){if(e.key==="Enter")doLogin()});
+$("lo").onclick=function(e){e.preventDefault();auth.signOut()};
+
+// ---------- 화면 비율 맞추기 (영상 위 네모가 정확히 겹치도록) ----------
+function fit(stage,video){
+  if(!video.videoWidth)return;
+  var ar=video.videoWidth/video.videoHeight,maxW=stage.parentNode.clientWidth,maxH=window.innerHeight*0.72;
+  var w=Math.min(maxW,maxH*ar);stage.style.width=w+"px";stage.style.height=(w/ar)+"px";
+}
+function fitAll(){fit($("stage"),$("vid"));document.querySelectorAll(".rstage").forEach(function(s){fit(s,s.querySelector("video"))})}
+window.addEventListener("resize",fitAll);
+
+function zoneHtml(zones,st,persons){
+  var h="";
+  (zones||[]).forEach(function(z,i){
+    var s=(st||[])[i]||{};
+    var mins=s.occ&&s.since?Math.floor((Date.now()-s.since)/60000):null;
+    h+='<div class="z'+(s.occ?" occ":"")+'" data-i="'+i+'" style="left:'+z.x*100+'%;top:'+z.y*100+'%;width:'+z.w*100+'%;height:'+z.h*100+'%">'+esc(z.n)+(mins!=null?" · "+mins+"분":"")+'</div>';
+  });
+  (persons||[]).forEach(function(p){h+='<div class="p" style="left:'+p.x*100+'%;top:'+p.y*100+'%;width:'+p.w*100+'%;height:'+p.h*100+'%"></div>'});
+  return h;
+}
+
+// ---------- 카메라 모드 ----------
+var stream=null,model=null,zones=[],zst=[],persons=[],editing=false,draft=null,lastPub=0,dirty=false,wake=null,calls={};
+
+$("cstart").onclick=async function(){
+  if(stream){stopCam();return}
+  var name=$("cname").value.trim();
+  if(!name){$("cname").focus();$("cinfo").textContent="카메라 이름을 먼저 넣어주세요.";return}
+  localStorage.setItem("camName",name);
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:$("csel").value,width:{ideal:1280},height:{ideal:720}},audio:false});
+  }catch(e){$("cinfo").textContent="카메라를 켤 수 없어요. 브라우저에서 카메라 권한을 허용해주세요.";return}
+  var v=$("vid");v.srcObject=stream;$("stage").classList.remove("hide");
+  v.onloadedmetadata=function(){fitAll()};
+  $("cstart").textContent="카메라 끄기";$("cstart").classList.remove("pri");
+  try{wake=await navigator.wakeLock.request("screen")}catch(e){}
+  var mine=W.cams&&W.cams[CID];
+  if(mine&&mine.zones&&!zones.length){zones=mine.zones;zst=zones.map(function(z,i){var o=(mine.st||[])[i]||{};return{occ:!!o.occ,since:o.since||Date.now(),last:o.occ?Date.now():0,hits:0}})}
+  $("cinfo").textContent="사람 인식 준비 중…";
+  loadModel();
+  listenCalls();
+};
+document.addEventListener("visibilitychange",async function(){if(stream&&document.visibilityState==="visible"){try{wake=await navigator.wakeLock.request("screen")}catch(e){}}});
+
+function stopCam(){
+  if(stream)stream.getTracks().forEach(function(t){t.stop()});stream=null;
+  for(var k in calls){try{calls[k].close()}catch(e){}}calls={};
+  $("stage").classList.add("hide");$("cstart").textContent="카메라 켜기";$("cstart").classList.add("pri");
+  $("cinfo").textContent="";if(wake){wake.release();wake=null}
+}
+
+function loadScript(src){return new Promise(function(ok,no){var s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=no;document.head.appendChild(s)})}
+async function loadModel(){
+  if(model)return;
+  try{
+    await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js");
+    await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js");
+    model=await cocoSsd.load({base:"lite_mobilenet_v2"});
+    $("cinfo").textContent=zones.length?"사람 인식 중 ●":"‘테이블 자리 그리기’로 테이블 위치를 표시해주세요.";
+  }catch(e){$("cinfo").textContent="사람 인식 프로그램을 못 불러왔어요. 인터넷 확인 후 새로고침하세요."}
+}
+
+var busy=false;
+setInterval(async function(){
+  if(!stream||!model||busy)return;
+  var v=$("vid");if(v.readyState<2||!v.videoWidth)return;
+  busy=true;
+  try{
+    var preds=await model.detect(v,30,0.4),W0=v.videoWidth,H0=v.videoHeight;
+    persons=preds.filter(function(p){return p.class==="person"}).map(function(p){return{x:p.bbox[0]/W0,y:p.bbox[1]/H0,w:p.bbox[2]/W0,h:p.bbox[3]/H0}});
+    var now=Date.now(),emptyMs=waitCfg(W).empty*1000,inZone=0;
+    persons.forEach(function(p){p.used=false});
+    zones.forEach(function(z,i){
+      var s=zst[i]||(zst[i]={occ:false,since:now,last:0,hits:0});
+      var hit=persons.some(function(p){
+        var cx=p.x+p.w/2,cy=p.y+p.h*0.6;
+        var ix=Math.max(0,Math.min(p.x+p.w,z.x+z.w)-Math.max(p.x,z.x)),iy=Math.max(0,Math.min(p.y+p.h,z.y+z.h)-Math.max(p.y,z.y));
+        var ok=(cx>=z.x&&cx<=z.x+z.w&&cy>=z.y&&cy<=z.y+z.h)||ix*iy>0.35*p.w*p.h;
+        if(ok&&!p.used){p.used=true;inZone++}
+        return ok;
+      });
+      if(hit){s.last=now;s.hits++;if(!s.occ&&s.hits>=2){s.occ=true;s.since=now;dirty=true}}
+      else{s.hits=0;if(s.occ&&now-s.last>emptyMs){s.occ=false;s.since=now;dirty=true}}
+    });
+    renderCam();
+    if(zones.length&&(dirty||now-lastPub>15000))publish(inZone);
+  }catch(e){}
+  busy=false;
+},2000);
+
+function renderCam(){
+  var h=zoneHtml(zones,zst,persons);
+  if(draft)h+='<div class="z tmp" style="left:'+draft.x*100+'%;top:'+draft.y*100+'%;width:'+draft.w*100+'%;height:'+draft.h*100+'%"></div>';
+  $("ov").innerHTML=h;
+  var free=zst.filter(function(s,i){return i<zones.length&&!s.occ}).length;
+  $("chips").innerHTML=zones.length?'<span class="chip">빈자리 '+free+' / '+zones.length+'</span><span class="chip">보이는 사람 '+persons.length+'명</span>':"";
+}
+
+function publish(people){
+  dirty=false;lastPub=Date.now();
+  var d={};d[CID]={name:localStorage.getItem("camName")||"카메라",zones:zones,
+    st:zones.map(function(z,i){var s=zst[i]||{};return{n:z.n,occ:!!s.occ,since:s.since||Date.now()}}),people:people||0,at:Date.now()};
+  WREF().set({cams:d},{merge:true}).catch(function(){net("err")});
+}
+function saveZones(){
+  zst=zones.map(function(z,i){return zst[i]||{occ:false,since:Date.now(),last:0,hits:0}});
+  var d={};d[CID]={zones:zones};
+  WREF().set({cams:d},{merge:true}).then(function(){publish(0)}).catch(function(){net("err")});
+}
+
+// 테이블 자리 그리기
+$("edit").onclick=function(){editing=!editing;$("edit").classList.toggle("on",editing);$("edit").textContent=editing?"✅ 그리기 끝내기":"✏️ 테이블 자리 그리기";$("ehelp").classList.toggle("hide",!editing)};
+$("clearz").onclick=function(){if(zones.length&&confirm("그려둔 테이블 자리를 모두 지울까요?")){zones=[];zst=[];var d={};d[CID]={zones:[],st:[]};WREF().set({cams:d},{merge:true});renderCam()}};
+function pt(e){var r=$("ov").getBoundingClientRect();return{x:Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),y:Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))}}
+var p0=null;
+$("ov").addEventListener("pointerdown",function(e){
+  if(!editing)return;
+  var t=e.target.closest(".z");
+  if(t&&!t.classList.contains("tmp")){var i=+t.dataset.i;if(confirm(zones[i].n+" 자리를 지울까요?")){zones.splice(i,1);zst.splice(i,1);saveZones();renderCam()}return}
+  p0=pt(e);draft={x:p0.x,y:p0.y,w:0,h:0};$("ov").setPointerCapture(e.pointerId);
+});
+$("ov").addEventListener("pointermove",function(e){if(!p0)return;var p=pt(e);draft={x:Math.min(p0.x,p.x),y:Math.min(p0.y,p.y),w:Math.abs(p.x-p0.x),h:Math.abs(p.y-p0.y)};renderCam()});
+$("ov").addEventListener("pointerup",function(){
+  if(!p0)return;var d=draft;p0=null;draft=null;
+  if(d&&d.w>0.03&&d.h>0.03){
+    var n=prompt("테이블 이름 (예: 3번)",(zones.length+1)+"번");
+    if(n){zones.push({n:n.trim().slice(0,10),x:+d.x.toFixed(4),y:+d.y.toFixed(4),w:+d.w.toFixed(4),h:+d.h.toFixed(4)});saveZones()}
+  }
+  renderCam();
+});
+
+// 카메라 기기: 보기 요청이 오면 영상 보내기 (WebRTC)
+var callUnsub=null;
+function listenCalls(){
+  if(callUnsub)return;
+  callUnsub=fs.collection("camCalls").where("cam","==",CID).onSnapshot(function(snap){
+    snap.docChanges().forEach(function(ch){
+      var d=ch.doc.data();
+      if(ch.type==="added"&&d.offer&&!d.answer&&Date.now()-d.at<60000&&stream)answerCall(ch.doc.ref,d);
+    });
+  });
+  unsubs.push(function(){callUnsub();callUnsub=null});
+}
+async function answerCall(ref,d){
+  if(Object.keys(calls).length>=3)return;
+  var pc=new RTCPeerConnection(ICE);calls[ref.id]=pc;
+  stream.getTracks().forEach(function(t){pc.addTrack(t,stream)});
+  pc.onicecandidate=function(e){if(e.candidate)ref.collection("cc").add(e.candidate.toJSON())};
+  pc.onconnectionstatechange=function(){if(["failed","closed","disconnected"].indexOf(pc.connectionState)>=0){try{pc.close()}catch(e){}delete calls[ref.id]}};
+  await pc.setRemoteDescription(d.offer);
+  var ans=await pc.createAnswer();await pc.setLocalDescription(ans);
+  await ref.update({answer:{type:ans.type,sdp:ans.sdp}});
+  ref.collection("vc").onSnapshot(function(s){s.docChanges().forEach(function(c){if(c.type==="added")pc.addIceCandidate(c.doc.data()).catch(function(){})})});
+}
+
+// ---------- 주문으로 음식 대기 계산 (로그인한 기기가 30초마다 올림) ----------
+var lastFood=0;
+function pushFood(){
+  var c=waitCfg(W),since=Date.now()-c.win*60000,n=0;
+  orders.forEach(function(o){
+    if(!Array.isArray(o.items)||o.resv||o.closed||o.status==="done"||!(o.time>since))return;
+    o.items.forEach(function(i){n+=i.qty||1});
+  });
+  if(Date.now()-lastFood<25000&&W.food&&W.food.dishes===n)return;
+  lastFood=Date.now();
+  WREF().set({food:{dishes:n,at:Date.now()}},{merge:true}).catch(function(){});
+}
+setInterval(function(){if(fs&&auth.currentUser)pushFood()},30000);
+
+// ---------- 보기 모드 ----------
+var views={};
+function renderView(){
+  var r=calcWait(W,Date.now());
+  $("sum").innerHTML=
+    '<div class="lv-'+r.level+'"><b>'+r.total+'분</b><span>예상 대기'+(r.manual!=null?" (직접 입력)":"")+'</span></div>'+
+    '<div><b>'+(r.zones?r.free+"/"+r.zones:"-")+'</b><span>빈 테이블</span></div>'+
+    '<div><b>'+(r.seat==null?"-":r.seat+"분")+'</b><span>자리 대기</span></div>'+
+    '<div><b>'+r.food+'분</b><span>음식 대기 (밀린 '+r.dishes+'접시)</span></div>';
+  $("sumnote").textContent=(r.cams?"카메라 "+r.cams+"대 작동 중 · 보이는 손님 약 "+r.people+"명":"작동 중인 카메라가 없어 음식 대기만 계산해요.")+(r.open?"":" · 지금은 홀 영업시간이 아니에요.");
+  var list=$("camlist"),camsObj=W.cams||{},keys=Object.keys(camsObj);
+  keys.forEach(function(k){
+    var c=camsObj[k],box=$("cv-"+k),live=c.at&&Date.now()-c.at<120000;
+    if(!box){box=document.createElement("div");box.className="card";box.id="cv-"+k;
+      box.innerHTML='<div class="row"><h2 style="flex:1;margin:0" class="cn"></h2><button class="btn pri vb">▶ 영상 보기</button><button class="btn rm">목록에서 빼기</button></div><div class="chips"></div><div class="stage rstage hide"><video playsinline muted autoplay></video><div class="ov"></div></div>';
+      box.querySelector(".vb").onclick=function(){toggleView(k,box)};
+      box.querySelector(".rm").onclick=function(){if(confirm("이 카메라를 목록에서 뺄까요?")){var u={};u["cams."+k]=firebase.firestore.FieldValue.delete();WREF().update(u)}};
+      box.querySelector("video").onloadedmetadata=function(){fitAll()};
+      list.appendChild(box);
+    }
+    box.querySelector(".cn").textContent=(c.name||"카메라")+(k===CID?" (이 기기)":"")+(live?" ●":" · 꺼짐");
+    var st=c.st||[];
+    box.querySelector(".chips").innerHTML=st.map(function(s){return'<span class="chip'+(s.occ?" occ":"")+'">'+esc(s.n)+" "+(s.occ?Math.floor((Date.now()-s.since)/60000)+"분째":"빈자리")+'</span>'}).join("");
+    box.querySelector(".ov").innerHTML=zoneHtml(c.zones,st);
+  });
+  list.querySelectorAll(".card").forEach(function(b){if(!camsObj[b.id.slice(3)]){closeView(b.id.slice(3));b.remove()}});
+  var m=W.manual&&W.manual.until>Date.now()?W.manual:null;
+  $("mnow").textContent=m?"지금 직접 입력값 "+m.min+"분 적용 중 ("+new Date(m.until).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"})+"까지)":"지금은 자동 계산 중이에요.";
+}
+setInterval(renderView,5000);
+
+function closeView(k){var v=views[k];if(!v)return;try{v.pc.close()}catch(e){}v.ref.delete().catch(function(){});delete views[k]}
+async function toggleView(k,box){
+  var btn=box.querySelector(".vb"),stg=box.querySelector(".stage"),vid=box.querySelector("video");
+  if(views[k]){closeView(k);stg.classList.add("hide");btn.textContent="▶ 영상 보기";return}
+  btn.textContent="연결 중…";
+  var pc=new RTCPeerConnection(ICE),ref=fs.collection("camCalls").doc();
+  views[k]={pc:pc,ref:ref};
+  pc.addTransceiver("video",{direction:"recvonly"});
+  pc.ontrack=function(e){vid.srcObject=e.streams[0]||new MediaStream([e.track]);stg.classList.remove("hide");btn.textContent="■ 영상 닫기"};
+  pc.onicecandidate=function(e){if(e.candidate)ref.collection("vc").add(e.candidate.toJSON())};
+  pc.onconnectionstatechange=function(){if(pc.connectionState==="failed"){btn.textContent="▶ 다시 연결";closeView(k)}};
+  var off=await pc.createOffer();await pc.setLocalDescription(off);
+  await ref.set({cam:k,offer:{type:off.type,sdp:off.sdp},at:Date.now()});
+  ref.onSnapshot(function(d){var x=d.data();if(x&&x.answer&&!pc.currentRemoteDescription)pc.setRemoteDescription(x.answer).catch(function(){})});
+  ref.collection("cc").onSnapshot(function(s){s.docChanges().forEach(function(c){if(c.type==="added")pc.addIceCandidate(c.doc.data()).catch(function(){})})});
+  setTimeout(function(){if(views[k]&&views[k].pc===pc&&!pc.currentRemoteDescription){closeView(k);btn.textContent="▶ 다시 연결 (카메라 기기가 켜져 있는지 확인)"}},20000);
+}
+window.addEventListener("pagehide",function(){for(var k in views)closeView(k)});
+
+// ---------- 설정 ----------
+var CF=["tables","meal","base","per","win","empty"];
+function fillCfg(){var c=waitCfg(W);CF.forEach(function(k){$("c-"+k).value=c[k]})}
+$("cfgsave").onclick=function(){
+  var c={};CF.forEach(function(k){var v=parseFloat($("c-"+k).value);c[k]=isNaN(v)?WAIT_DEFAULT[k]:v});
+  WREF().set({cfg:c},{merge:true}).then(function(){$("cfgmsg").textContent="저장했어요 ✓"}).catch(function(){$("cfgmsg").textContent="저장 실패"});
+};
+$("mset").onclick=function(){
+  var m=parseInt($("mmin").value,10);if(isNaN(m)||m<0){$("mmin").focus();return}
+  WREF().set({manual:{min:m,until:Date.now()+(+$("mfor").value)*60000}},{merge:true});
+};
+$("mclr").onclick=function(){WREF().set({manual:{min:0,until:0}},{merge:true})};
+
+// ---------- 시작 ----------
+$("plink").href=$("plink").textContent=location.href.replace(/cam\.html.*$/,"wait.html");
+function start(){
+  $("login").classList.add("hide");$("app").classList.remove("hide");net("");
+  unsubs.push(WREF().onSnapshot(function(d){W=d.data()||{};net(d.metadata.fromCache?"":"ok");renderView()},function(){net("err")}));
+  unsubs.push(fs.collection("orders").onSnapshot(function(s){orders=s.docs.map(function(x){return x.data()});pushFood()},function(){}));
+  renderView();
+}
+firebase.initializeApp(FIREBASE_CONFIG);
+auth=firebase.auth();fs=firebase.firestore();
+auth.onAuthStateChanged(function(u){
+  if(u)start();
+  else{unsubs.forEach(function(f){try{f()}catch(e){}});unsubs=[];stopCam();showLogin()}
+});
+</script>
+</body>
+</html>
