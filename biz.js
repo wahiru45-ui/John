@@ -5,7 +5,7 @@
     ceo: "민형준",
     regNo: "472-54-00945",
     addr: "광주광역시 서구 계수로59번길 4, 1층 (쌍촌동)",
-    tel: "062-385-3450",
+    tel: ["062-385-3450", "010-6572-5152"],
     mailOrder: ""          // 통신판매업 신고번호 (신고 후 입력)
   };
   function draw() {
@@ -19,7 +19,7 @@
       " <a href='https://www.ftc.go.kr/bizCommPop.do?wrkr_no=" + BIZ.regNo.replace(/-/g, "") + "' target='_blank' rel='noopener' style='color:#999'>[사업자정보확인]</a><br>" +
       (BIZ.mailOrder ? "통신판매업 신고번호 " + BIZ.mailOrder + "<br>" : "") +
       "주소 " + BIZ.addr + "<br>" +
-      "전화 <a href='tel:" + BIZ.tel.replace(/-/g, "") + "' style='color:#888'>" + BIZ.tel + "</a>";
+      "전화 " + BIZ.tel.map(function (t) { return "<a href='tel:" + t.replace(/-/g, "") + "' style='color:#888'>" + t + "</a>"; }).join(" · ");
     document.body.appendChild(f);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", draw); else draw();
