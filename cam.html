@@ -169,7 +169,7 @@ $("lo").onclick=function(e){e.preventDefault();auth.signOut()};
 // ---------- 화면 비율 맞추기 (영상 위 네모가 정확히 겹치도록) ----------
 function fit(stage,video){
   if(!video.videoWidth)return;
-  var ar=video.videoWidth/video.videoHeight,maxW=stage.parentNode.clientWidth,maxH=window.innerHeight*0.72;
+  var ar=video.videoWidth/video.videoHeight,maxW=stage.parentNode.clientWidth-28,maxH=window.innerHeight*0.72;
   var w=Math.min(maxW,maxH*ar);stage.style.width=w+"px";stage.style.height=(w/ar)+"px";
 }
 function fitAll(){fit($("stage"),$("vid"));document.querySelectorAll(".rstage").forEach(function(s){fit(s,s.querySelector("video"))})}
@@ -192,13 +192,16 @@ var stream=null,model=null,zones=[],zst=[],persons=[],editing=false,draft=null,l
 $("cstart").onclick=async function(){
   if(stream){stopCam();return}
   var name=$("cname").value.trim();
-  if(!name){$("cname").focus();$("cinfo").textContent="카메라 이름을 먼저 넣어주세요.";return}
+  if(!name){name="카메라 "+CID.slice(-3);$("cname").value=name}
   localStorage.setItem("camName",name);
   try{
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:$("csel").value,width:{ideal:1280},height:{ideal:720}},audio:false});
-  }catch(e){$("cinfo").textContent="카메라를 켤 수 없어요. 브라우저에서 카메라 권한을 허용해주세요.";return}
+  }catch(e){
+    try{stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false})}
+    catch(e2){$("cinfo").innerHTML='<b style="color:var(--warn)">카메라를 켤 수 없어요.</b> 주소창 옆 자물쇠 → 카메라 ‘허용’을 눌러주세요. 카카오톡·네이버 안에서 열었다면 <b>크롬</b>으로 열어주세요.';return}
+  }
   var v=$("vid");v.srcObject=stream;$("stage").classList.remove("hide");
-  v.onloadedmetadata=function(){fitAll()};
+  v.onloadedmetadata=function(){fitAll()};v.play().catch(function(){});setTimeout(fitAll,800);
   $("cstart").textContent="카메라 끄기";$("cstart").classList.remove("pri");
   try{wake=await navigator.wakeLock.request("screen")}catch(e){}
   var mine=W.cams&&W.cams[CID];
@@ -296,6 +299,16 @@ $("ov").addEventListener("pointerup",function(){
   renderCam();
 });
 
+// 카메라 기기: 보는 사람이 있으면 5초마다 정지화면도 올림 (영상 연결이 안 될 때 대비)
+var shotCv=document.createElement("canvas");
+setInterval(function(){
+  if(!stream)return;var v=$("vid");if(!v.videoWidth)return;
+  var want=W.watch&&W.watch[CID];if(!want||want<Date.now())return;
+  var w=640,h=Math.round(640*v.videoHeight/v.videoWidth);shotCv.width=w;shotCv.height=h;
+  shotCv.getContext("2d").drawImage(v,0,0,w,h);
+  fs.collection("camShots").doc(CID).set({img:shotCv.toDataURL("image/jpeg",0.55),at:Date.now()}).catch(function(){});
+},5000);
+
 // 카메라 기기: 보기 요청이 오면 영상 보내기 (WebRTC)
 var callUnsub=null;
 function listenCalls(){
@@ -348,7 +361,7 @@ function renderView(){
   keys.forEach(function(k){
     var c=camsObj[k],box=$("cv-"+k),live=c.at&&Date.now()-c.at<120000;
     if(!box){box=document.createElement("div");box.className="card";box.id="cv-"+k;
-      box.innerHTML='<div class="row"><h2 style="flex:1;margin:0" class="cn"></h2><button class="btn pri vb">▶ 영상 보기</button><button class="btn rm">목록에서 빼기</button></div><div class="chips"></div><div class="stage rstage hide"><video playsinline muted autoplay></video><div class="ov"></div></div>';
+      box.innerHTML='<div class="row"><h2 style="flex:1;margin:0" class="cn"></h2><button class="btn pri vb">▶ 영상 보기</button><button class="btn rm">목록에서 빼기</button></div><div class="chips"></div><div class="stage rstage hide"><video playsinline muted autoplay></video><img class="shot hide" style="display:block;width:100%;height:100%" alt="매장 화면"><div class="ov"></div></div><p class="note vmsg"></p>';
       box.querySelector(".vb").onclick=function(){toggleView(k,box)};
       box.querySelector(".rm").onclick=function(){if(confirm("이 카메라를 목록에서 뺄까요?")){var u={};u["cams."+k]=firebase.firestore.FieldValue.delete();WREF().update(u)}};
       box.querySelector("video").onloadedmetadata=function(){fitAll()};
@@ -365,22 +378,36 @@ function renderView(){
 }
 setInterval(renderView,5000);
 
-function closeView(k){var v=views[k];if(!v)return;try{v.pc.close()}catch(e){}v.ref.delete().catch(function(){});delete views[k]}
+function closeView(k){var v=views[k];if(!v)return;try{v.pc.close()}catch(e){}v.ref.delete().catch(function(){});if(v.stop)v.stop();delete views[k]}
+// 정지화면: 보는 동안 카메라 기기에 "보고 있어요" 신호를 보내고 사진을 받음
+function watchShot(k,box){
+  var img=box.querySelector(".shot"),vid=box.querySelector("video"),stg=box.querySelector(".stage"),msg=box.querySelector(".vmsg");
+  function ping(){var u={};u["watch."+k]=Date.now()+60000;WREF().update(u).catch(function(){})}
+  ping();var iv=setInterval(ping,30000);
+  var un=fs.collection("camShots").doc(k).onSnapshot(function(d){
+    var x=d.data();if(!x||!x.img||Date.now()-x.at>60000)return;
+    if(!vid.srcObject){img.src=x.img;img.classList.remove("hide");vid.classList.add("hide");stg.classList.remove("hide");
+      img.onload=function(){fit(stg,{videoWidth:img.naturalWidth,videoHeight:img.naturalHeight})};
+      msg.textContent="정지화면 · "+new Date(x.at).toLocaleTimeString("ko-KR")}
+  });
+  setTimeout(function(){if(views[k])views[k].stop=function(){clearInterval(iv);un()}},0);
+}
 async function toggleView(k,box){
-  var btn=box.querySelector(".vb"),stg=box.querySelector(".stage"),vid=box.querySelector("video");
-  if(views[k]){closeView(k);stg.classList.add("hide");btn.textContent="▶ 영상 보기";return}
-  btn.textContent="연결 중…";
+  var btn=box.querySelector(".vb"),stg=box.querySelector(".stage"),vid=box.querySelector("video"),img=box.querySelector(".shot"),msg=box.querySelector(".vmsg");
+  if(views[k]){closeView(k);stg.classList.add("hide");btn.textContent="▶ 영상 보기";msg.textContent="";return}
+  btn.textContent="연결 중…";msg.textContent="카메라 기기에 연결하는 중이에요. 잠시 뒤 정지화면이라도 먼저 보여드려요.";
+  watchShot(k,box);
   var pc=new RTCPeerConnection(ICE),ref=fs.collection("camCalls").doc();
   views[k]={pc:pc,ref:ref};
   pc.addTransceiver("video",{direction:"recvonly"});
-  pc.ontrack=function(e){vid.srcObject=e.streams[0]||new MediaStream([e.track]);stg.classList.remove("hide");btn.textContent="■ 영상 닫기"};
+  pc.ontrack=function(e){vid.srcObject=e.streams[0]||new MediaStream([e.track]);vid.play().catch(function(){});vid.classList.remove("hide");img.classList.add("hide");stg.classList.remove("hide");btn.textContent="■ 영상 닫기";msg.textContent="실시간 영상"};
   pc.onicecandidate=function(e){if(e.candidate)ref.collection("vc").add(e.candidate.toJSON())};
-  pc.onconnectionstatechange=function(){if(pc.connectionState==="failed"){btn.textContent="▶ 다시 연결";closeView(k)}};
+  pc.onconnectionstatechange=function(){if(pc.connectionState==="failed"){msg.textContent="실시간 영상 연결이 안 돼서 5초마다 바뀌는 정지화면으로 보여드려요.";try{pc.close()}catch(e){}}};
   var off=await pc.createOffer();await pc.setLocalDescription(off);
   await ref.set({cam:k,offer:{type:off.type,sdp:off.sdp},at:Date.now()});
   ref.onSnapshot(function(d){var x=d.data();if(x&&x.answer&&!pc.currentRemoteDescription)pc.setRemoteDescription(x.answer).catch(function(){})});
   ref.collection("cc").onSnapshot(function(s){s.docChanges().forEach(function(c){if(c.type==="added")pc.addIceCandidate(c.doc.data()).catch(function(){})})});
-  setTimeout(function(){if(views[k]&&views[k].pc===pc&&!pc.currentRemoteDescription){closeView(k);btn.textContent="▶ 다시 연결 (카메라 기기가 켜져 있는지 확인)"}},20000);
+  setTimeout(function(){if(views[k]&&views[k].pc===pc&&!pc.currentRemoteDescription){msg.textContent="카메라 기기가 응답이 없어요. 그 기기에서 cam.html ‘카메라 켜기’가 눌러져 있고 화면이 켜져 있는지 확인해주세요.";btn.textContent="■ 닫기"}},20000);
 }
 window.addEventListener("pagehide",function(){for(var k in views)closeView(k)});
 
