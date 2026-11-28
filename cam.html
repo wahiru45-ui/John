@@ -44,6 +44,15 @@ label{font-size:14px;color:var(--muted);font-weight:700}
 #login input,#login button{width:100%;margin-top:10px}
 .err{color:var(--warn);font-weight:700;min-height:22px}
 h2{margin:0 0 8px;font-size:20px}
+.camgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.camgrid .card{padding:8px;margin:0}
+.camgrid h2{font-size:16px}
+.camgrid .btn{min-height:36px;padding:0 10px;font-size:13px}
+.camgrid .stage{margin-top:6px;border-radius:8px}
+.camgrid .z{font-size:11px;border-width:2px;padding:0 3px}
+.camgrid .chip{font-size:12px;padding:3px 7px}
+.camgrid .note{font-size:12px;margin-top:4px}
+@media (max-width:360px){.camgrid{grid-template-columns:1fr}}
 a{color:var(--accent)}
 </style></head>
 <body>
@@ -87,13 +96,13 @@ a{color:var(--accent)}
 
   <!-- 보기 모드 -->
   <main id="t-view" class="hide">
+    <div id="camlist" class="camgrid" style="margin-bottom:12px"></div>
     <div class="card">
       <h2>지금 대기 상황</h2>
       <div id="sum" class="big"></div>
       <p id="sumnote" class="note"></p>
       <p class="note">손님용 화면: <a id="plink" target="_blank"></a></p>
     </div>
-    <div id="camlist"></div>
   </main>
 
   <!-- 설정 -->
@@ -169,7 +178,7 @@ $("lo").onclick=function(e){e.preventDefault();auth.signOut()};
 // ---------- 화면 비율 맞추기 (영상 위 네모가 정확히 겹치도록) ----------
 function fit(stage,video){
   if(!video.videoWidth)return;
-  var ar=video.videoWidth/video.videoHeight,maxW=stage.parentNode.clientWidth-28,maxH=window.innerHeight*0.72;
+  var ar=video.videoWidth/video.videoHeight,cs=getComputedStyle(stage.parentNode),maxW=stage.parentNode.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight),maxH=window.innerHeight*0.72;
   var w=Math.min(maxW,maxH*ar);stage.style.width=w+"px";stage.style.height=(w/ar)+"px";
 }
 function fitAll(){fit($("stage"),$("vid"));document.querySelectorAll(".rstage").forEach(function(s){fit(s,s.querySelector("video"))})}
@@ -207,14 +216,17 @@ $("cstart").onclick=async function(){
   var mine=W.cams&&W.cams[CID];
   if(mine&&mine.zones&&!zones.length){zones=mine.zones;zst=zones.map(function(z,i){var o=(mine.st||[])[i]||{};return{occ:!!o.occ,since:o.since||Date.now(),last:o.occ?Date.now():0,hits:0}})}
   $("cinfo").textContent="사람 인식 준비 중…";
+  publish(0);
   loadModel();
   listenCalls();
 };
 document.addEventListener("visibilitychange",async function(){if(stream&&document.visibilityState==="visible"){try{wake=await navigator.wakeLock.request("screen")}catch(e){}}});
 
 function stopCam(){
+  if(!stream)return;
   if(stream)stream.getTracks().forEach(function(t){t.stop()});stream=null;
   for(var k in calls){try{calls[k].close()}catch(e){}}calls={};
+  var off={};off[CID]={at:0};WREF().set({cams:off},{merge:true}).catch(function(){});
   $("stage").classList.add("hide");$("cstart").textContent="카메라 켜기";$("cstart").classList.add("pri");
   $("cinfo").textContent="";if(wake){wake.release();wake=null}
 }
@@ -266,7 +278,10 @@ function renderCam(){
   $("chips").innerHTML=zones.length?'<span class="chip">빈자리 '+free+' / '+zones.length+'</span><span class="chip">보이는 사람 '+persons.length+'명</span>':"";
 }
 
+var lastPeople=0;
+setInterval(function(){if(stream&&Date.now()-lastPub>15000)publish(lastPeople)},5000);
 function publish(people){
+  lastPeople=people||0;
   dirty=false;lastPub=Date.now();
   var d={};d[CID]={name:localStorage.getItem("camName")||"카메라",zones:zones,
     st:zones.map(function(z,i){var s=zst[i]||{};return{n:z.n,occ:!!s.occ,since:s.since||Date.now()}}),people:people||0,at:Date.now()};
@@ -348,7 +363,7 @@ function pushFood(){
 setInterval(function(){if(fs&&auth.currentUser)pushFood()},30000);
 
 // ---------- 보기 모드 ----------
-var views={};
+var views={},autoT={};
 function renderView(){
   var r=calcWait(W,Date.now());
   $("sum").innerHTML=
@@ -361,12 +376,18 @@ function renderView(){
   keys.forEach(function(k){
     var c=camsObj[k],box=$("cv-"+k),live=c.at&&Date.now()-c.at<120000;
     if(!box){box=document.createElement("div");box.className="card";box.id="cv-"+k;
-      box.innerHTML='<div class="row"><h2 style="flex:1;margin:0" class="cn"></h2><button class="btn pri vb">▶ 영상 보기</button><button class="btn rm">목록에서 빼기</button></div><div class="chips"></div><div class="stage rstage hide"><video playsinline muted autoplay></video><img class="shot hide" style="display:block;width:100%;height:100%" alt="매장 화면"><div class="ov"></div></div><p class="note vmsg"></p>';
-      box.querySelector(".vb").onclick=function(){toggleView(k,box)};
+      box.innerHTML='<h2 class="cn" style="margin:0"></h2><div class="row" style="margin-top:4px"><button class="btn vb">■ 닫기</button><button class="btn rm">목록에서 빼기</button></div><div class="chips"></div><div class="stage rstage hide"><video playsinline muted autoplay></video><img class="shot hide" style="display:block;width:100%;height:100%" alt="매장 화면"><div class="ov"></div></div><p class="note vmsg"></p>';
+      box.querySelector(".vb").onclick=function(){autoT[k]=views[k]?Infinity:Date.now();toggleView(k,box)};
       box.querySelector(".rm").onclick=function(){if(confirm("이 카메라를 목록에서 뺄까요?")){var u={};u["cams."+k]=firebase.firestore.FieldValue.delete();WREF().update(u)}};
       box.querySelector("video").onloadedmetadata=function(){fitAll()};
       list.appendChild(box);
     }
+    // 켜진 카메라는 자동으로 화면 연결
+    var tried=autoT[k]||0;
+    if(live&&!views[k]&&Date.now()-tried>30000&&!$("t-view").classList.contains("hide")){autoT[k]=Date.now();
+      if(k===CID&&stream){var lv=box.querySelector("video");lv.srcObject=stream;lv.play().catch(function(){});box.querySelector(".stage").classList.remove("hide");views[k]={pc:{close:function(){}},ref:{delete:function(){return Promise.resolve()}},local:true}}
+      else toggleView(k,box)}
+    if(!live&&views[k]&&!views[k].local){closeView(k);box.querySelector(".stage").classList.add("hide");box.querySelector(".vmsg").textContent="카메라가 꺼져 있어요."}
     box.querySelector(".cn").textContent=(c.name||"카메라")+(k===CID?" (이 기기)":"")+(live?" ●":" · 꺼짐");
     var st=c.st||[];
     box.querySelector(".chips").innerHTML=st.map(function(s){return'<span class="chip'+(s.occ?" occ":"")+'">'+esc(s.n)+" "+(s.occ?Math.floor((Date.now()-s.since)/60000)+"분째":"빈자리")+'</span>'}).join("");
